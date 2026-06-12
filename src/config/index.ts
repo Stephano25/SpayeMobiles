@@ -1,6 +1,6 @@
-// Remplacez IP par l'adresse de votre ordinateur (ipconfig)
-export const API_URL = 'http://192.168.1.100:3000/api';
-export const SOCKET_URL = 'http://192.168.1.100:3000';
+// Utilisez l'IP récupérée depuis ipconfig (Wi-Fi)
+export const API_URL = 'http://192.168.188.135:3000/api';
+export const SOCKET_URL = 'http://192.168.188.135:3000';
 
 export const COLORS = {
   primary: '#667eea',
