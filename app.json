@@ -11,7 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#667eea"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.spaye.mobile"
@@ -45,7 +47,8 @@
         {
           "photosPermission": "SPaye a besoin d'accéder à votre galerie pour partager des images."
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "scheme": "spaye"
   }
