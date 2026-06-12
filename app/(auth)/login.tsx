@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../src/context/AuthContext';
 import { COLORS } from '../../src/config';
+import { router } from 'expo-router';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -28,6 +29,9 @@ export default function LoginScreen() {
       <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
         {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Se connecter</Text>}
       </TouchableOpacity>
+      <TouchableOpacity onPress={() => router.push('/(auth)/register')} style={styles.registerLink}>
+        <Text style={styles.registerText}>Pas encore de compte ? Inscrivez-vous</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -38,4 +42,6 @@ const styles = StyleSheet.create({
   input: { backgroundColor: 'white', borderRadius: 10, padding: 15, marginBottom: 15, fontSize: 16 },
   button: { backgroundColor: COLORS.white, padding: 15, borderRadius: 10, alignItems: 'center' },
   buttonText: { color: COLORS.primary, fontWeight: 'bold', fontSize: 16 },
+  registerLink: { marginTop: 20, alignItems: 'center' },
+  registerText: { color: 'white', fontSize: 14, textDecorationLine: 'underline' },
 });

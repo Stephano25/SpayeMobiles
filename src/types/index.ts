@@ -17,3 +17,21 @@ export interface LoginResponse {
   access_token: string;
   user: User;
 }
+
+export interface Friend {
+  id: string;
+  userId: string;
+  friendId: string;
+  status: 'pending' | 'accepted' | 'blocked' | 'deleted';
+  createdAt: string;
+  friend?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    profilePicture?: string;
+    isOnline?: boolean;
+    lastSeen?: string;
+  };
+  blockedBy?: string;
+}

@@ -2,15 +2,48 @@ import api from './api';
 import { Friend } from '../types';
 
 export const FriendService = {
-  getFriends: () => api.get<Friend[]>('/friends').then(res => res.data),
-  getFriendRequests: () => api.get<any[]>('/friends/requests').then(res => res.data),
-  getSuggestions: () => api.get<any[]>('/friends/suggestions').then(res => res.data),
-  getBlockedUsers: () => api.get<Friend[]>('/friends/blocked').then(res => res.data),
-  searchUsers: (query: string) => api.get<any[]>('/friends/search', { params: { q: query } }).then(res => res.data),
-  sendFriendRequest: (friendId: string) => api.post(`/friends/request/${friendId}`).then(res => res.data),
-  acceptFriendRequest: (requestId: string) => api.post(`/friends/accept/${requestId}`).then(res => res.data),
-  declineFriendRequest: (requestId: string) => api.post(`/friends/decline/${requestId}`).then(res => res.data),
-  removeFriend: (friendId: string) => api.delete(`/friends/${friendId}`).then(res => res.data),
-  blockUser: (userId: string) => api.post(`/friends/block/${userId}`).then(res => res.data),
-  unblockUser: (userId: string) => api.post(`/friends/unblock/${userId}`).then(res => res.data),
+  getFriends: async (): Promise<Friend[]> => {
+    const response = await api.get('/friends');
+    return Array.isArray(response.data) ? response.data : [];
+  },
+  getFriendRequests: async (): Promise<any[]> => {
+    const response = await api.get('/friends/requests');
+    return response.data;
+  },
+  getSuggestions: async (): Promise<any[]> => {
+    const response = await api.get('/friends/suggestions');
+    return response.data;
+  },
+  getBlockedUsers: async (): Promise<Friend[]> => {
+    const response = await api.get('/friends/blocked');
+    return response.data;
+  },
+  searchUsers: async (query: string): Promise<any[]> => {
+    const response = await api.get('/friends/search', { params: { q: query } });
+    return response.data;
+  },
+  sendFriendRequest: async (friendId: string): Promise<any> => {
+    const response = await api.post(`/friends/request/${friendId}`);
+    return response.data;
+  },
+  acceptFriendRequest: async (requestId: string): Promise<any> => {
+    const response = await api.post(`/friends/accept/${requestId}`);
+    return response.data;
+  },
+  declineFriendRequest: async (requestId: string): Promise<any> => {
+    const response = await api.post(`/friends/decline/${requestId}`);
+    return response.data;
+  },
+  removeFriend: async (friendId: string): Promise<any> => {
+    const response = await api.delete(`/friends/${friendId}`);
+    return response.data;
+  },
+  blockUser: async (userId: string): Promise<any> => {
+    const response = await api.post(`/friends/block/${userId}`);
+    return response.data;
+  },
+  unblockUser: async (userId: string): Promise<any> => {
+    const response = await api.post(`/friends/unblock/${userId}`);
+    return response.data;
+  },
 };

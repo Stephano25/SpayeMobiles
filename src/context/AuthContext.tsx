@@ -9,6 +9,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,8 +55,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     router.replace('/login');
   };
 
+  const updateProfile = async (data: Partial<User>) => {
+    const response = await api.put<User>('/users/profile', data);
+    const updatedUser = response.data;
+    await storage.setItem('user', updatedUser);
+    setUser(updatedUser);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );
