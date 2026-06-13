@@ -8,8 +8,10 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (data: { firstName: string; lastName: string; email: string; password: string; phoneNumber?: string }) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
+  getToken: () => string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,6 +24,7 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -29,11 +32,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loadUser = async () => {
-    const token = await storage.getItem<string>('token');
+    const storedToken = await storage.getItem<string>('token');
     const userData = await storage.getItem<User>('user');
-    if (token && userData) {
+    if (storedToken && userData) {
       setUser(userData);
-      api.defaults.headers.Authorization = `Bearer ${token}`;
+      setToken(storedToken);
+      api.defaults.headers.Authorization = `Bearer ${storedToken}`;
     }
     setIsLoading(false);
   };
@@ -44,7 +48,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await storage.setItem('token', access_token);
     await storage.setItem('user', userData);
     api.defaults.headers.Authorization = `Bearer ${access_token}`;
+    setToken(access_token);
     setUser(userData);
+    const isAdmin = userData.role === 'admin' || userData.role === 'super_admin';
+    router.replace(isAdmin ? '/(admin)' : '/(user)');
+  };
+
+  const register = async (data: { firstName: string; lastName: string; email: string; password: string; phoneNumber?: string }) => {
+    const res = await api.post<LoginResponse>('/auth/register', data);
+    const { access_token, user: userData } = res.data;
+    await storage.setItem('token', access_token);
+    await storage.setItem('user', userData);
+    api.defaults.headers.Authorization = `Bearer ${access_token}`;
+    setToken(access_token);
+    setUser(userData);
+    router.replace('/(user)');
   };
 
   const logout = async () => {
@@ -52,7 +70,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await storage.removeItem('user');
     delete api.defaults.headers.Authorization;
     setUser(null);
-    router.replace('/login');
+    setToken(null);
+    router.replace('/(auth)/login');
   };
 
   const updateProfile = async (data: Partial<User>) => {
@@ -62,8 +81,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(updatedUser);
   };
 
+  const getToken = () => token;
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, updateProfile }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, updateProfile, getToken }}>
       {children}
     </AuthContext.Provider>
   );

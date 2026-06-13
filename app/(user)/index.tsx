@@ -1,23 +1,163 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { useAuth } from '../../src/context/AuthContext';
-import { COLORS, formatAmount } from '../../src/config';
+import { useTheme } from '../../src/context/ThemeContext';
+import { useNotification } from '../../src/context/NotificationContext';
+import { WalletService } from '../../src/services/WalletService';
+import { TransactionService } from '../../src/services/TransactionService';
+import { COLORS, formatAmount, getInitials } from '../../src/config';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function UserHome() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const { colors } = useTheme();
+  const { showError } = useNotification();
+  const [balance, setBalance] = useState(0);
+  const [recentTx, setRecentTx] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = async () => {
+    try {
+      const [wallet, tx] = await Promise.all([
+        WalletService.getWallet(),
+        TransactionService.getUserTransactions(),
+      ]);
+      setBalance(wallet.balance);
+      setRecentTx(tx.slice(0, 5));
+    } catch (e) {
+      showError('Erreur de chargement');
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
+
+  const quickActions = [
+    { label: 'Envoyer', icon: 'arrow-up-circle-outline', color: COLORS.primary, route: '/(user)/send-money' },
+    { label: 'Recevoir', icon: 'arrow-down-circle-outline', color: COLORS.success, route: '/(user)/receive-money' },
+    { label: 'Mobile Money', icon: 'phone-portrait-outline', color: COLORS.warning, route: '/(user)/mobile-money' },
+    { label: 'Scanner', icon: 'qr-code-outline', color: COLORS.secondary, route: '/(user)/scan-pay' },
+    { label: 'Amis', icon: 'people-outline', color: COLORS.info, route: '/(user)/friends' },
+    { label: 'Historique', icon: 'time-outline', color: COLORS.gray600, route: '/(user)/transactions' },
+  ];
+
+  const getTransactionIcon = (type: string) => {
+    switch (type) {
+      case 'deposit': case 'receive': return 'arrow-down-circle';
+      case 'withdrawal': case 'send': return 'arrow-up-circle';
+      case 'mobile_money': return 'phone-portrait';
+      default: return 'swap-horizontal';
+    }
+  };
+  const getTransactionColor = (type: string) =>
+    type === 'deposit' || type === 'receive' ? COLORS.success : COLORS.error;
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.welcome}>Bienvenue {user?.firstName} {user?.lastName}</Text>
-      <Text style={styles.balance}>Solde : {formatAmount(user?.balance || 0)} Ar</Text>
-      <TouchableOpacity style={styles.button} onPress={() => router.push('/(user)/wallet')}><Text>Portefeuille</Text></TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={logout}><Text>Déconnexion</Text></TouchableOpacity>
-    </View>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+    >
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.greeting}>Bonjour 👋</Text>
+            <Text style={styles.userName}>{user?.firstName} {user?.lastName}</Text>
+          </View>
+          <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(user)/profile')}>
+            <Text style={styles.avatarText}>{getInitials(user?.firstName || '', user?.lastName || '')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.balanceBox}>
+          <Text style={styles.balanceLabel}>Solde disponible</Text>
+          <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
+        </View>
+      </View>
+
+      {/* Quick actions */}
+      <View style={styles.actionsGrid}>
+        {quickActions.map((a) => (
+          <TouchableOpacity
+            key={a.label}
+            style={[styles.actionCard, { backgroundColor: colors.card }]}
+            onPress={() => router.push(a.route as any)}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: a.color + '20' }]}>
+              <Ionicons name={a.icon as any} size={22} color={a.color} />
+            </View>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>{a.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Recent transactions */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Transactions récentes</Text>
+          <TouchableOpacity onPress={() => router.push('/(user)/transactions')}>
+            <Text style={styles.seeAll}>Voir tout</Text>
+          </TouchableOpacity>
+        </View>
+
+        {recentTx.length === 0 ? (
+          <Text style={styles.empty}>Aucune transaction récente</Text>
+        ) : (
+          recentTx.map((tx) => (
+            <View key={tx.id} style={[styles.txItem, { backgroundColor: colors.card }]}>
+              <View style={[styles.txIcon, { backgroundColor: getTransactionColor(tx.type) + '20' }]}>
+                <Ionicons name={getTransactionIcon(tx.type) as any} size={20} color={getTransactionColor(tx.type)} />
+              </View>
+              <View style={styles.txInfo}>
+                <Text style={[styles.txDesc, { color: colors.text }]}>{tx.description || tx.type}</Text>
+                <Text style={styles.txDate}>{new Date(tx.createdAt).toLocaleDateString('fr-MG')}</Text>
+              </View>
+              <Text style={[styles.txAmount, { color: getTransactionColor(tx.type) }]}>
+                {tx.type === 'deposit' || tx.type === 'receive' ? '+' : '-'}{formatAmount(tx.amount)} Ar
+              </Text>
+            </View>
+          ))
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: COLORS.gray50 },
-  welcome: { fontSize: 24, marginBottom: 20 },
-  balance: { fontSize: 18, color: COLORS.primary, marginBottom: 20 },
-  button: { backgroundColor: COLORS.primary, padding: 12, borderRadius: 8, marginVertical: 5, alignItems: 'center' },
+  container: { flex: 1 },
+  header: { paddingTop: 60, paddingBottom: 30, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  greeting: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
+  userName: { color: COLORS.white, fontSize: 20, fontWeight: 'bold', marginTop: 2 },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
+  balanceBox: { marginTop: 24 },
+  balanceLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
+  balanceAmount: { color: COLORS.white, fontSize: 32, fontWeight: 'bold', marginTop: 4 },
+  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 20, gap: 12 },
+  actionCard: {
+    width: '30%',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  actionIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  actionLabel: { fontSize: 12, fontWeight: '500', textAlign: 'center' },
+  section: { marginTop: 24, paddingHorizontal: 20, marginBottom: 40 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitle: { fontSize: 17, fontWeight: 'bold' },
+  seeAll: { color: COLORS.primary, fontSize: 13, fontWeight: '500' },
+  empty: { textAlign: 'center', color: COLORS.gray500, marginTop: 20 },
+  txItem: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, marginBottom: 8 },
+  txIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  txInfo: { flex: 1 },
+  txDesc: { fontSize: 14, fontWeight: '500' },
+  txDate: { fontSize: 12, color: COLORS.gray500, marginTop: 2 },
+  txAmount: { fontSize: 14, fontWeight: 'bold' },
 });
