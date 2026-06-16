@@ -4,10 +4,10 @@
     "slug": "spayemobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/image02.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/image02.png",
       "resizeMode": "contain",
       "backgroundColor": "#667eea"
     },
@@ -23,7 +23,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/image02.png",
         "backgroundColor": "#667eea"
       },
       "package": "com.spaye.mobile",
@@ -35,7 +35,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/image02.png"
     },
     "plugins": [
       "expo-router",
