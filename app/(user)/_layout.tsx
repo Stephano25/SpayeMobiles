@@ -43,6 +43,7 @@ export default function UserLayout() {
           ),
         }}
       />
+      {/* Écrans accessibles sans onglet visible */}
       <Tabs.Screen name="send-money" options={{ href: null }} />
       <Tabs.Screen name="receive-money" options={{ href: null }} />
       <Tabs.Screen name="mobile-money" options={{ href: null }} />

@@ -53,7 +53,9 @@ export default function UserHome() {
     { label: 'Mobile Money', icon: 'phone-portrait-outline', color: COLORS.warning, route: '/(user)/mobile-money' },
     { label: 'Scanner', icon: 'qr-code-outline', color: COLORS.secondary, route: '/(user)/scan-pay' },
     { label: 'Amis', icon: 'people-outline', color: COLORS.info, route: '/(user)/friends' },
+    { label: 'Messages', icon: 'chatbubbles-outline', color: COLORS.primary, route: '/(user)/chat' },
     { label: 'Historique', icon: 'time-outline', color: COLORS.gray600, route: '/(user)/transactions' },
+    { label: 'Paramètres', icon: 'settings-outline', color: COLORS.gray600, route: '/(user)/settings' },
   ];
 
   const getTransactionIcon = (type: string) => {
@@ -79,6 +81,7 @@ export default function UserHome() {
       style={[styles.container, { backgroundColor: colors.background }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
+      {/* Header */}
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <View style={styles.headerTop}>
           <View>
@@ -103,6 +106,7 @@ export default function UserHome() {
         </View>
       </View>
 
+      {/* Actions rapides - 4 par ligne */}
       <View style={styles.actionsGrid}>
         {quickActions.map((a) => (
           <TouchableOpacity
@@ -118,6 +122,7 @@ export default function UserHome() {
         ))}
       </View>
 
+      {/* Transactions récentes */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -232,9 +237,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionCard: {
-    width: '30%',
+    width: '22%',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -248,10 +253,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   actionLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
     textAlign: 'center',
   },
