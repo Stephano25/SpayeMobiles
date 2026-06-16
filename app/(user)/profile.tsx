@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  Alert,
+} from 'react-native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { COLORS, formatAmount, getInitials } from '../../src/config';
@@ -34,7 +42,9 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()}><Text style={styles.backText}>←</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Text style={styles.backText}>←</Text>
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Mon Profil</Text>
         <TouchableOpacity onPress={() => setEditMode(!editMode)}>
           <Text style={styles.editButton}>{editMode ? 'Annuler' : '✏️'}</Text>
@@ -42,7 +52,9 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.avatarContainer}>
-        <Text style={styles.avatarText}>{getInitials(user?.firstName || '', user?.lastName || '')}</Text>
+        <Text style={styles.avatarText}>
+          {getInitials(user?.firstName || '', user?.lastName || '')}
+        </Text>
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.card }]}>
@@ -51,19 +63,19 @@ export default function ProfileScreen() {
             <TextInput
               style={styles.input}
               value={form.firstName}
-              onChangeText={t => setForm({ ...form, firstName: t })}
+              onChangeText={(t) => setForm({ ...form, firstName: t })}
               placeholder="Prénom"
             />
             <TextInput
               style={styles.input}
               value={form.lastName}
-              onChangeText={t => setForm({ ...form, lastName: t })}
+              onChangeText={(t) => setForm({ ...form, lastName: t })}
               placeholder="Nom"
             />
             <TextInput
               style={styles.input}
               value={form.email}
-              onChangeText={t => setForm({ ...form, email: t })}
+              onChangeText={(t) => setForm({ ...form, email: t })}
               placeholder="Email"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -71,7 +83,7 @@ export default function ProfileScreen() {
             <TextInput
               style={styles.input}
               value={form.phoneNumber}
-              onChangeText={t => setForm({ ...form, phoneNumber: t })}
+              onChangeText={(t) => setForm({ ...form, phoneNumber: t })}
               placeholder="Téléphone"
               keyboardType="phone-pad"
             />
@@ -81,12 +93,24 @@ export default function ProfileScreen() {
           </>
         ) : (
           <>
-            <Text style={styles.row}><Text style={styles.label}>Prénom :</Text> {user?.firstName}</Text>
-            <Text style={styles.row}><Text style={styles.label}>Nom :</Text> {user?.lastName}</Text>
-            <Text style={styles.row}><Text style={styles.label}>Email :</Text> {user?.email}</Text>
-            <Text style={styles.row}><Text style={styles.label}>Téléphone :</Text> {user?.phoneNumber || 'Non renseigné'}</Text>
-            <Text style={styles.row}><Text style={styles.label}>Solde :</Text> {formatAmount(user?.balance || 0)} Ar</Text>
-            <Text style={styles.row}><Text style={styles.label}>QR Code :</Text> {user?.qrCode}</Text>
+            <Text style={styles.row}>
+              <Text style={styles.label}>Prénom :</Text> {user?.firstName}
+            </Text>
+            <Text style={styles.row}>
+              <Text style={styles.label}>Nom :</Text> {user?.lastName}
+            </Text>
+            <Text style={styles.row}>
+              <Text style={styles.label}>Email :</Text> {user?.email}
+            </Text>
+            <Text style={styles.row}>
+              <Text style={styles.label}>Téléphone :</Text> {user?.phoneNumber || 'Non renseigné'}
+            </Text>
+            <Text style={styles.row}>
+              <Text style={styles.label}>Solde :</Text> {formatAmount(user?.balance || 0)} Ar
+            </Text>
+            <Text style={styles.row}>
+              <Text style={styles.label}>QR Code :</Text> {user?.qrCode}
+            </Text>
           </>
         )}
       </View>

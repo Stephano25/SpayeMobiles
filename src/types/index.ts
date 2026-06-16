@@ -38,7 +38,6 @@ export interface Friend {
   blockedBy?: string;
 }
 
-// GET /wallet -> { balance: number } UNIQUEMENT (WalletService.getWallet côté NestJS)
 export interface Wallet {
   balance: number;
 }
@@ -74,7 +73,6 @@ export interface Transaction {
   updatedAt?: string;
 }
 
-// GET /transactions/user/stats -> TransactionsService.getDashboardStats()
 export interface DashboardStats {
   totalBalance: number;
   totalTransactions: number;
@@ -96,7 +94,6 @@ export interface TopUser {
   totalVolume: number;
 }
 
-// GET /admin/dashboard/stats -> AdminService.getDashboardStats()
 export interface AdminDashboardStats {
   totalUsers: number;
   activeUsers: number;
@@ -108,7 +105,6 @@ export interface AdminDashboardStats {
   topUsers: TopUser[];
 }
 
-// GET /chat/conversations -> ChatService.getConversations() (agrégation Mongo)
 export interface Conversation {
   userId: string;
   firstName: string;
@@ -122,7 +118,6 @@ export interface Conversation {
 
 export type MessageType = 'text' | 'image' | 'file' | 'emoji' | 'money';
 
-// GET /chat/messages/:userId -> MessageResponseDto
 export interface Message {
   id: string;
   senderId: string;

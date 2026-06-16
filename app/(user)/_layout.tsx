@@ -4,10 +4,46 @@ import { COLORS } from '../../src/config';
 
 export default function UserLayout() {
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: COLORS.primary, tabBarInactiveTintColor: COLORS.gray400 }}>
-      <Tabs.Screen name="index" options={{ title: 'Accueil', tabBarIcon: ({color,size}) => <Ionicons name="home-outline" size={size} color={color} /> }} />
-      <Tabs.Screen name="wallet" options={{ title: 'Portefeuille', tabBarIcon: ({color,size}) => <Ionicons name="wallet-outline" size={size} color={color} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profil', tabBarIcon: ({color,size}) => <Ionicons name="person-outline" size={size} color={color} /> }} />
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.gray400,
+        tabBarStyle: {
+          borderTopColor: COLORS.gray200,
+          paddingBottom: 5,
+          paddingTop: 5,
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Accueil',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="wallet"
+        options={{
+          title: 'Portefeuille',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="wallet-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profil',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      {/* Écrans accessibles sans onglet visible */}
       <Tabs.Screen name="send-money" options={{ href: null }} />
       <Tabs.Screen name="receive-money" options={{ href: null }} />
       <Tabs.Screen name="mobile-money" options={{ href: null }} />

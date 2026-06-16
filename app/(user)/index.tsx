@@ -1,13 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { WalletService } from '../../src/services/WalletService';
 import { TransactionService } from '../../src/services/TransactionService';
 import { COLORS, formatAmount, getInitials } from '../../src/config';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
 export default function UserHome() {
   const { user } = useAuth();
@@ -23,15 +30,22 @@ export default function UserHome() {
         WalletService.getWallet(),
         TransactionService.getUserTransactions(),
       ]);
-      setBalance(wallet.balance);
-      setRecentTx(tx.slice(0, 5));
+      setBalance(wallet.balance || 0);
+      setRecentTx((tx || []).slice(0, 5));
     } catch (e) {
       showError('Erreur de chargement');
     }
   };
 
-  useEffect(() => { load(); }, []);
-  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
+  useEffect(() => {
+    load();
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
 
   const quickActions = [
     { label: 'Envoyer', icon: 'arrow-up-circle-outline', color: COLORS.primary, route: '/(user)/send-money' },
@@ -44,12 +58,19 @@ export default function UserHome() {
 
   const getTransactionIcon = (type: string) => {
     switch (type) {
-      case 'deposit': case 'receive': return 'arrow-down-circle';
-      case 'withdrawal': case 'send': return 'arrow-up-circle';
-      case 'mobile_money': return 'phone-portrait';
-      default: return 'swap-horizontal';
+      case 'deposit':
+      case 'receive':
+        return 'arrow-down-circle';
+      case 'withdrawal':
+      case 'send':
+        return 'arrow-up-circle';
+      case 'mobile_money':
+        return 'phone-portrait';
+      default:
+        return 'swap-horizontal';
     }
   };
+
   const getTransactionColor = (type: string) =>
     type === 'deposit' || type === 'receive' ? COLORS.success : COLORS.error;
 
@@ -63,10 +84,17 @@ export default function UserHome() {
         <View style={styles.headerTop}>
           <View>
             <Text style={styles.greeting}>Bonjour 👋</Text>
-            <Text style={styles.userName}>{user?.firstName} {user?.lastName}</Text>
+            <Text style={styles.userName}>
+              {user?.firstName} {user?.lastName}
+            </Text>
           </View>
-          <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(user)/profile')}>
-            <Text style={styles.avatarText}>{getInitials(user?.firstName || '', user?.lastName || '')}</Text>
+          <TouchableOpacity
+            style={styles.avatar}
+            onPress={() => router.push('/(user)/profile')}
+          >
+            <Text style={styles.avatarText}>
+              {getInitials(user?.firstName || '', user?.lastName || '')}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -95,7 +123,9 @@ export default function UserHome() {
       {/* Recent transactions */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Transactions récentes</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Transactions récentes
+          </Text>
           <TouchableOpacity onPress={() => router.push('/(user)/transactions')}>
             <Text style={styles.seeAll}>Voir tout</Text>
           </TouchableOpacity>
@@ -104,20 +134,45 @@ export default function UserHome() {
         {recentTx.length === 0 ? (
           <Text style={styles.empty}>Aucune transaction récente</Text>
         ) : (
-          recentTx.map((tx) => (
-            <View key={tx.id} style={[styles.txItem, { backgroundColor: colors.card }]}>
-              <View style={[styles.txIcon, { backgroundColor: getTransactionColor(tx.type) + '20' }]}>
-                <Ionicons name={getTransactionIcon(tx.type) as any} size={20} color={getTransactionColor(tx.type)} />
+          recentTx.map((tx) => {
+            const isCredit = tx.type === 'deposit' || tx.type === 'receive';
+            return (
+              <View
+                key={tx.id || tx._id}
+                style={[styles.txItem, { backgroundColor: colors.card }]}
+              >
+                <View
+                  style={[
+                    styles.txIcon,
+                    { backgroundColor: getTransactionColor(tx.type) + '20' },
+                  ]}
+                >
+                  <Ionicons
+                    name={getTransactionIcon(tx.type) as any}
+                    size={20}
+                    color={getTransactionColor(tx.type)}
+                  />
+                </View>
+                <View style={styles.txInfo}>
+                  <Text style={[styles.txDesc, { color: colors.text }]}>
+                    {tx.description || tx.type}
+                  </Text>
+                  <Text style={styles.txDate}>
+                    {new Date(tx.createdAt).toLocaleDateString('fr-MG')}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.txAmount,
+                    { color: isCredit ? COLORS.success : COLORS.error },
+                  ]}
+                >
+                  {isCredit ? '+' : '-'}
+                  {formatAmount(tx.amount)} Ar
+                </Text>
               </View>
-              <View style={styles.txInfo}>
-                <Text style={[styles.txDesc, { color: colors.text }]}>{tx.description || tx.type}</Text>
-                <Text style={styles.txDate}>{new Date(tx.createdAt).toLocaleDateString('fr-MG')}</Text>
-              </View>
-              <Text style={[styles.txAmount, { color: getTransactionColor(tx.type) }]}>
-                {tx.type === 'deposit' || tx.type === 'receive' ? '+' : '-'}{formatAmount(tx.amount)} Ar
-              </Text>
-            </View>
-          ))
+            );
+          })
         )}
       </View>
     </ScrollView>
@@ -126,16 +181,59 @@ export default function UserHome() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 60, paddingBottom: 30, paddingHorizontal: 20, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  greeting: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
-  userName: { color: COLORS.white, fontSize: 20, fontWeight: 'bold', marginTop: 2 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
+  header: {
+    paddingTop: 60,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  greeting: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+  },
+  userName: {
+    color: COLORS.white,
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginTop: 2,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
   balanceBox: { marginTop: 24 },
-  balanceLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
-  balanceAmount: { color: COLORS.white, fontSize: 32, fontWeight: 'bold', marginTop: 4 },
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingTop: 20, gap: 12 },
+  balanceLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 13,
+  },
+  balanceAmount: {
+    color: COLORS.white,
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  actionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    gap: 12,
+  },
   actionCard: {
     width: '30%',
     alignItems: 'center',
@@ -147,15 +245,44 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  actionIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  actionLabel: { fontSize: 12, fontWeight: '500', textAlign: 'center' },
+  actionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  actionLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
   section: { marginTop: 24, paddingHorizontal: 20, marginBottom: 40 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   sectionTitle: { fontSize: 17, fontWeight: 'bold' },
   seeAll: { color: COLORS.primary, fontSize: 13, fontWeight: '500' },
   empty: { textAlign: 'center', color: COLORS.gray500, marginTop: 20 },
-  txItem: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 12, marginBottom: 8 },
-  txIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  txItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  txIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
   txInfo: { flex: 1 },
   txDesc: { fontSize: 14, fontWeight: '500' },
   txDate: { fontSize: 12, color: COLORS.gray500, marginTop: 2 },

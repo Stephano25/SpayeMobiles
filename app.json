@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SPaye Mobile",
+    "name": "SPayeMobile",
     "slug": "spaye-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -11,12 +11,15 @@
       "resizeMode": "contain",
       "backgroundColor": "#667eea"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.spaye.mobile"
+      "bundleIdentifier": "com.spaye.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "SPaye a besoin d'accéder à la caméra pour scanner les QR codes.",
+        "NSPhotoLibraryUsageDescription": "SPaye a besoin d'accéder à votre galerie pour partager des images.",
+        "NSMicrophoneUsageDescription": "SPaye a besoin d'accéder au microphone pour les messages vocaux."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -50,6 +53,10 @@
       ],
       "expo-sharing"
     ],
-    "scheme": "spaye"
+    "scheme": "spaye",
+    "extra": {
+      "API_URL": "http://192.168.188.135:3000/api",
+      "SOCKET_URL": "http://192.168.188.135:3000"
+    }
   }
 }

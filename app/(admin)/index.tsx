@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { AdminService } from '../../src/services/AdminService';
 import { COLORS, formatAmount } from '../../src/config';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
 export default function AdminDashboard() {
   const { colors } = useTheme();
@@ -16,18 +23,49 @@ export default function AdminDashboard() {
       const data = await AdminService.getDashboardStats();
       setStats(data);
     } catch (e) {
-      // garde des valeurs par défaut si l'API échoue
+      // Garde des valeurs par défaut si l'API échoue
     }
   };
 
-  useEffect(() => { load(); }, []);
-  const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
+  useEffect(() => {
+    load();
+  }, []);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
 
   const cards = [
-    { label: 'Utilisateurs', value: stats?.totalUsers ?? '—', icon: 'people-outline', color: COLORS.primary, route: '/(admin)/users' },
-    { label: 'Transactions', value: stats?.totalTransactions ?? '—', icon: 'swap-horizontal-outline', color: COLORS.success, route: '/(admin)/transactions' },
-    { label: 'Volume total', value: stats ? `${formatAmount(stats.totalVolume)} Ar` : '—', icon: 'wallet-outline', color: COLORS.warning, route: '/(admin)/stats' },
-    { label: 'Paramètres', value: '', icon: 'settings-outline', color: COLORS.secondary, route: '/(admin)/settings' },
+    {
+      label: 'Utilisateurs',
+      value: stats?.totalUsers ?? '—',
+      icon: 'people-outline',
+      color: COLORS.primary,
+      route: '/(admin)/users',
+    },
+    {
+      label: 'Transactions',
+      value: stats?.totalTransactions ?? '—',
+      icon: 'swap-horizontal-outline',
+      color: COLORS.success,
+      route: '/(admin)/transactions',
+    },
+    {
+      label: 'Volume total',
+      value: stats ? `${formatAmount(stats.totalVolume)} Ar` : '—',
+      icon: 'wallet-outline',
+      color: COLORS.warning,
+      route: '/(admin)/stats',
+    },
+    {
+      label: 'Paramètres',
+      value: '',
+      icon: 'settings-outline',
+      color: COLORS.secondary,
+      route: '/(admin)/settings',
+    },
   ];
 
   return (
@@ -61,10 +99,28 @@ export default function AdminDashboard() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingTop: 60, paddingBottom: 30, paddingHorizontal: 20 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: COLORS.white },
-  headerSubtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', padding: 16, gap: 12, marginTop: -16 },
+  header: {
+    paddingTop: 60,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: COLORS.white,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 4,
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 16,
+    gap: 12,
+    marginTop: -16,
+  },
   card: {
     width: '47%',
     borderRadius: 16,
@@ -75,7 +131,14 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
-  iconWrap: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  iconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   cardValue: { fontSize: 20, fontWeight: 'bold' },
   cardLabel: { fontSize: 13, color: COLORS.gray500, marginTop: 4 },
 });

@@ -1,30 +1,42 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { TransactionService } from '../../src/services/TransactionService';
+import { WalletService } from '../../src/services/WalletService';
 import { COLORS, RADIUS, SPACING, FONT, SHADOW, formatAmount } from '../../src/config';
 
 export default function ScanPayScreen() {
   const { colors } = useTheme();
-  const { showError } = useNotification();
+  const { showError, showSuccess } = useNotification();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState<any>(null);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'scan' | 'pay' | 'success'>('scan');
+  const [balance, setBalance] = useState(0);
 
-  const onScanned = ({ data }: { data: string }) => {
+  const handleScan = ({ data }: { data: string }) => {
     if (scanned) return;
     try {
       const parsed = JSON.parse(data);
       setScanned(parsed);
       if (parsed.amount) setAmount(String(parsed.amount));
       setStep('pay');
+      // Vibration pour feedback
+      if (navigator.vibrate) navigator.vibrate(100);
     } catch {
       showError('QR code invalide');
     }
@@ -32,17 +44,51 @@ export default function ScanPayScreen() {
 
   const pay = async () => {
     const numAmount = Number(amount) || 0;
-    if (numAmount < 100) return showError('Montant minimum : 100 Ar');
-    setLoading(true);
-    try {
-      await TransactionService.scanAndPay(scanned.qrCode, numAmount, description || undefined);
-      setStep('success');
-      setTimeout(() => router.replace('/(user)/wallet'), 1800);
-    } catch (e: any) {
-      showError(e?.response?.data?.message || 'Erreur lors du paiement');
-    } finally {
-      setLoading(false);
+    if (numAmount < 100) {
+      showError('Montant minimum : 100 Ar');
+      return;
     }
+
+    // Vérifier le solde
+    try {
+      const wallet = await WalletService.getWallet();
+      setBalance(wallet.balance || 0);
+      if (numAmount > wallet.balance) {
+        showError(`Solde insuffisant. Solde disponible : ${formatAmount(wallet.balance)} Ar`);
+        return;
+      }
+    } catch {
+      // Continuer quand même, l'API backend vérifiera
+    }
+
+    Alert.alert(
+      'Confirmation',
+      `Payer ${formatAmount(numAmount)} Ar ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Payer',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await TransactionService.scanAndPay(
+                scanned.qrCode,
+                numAmount,
+                description || undefined
+              );
+              setStep('success');
+              showSuccess(`Paiement de ${formatAmount(numAmount)} Ar effectué !`);
+              setTimeout(() => {
+                router.replace('/(user)/wallet');
+              }, 2000);
+            } catch (e: any) {
+              showError(e?.response?.data?.message || 'Erreur lors du paiement');
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const reset = () => {
@@ -50,6 +96,7 @@ export default function ScanPayScreen() {
     setAmount('');
     setDescription('');
     setStep('scan');
+    setLoading(false);
   };
 
   if (step === 'success') {
@@ -59,7 +106,15 @@ export default function ScanPayScreen() {
           <Ionicons name="checkmark" size={48} color={COLORS.white} />
         </View>
         <Text style={[styles.successTitle, { color: colors.text }]}>Paiement effectué !</Text>
-        <Text style={styles.successSub}>{formatAmount(Number(amount))} Ar payés avec succès</Text>
+        <Text style={styles.successSub}>
+          {formatAmount(Number(amount))} Ar payés avec succès
+        </Text>
+        <TouchableOpacity
+          style={[styles.primaryBtn, { marginTop: SPACING.xl }]}
+          onPress={reset}
+        >
+          <Text style={styles.primaryBtnText}>Scanner un autre code</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -77,7 +132,9 @@ export default function ScanPayScreen() {
 
         <View style={[styles.scannedCard, { backgroundColor: colors.card }]}>
           <Ionicons name="qr-code" size={28} color={COLORS.primary} />
-          <Text style={[styles.scannedText, { color: colors.text }]} numberOfLines={1}>{scanned.qrCode}</Text>
+          <Text style={[styles.scannedText, { color: colors.text }]} numberOfLines={1}>
+            {scanned?.qrCode || 'Code inconnu'}
+          </Text>
         </View>
 
         <Text style={[styles.label, { color: colors.text }]}>Montant (Ar)</Text>
@@ -92,7 +149,11 @@ export default function ScanPayScreen() {
 
         <View style={styles.presetsRow}>
           {[1000, 5000, 10000, 20000].map((p) => (
-            <TouchableOpacity key={p} style={styles.presetBtn} onPress={() => setAmount(String(p))}>
+            <TouchableOpacity
+              key={p}
+              style={styles.presetBtn}
+              onPress={() => setAmount(String(p))}
+            >
               <Text style={styles.presetText}>{formatAmount(p)}</Text>
             </TouchableOpacity>
           ))}
@@ -107,8 +168,18 @@ export default function ScanPayScreen() {
           placeholderTextColor={COLORS.gray400}
         />
 
-        <TouchableOpacity style={styles.primaryBtn} onPress={pay} disabled={loading}>
-          {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.primaryBtnText}>Payer {amount ? formatAmount(Number(amount)) : 0} Ar</Text>}
+        <TouchableOpacity
+          style={[styles.primaryBtn, { backgroundColor: COLORS.primary }]}
+          onPress={pay}
+          disabled={loading || !amount || Number(amount) < 100}
+        >
+          {loading ? (
+            <ActivityIndicator color={COLORS.white} />
+          ) : (
+            <Text style={styles.primaryBtnText}>
+              Payer {amount ? formatAmount(Number(amount)) : 0} Ar
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     );
@@ -116,7 +187,11 @@ export default function ScanPayScreen() {
 
   // step === 'scan'
   if (!permission) {
-    return <View style={[styles.center, { backgroundColor: colors.background }]}><ActivityIndicator color={COLORS.primary} /></View>;
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={COLORS.primary} />
+      </View>
+    );
   }
 
   if (!permission.granted) {
@@ -124,8 +199,13 @@ export default function ScanPayScreen() {
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Ionicons name="camera-outline" size={56} color={COLORS.gray400} />
         <Text style={[styles.permTitle, { color: colors.text }]}>Accès caméra requis</Text>
-        <Text style={styles.permText}>SPaye a besoin d'accéder à la caméra pour scanner les QR codes.</Text>
-        <TouchableOpacity style={styles.primaryBtn} onPress={requestPermission}>
+        <Text style={styles.permText}>
+          SPaye a besoin d'accéder à la caméra pour scanner les QR codes.
+        </Text>
+        <TouchableOpacity
+          style={[styles.primaryBtn, { backgroundColor: COLORS.primary }]}
+          onPress={requestPermission}
+        >
           <Text style={styles.primaryBtnText}>Autoriser la caméra</Text>
         </TouchableOpacity>
         <TouchableOpacity style={{ marginTop: SPACING.lg }} onPress={() => router.back()}>
@@ -141,7 +221,7 @@ export default function ScanPayScreen() {
         style={StyleSheet.absoluteFill}
         facing="back"
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={onScanned}
+        onBarcodeScanned={handleScan}
       />
       <View style={styles.overlay}>
         <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
@@ -157,33 +237,84 @@ export default function ScanPayScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: SPACING.lg, paddingTop: 60 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.lg },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.lg,
+  },
   headerTitle: { fontSize: FONT.size.lg, fontWeight: FONT.weight.bold },
-
   cameraContainer: { flex: 1, backgroundColor: '#000' },
   overlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  closeBtn: { position: 'absolute', top: 60, right: 24, width: 40, height: 40, borderRadius: RADIUS.full, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
+  closeBtn: {
+    position: 'absolute',
+    top: 60,
+    right: 24,
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.full,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   frame: { width: 240, height: 240, borderWidth: 3, borderColor: COLORS.white, borderRadius: RADIUS.lg },
   scanHint: { color: COLORS.white, marginTop: SPACING.lg, fontSize: FONT.size.sm },
-
-  permTitle: { fontSize: FONT.size.lg, fontWeight: FONT.weight.bold, marginTop: SPACING.lg, marginBottom: SPACING.sm },
+  permTitle: {
+    fontSize: FONT.size.lg,
+    fontWeight: FONT.weight.bold,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
+  },
   permText: { color: COLORS.gray400, textAlign: 'center', marginBottom: SPACING.xl },
-
-  scannedCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, borderRadius: RADIUS.lg, padding: SPACING.lg, marginBottom: SPACING.lg, ...SHADOW.sm },
+  scannedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    ...SHADOW.sm,
+  },
   scannedText: { flex: 1, fontSize: FONT.size.sm, fontFamily: 'monospace' },
-
-  label: { fontSize: FONT.size.sm, fontWeight: FONT.weight.semibold, marginBottom: SPACING.xs, marginTop: SPACING.md },
-  amountInput: { borderRadius: RADIUS.md, padding: SPACING.md, fontSize: FONT.size.xl, fontWeight: FONT.weight.bold, ...SHADOW.sm },
+  label: {
+    fontSize: FONT.size.sm,
+    fontWeight: FONT.weight.semibold,
+    marginBottom: SPACING.xs,
+    marginTop: SPACING.md,
+  },
+  amountInput: {
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    fontSize: FONT.size.xl,
+    fontWeight: FONT.weight.bold,
+    ...SHADOW.sm,
+  },
   input: { borderRadius: RADIUS.md, padding: SPACING.md, fontSize: FONT.size.base, ...SHADOW.sm },
-
   presetsRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
-  presetBtn: { paddingVertical: 6, paddingHorizontal: SPACING.md, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100 },
+  presetBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: SPACING.md,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.gray100,
+  },
   presetText: { fontSize: FONT.size.xs, color: COLORS.gray600, fontWeight: FONT.weight.medium },
-
-  primaryBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 16, alignItems: 'center', marginTop: SPACING.xl, ...SHADOW.md },
+  primaryBtn: {
+    borderRadius: RADIUS.md,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: SPACING.xl,
+    ...SHADOW.md,
+  },
   primaryBtnText: { color: COLORS.white, fontWeight: FONT.weight.bold, fontSize: FONT.size.base },
-
-  successIcon: { width: 96, height: 96, borderRadius: RADIUS.full, backgroundColor: COLORS.success, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.lg },
+  successIcon: {
+    width: 96,
+    height: 96,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.lg,
+  },
   successTitle: { fontSize: FONT.size.xl, fontWeight: FONT.weight.bold, marginBottom: SPACING.sm },
   successSub: { color: COLORS.gray400, textAlign: 'center' },
 });

@@ -5,6 +5,19 @@ import { AuthProvider } from '../src/context/AuthContext';
 import { ThemeProvider } from '../src/context/ThemeContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
 import { COLORS } from '../src/config';
+import { useColorScheme } from 'react-native';
+
+function StatusBarManager() {
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+
+  return (
+    <StatusBar
+      style={isDark ? 'light' : 'dark'}
+      backgroundColor={isDark ? '#1a1a2e' : COLORS.primary}
+    />
+  );
+}
 
 export default function RootLayout() {
   return (
@@ -12,8 +25,14 @@ export default function RootLayout() {
       <ThemeProvider>
         <NotificationProvider>
           <AuthProvider>
-            <StatusBar style="light" backgroundColor={COLORS.primary} />
-            <Stack screenOptions={{ headerShown: false }} />
+            <StatusBarManager />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: 'slide_from_right',
+                contentStyle: { backgroundColor: COLORS.background },
+              }}
+            />
           </AuthProvider>
         </NotificationProvider>
       </ThemeProvider>

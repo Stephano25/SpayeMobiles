@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { storage } from '../utils/storage';
 import api from '../services/api';
+import { AuthService } from '../services/AuthService';
 import { User, LoginResponse } from '../types';
 import { router } from 'expo-router';
 
@@ -43,11 +44,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, password: string) => {
-    const res = await api.post<LoginResponse>('/auth/login', { email, password });
-    const { access_token, user: userData } = res.data;
-    await storage.setItem('token', access_token);
-    await storage.setItem('user', userData);
-    api.defaults.headers.Authorization = `Bearer ${access_token}`;
+    const res = await AuthService.login(email, password);
+    const { access_token, user: userData } = res;
+    await AuthService.saveSession(access_token, userData);
     setToken(access_token);
     setUser(userData);
     const isAdmin = userData.role === 'admin' || userData.role === 'super_admin';
@@ -55,29 +54,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (data: { firstName: string; lastName: string; email: string; password: string; phoneNumber?: string }) => {
-    const res = await api.post<LoginResponse>('/auth/register', data);
-    const { access_token, user: userData } = res.data;
-    await storage.setItem('token', access_token);
-    await storage.setItem('user', userData);
-    api.defaults.headers.Authorization = `Bearer ${access_token}`;
+    const res = await AuthService.register(data);
+    const { access_token, user: userData } = res;
+    await AuthService.saveSession(access_token, userData);
     setToken(access_token);
     setUser(userData);
     router.replace('/(user)');
   };
 
   const logout = async () => {
-    await storage.removeItem('token');
-    await storage.removeItem('user');
-    delete api.defaults.headers.Authorization;
+    await AuthService.logout();
     setUser(null);
     setToken(null);
     router.replace('/(auth)/login');
   };
 
   const updateProfile = async (data: Partial<User>) => {
-    const response = await api.put<User>('/users/profile', data);
-    const updatedUser = response.data;
-    await storage.setItem('user', updatedUser);
+    const updatedUser = await AuthService.updateProfile(data);
     setUser(updatedUser);
   };
 

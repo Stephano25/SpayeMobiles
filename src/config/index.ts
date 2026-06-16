@@ -1,6 +1,10 @@
-// Utilisez l'IP récupérée depuis ipconfig (Wi-Fi)
-export const API_URL = 'http://192.168.188.135:3000/api';
-export const SOCKET_URL = 'http://192.168.188.135:3000';
+import Constants from 'expo-constants';
+
+// Récupérer l'IP depuis les extra de app.json
+const API_URL = Constants.expoConfig?.extra?.API_URL || 'http://192.168.188.135:3000/api';
+const SOCKET_URL = Constants.expoConfig?.extra?.SOCKET_URL || 'http://192.168.188.135:3000';
+
+export { API_URL, SOCKET_URL };
 
 export const COLORS = {
   primary: '#667eea',
@@ -43,12 +47,36 @@ export const GRADIENTS = {
   dark: [COLORS.gray800, COLORS.gray900] as const,
 };
 
-export const RADIUS = { sm: 8, md: 12, lg: 16, xl: 20, xxl: 28, full: 999 };
+export const RADIUS = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 28,
+  full: 999,
+};
 
-export const SPACING = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 };
+export const SPACING = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+};
 
 export const FONT = {
-  size: { xs: 12, sm: 13, base: 15, md: 16, lg: 18, xl: 22, xxl: 28, huge: 34 },
+  size: {
+    xs: 12,
+    sm: 13,
+    base: 15,
+    md: 16,
+    lg: 18,
+    xl: 22,
+    xxl: 28,
+    huge: 34,
+  },
   weight: {
     regular: '400' as const,
     medium: '500' as const,
@@ -83,7 +111,7 @@ export const SHADOW = {
 };
 
 // =====================================================
-// HELPERS (existants conservés + ajouts)
+// HELPERS
 // =====================================================
 export const formatAmount = (amount: number): string => {
   return new Intl.NumberFormat('fr-MG').format(amount ?? 0);

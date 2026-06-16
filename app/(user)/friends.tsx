@@ -1,11 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { FriendService } from '../../src/services/FriendService';
-import { COLORS, RADIUS, SPACING, FONT, SHADOW, getInitials, getAvatarColor } from '../../src/config';
+import { COLORS, getInitials, getAvatarColor } from '../../src/config';
 
 type Tab = 'friends' | 'requests' | 'search';
 
@@ -38,10 +46,17 @@ export default function FriendsScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   useEffect(() => {
-    if (searchQuery.length < 2) { setSearchResults([]); return; }
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
     const t = setTimeout(async () => {
       setSearching(true);
       try {
@@ -83,10 +98,14 @@ export default function FriendsScreen() {
   const renderUserCard = (user: any, action: React.ReactNode) => (
     <View style={[styles.userRow, { backgroundColor: colors.card }]} key={user.id}>
       <View style={[styles.avatar, { backgroundColor: getAvatarColor(user.firstName) }]}>
-        <Text style={styles.avatarText}>{getInitials(user.firstName, user.lastName)}</Text>
+        <Text style={styles.avatarText}>
+          {getInitials(user.firstName, user.lastName)}
+        </Text>
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.userName, { color: colors.text }]}>{user.firstName} {user.lastName}</Text>
+        <Text style={[styles.userName, { color: colors.text }]}>
+          {user.firstName} {user.lastName}
+        </Text>
         <Text style={styles.userEmail}>{user.email}</Text>
       </View>
       {action}
@@ -110,88 +129,131 @@ export default function FriendsScreen() {
           placeholder="Rechercher par nom, email..."
           placeholderTextColor={COLORS.gray400}
           value={searchQuery}
-          onChangeText={(v) => { setSearchQuery(v); setTab(v.length >= 2 ? 'search' : 'friends'); }}
+          onChangeText={(v) => {
+            setSearchQuery(v);
+            setTab(v.length >= 2 ? 'search' : 'friends');
+          }}
         />
         {searching && <ActivityIndicator size="small" color={COLORS.primary} />}
       </View>
 
       {tab !== 'search' && (
         <View style={styles.tabs}>
-          <TouchableOpacity style={[styles.tabBtn, tab === 'friends' && styles.tabBtnActive]} onPress={() => setTab('friends')}>
-            <Text style={[styles.tabText, tab === 'friends' && styles.tabTextActive]}>Amis ({friends.length})</Text>
+          <TouchableOpacity
+            style={[styles.tabBtn, tab === 'friends' && styles.tabBtnActive]}
+            onPress={() => setTab('friends')}
+          >
+            <Text style={[styles.tabText, tab === 'friends' && styles.tabTextActive]}>
+              Amis ({friends.length})
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.tabBtn, tab === 'requests' && styles.tabBtnActive]} onPress={() => setTab('requests')}>
-            <Text style={[styles.tabText, tab === 'requests' && styles.tabTextActive]}>Demandes ({requests.length})</Text>
+          <TouchableOpacity
+            style={[styles.tabBtn, tab === 'requests' && styles.tabBtnActive]}
+            onPress={() => setTab('requests')}
+          >
+            <Text style={[styles.tabText, tab === 'requests' && styles.tabTextActive]}>
+              Demandes ({requests.length})
+            </Text>
           </TouchableOpacity>
         </View>
       )}
 
       {loading ? (
-        <ActivityIndicator color={COLORS.primary} style={{ marginTop: SPACING.xxxl }} />
+        <ActivityIndicator color={COLORS.primary} style={{ marginTop: 40 }} />
       ) : tab === 'search' ? (
         <FlatList
           data={searchResults}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingTop: SPACING.md, paddingBottom: 100 }}
-          renderItem={({ item }) => renderUserCard(
-            item,
-            item.isFriend ? (
-              <View style={styles.badgeGreen}><Text style={styles.badgeText}>Ami</Text></View>
-            ) : item.hasPendingRequest ? (
-              <View style={styles.badgeGray}><Text style={styles.badgeTextGray}>Envoyée</Text></View>
-            ) : (
-              <TouchableOpacity style={styles.addBtn} onPress={() => sendRequest(item.id)}>
-                <Ionicons name="person-add" size={16} color={COLORS.white} />
-              </TouchableOpacity>
+          contentContainerStyle={{ paddingTop: 12, paddingBottom: 100 }}
+          renderItem={({ item }) =>
+            renderUserCard(
+              item,
+              item.isFriend ? (
+                <View style={styles.badgeGreen}>
+                  <Text style={styles.badgeText}>Ami</Text>
+                </View>
+              ) : item.hasPendingRequest ? (
+                <View style={styles.badgeGray}>
+                  <Text style={styles.badgeTextGray}>Envoyée</Text>
+                </View>
+              ) : (
+                <TouchableOpacity style={styles.addBtn} onPress={() => sendRequest(item.id)}>
+                  <Ionicons name="person-add" size={16} color={COLORS.white} />
+                </TouchableOpacity>
+              )
             )
-          )}
-          ListEmptyComponent={!searching ? <Text style={styles.empty}>Aucun résultat</Text> : null}
+          }
+          ListEmptyComponent={
+            !searching ? <Text style={styles.empty}>Aucun résultat</Text> : null
+          }
         />
       ) : tab === 'requests' ? (
         <FlatList
           data={requests}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingTop: SPACING.md, paddingBottom: 100 }}
-          renderItem={({ item }) => renderUserCard(
-            item.sender || {},
-            <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
-              <TouchableOpacity style={styles.acceptBtn} onPress={() => accept(item.id)}>
-                <Ionicons name="checkmark" size={18} color={COLORS.white} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.declineBtn} onPress={() => decline(item.id)}>
-                <Ionicons name="close" size={18} color={COLORS.white} />
-              </TouchableOpacity>
-            </View>
-          )}
+          contentContainerStyle={{ paddingTop: 12, paddingBottom: 100 }}
+          renderItem={({ item }) =>
+            renderUserCard(
+              item.sender || {},
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity style={styles.acceptBtn} onPress={() => accept(item.id)}>
+                  <Ionicons name="checkmark" size={18} color={COLORS.white} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.declineBtn} onPress={() => decline(item.id)}>
+                  <Ionicons name="close" size={18} color={COLORS.white} />
+                </TouchableOpacity>
+              </View>
+            )
+          }
           ListEmptyComponent={<Text style={styles.empty}>Aucune demande en attente</Text>}
         />
       ) : (
         <FlatList
           data={friends}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingTop: SPACING.md, paddingBottom: 100 }}
+          contentContainerStyle={{ paddingTop: 12, paddingBottom: 100 }}
           renderItem={({ item }) => {
             const f = item.friend || {};
             return (
-              <TouchableOpacity onPress={() => router.push({ pathname: '/(user)/chat', params: { userId: f.id } })}>
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({ pathname: '/(user)/chat', params: { userId: f.id } })
+                }
+              >
                 {renderUserCard(
                   f,
-                  <View style={styles.statusDot(f.isOnline)} />
+                  <View
+                    style={[
+                      styles.statusDot,
+                      { backgroundColor: f.isOnline ? COLORS.success : COLORS.gray300 },
+                    ]}
+                  />
                 )}
               </TouchableOpacity>
             );
           }}
           ListHeaderComponent={
             suggestions.length > 0 ? (
-              <View style={{ marginBottom: SPACING.lg }}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Suggestions</Text>
-                {suggestions.slice(0, 5).map((u) => renderUserCard(
-                  u,
-                  <TouchableOpacity style={styles.addBtn} onPress={() => sendRequest(u.id)}>
-                    <Ionicons name="person-add" size={16} color={COLORS.white} />
-                  </TouchableOpacity>
-                ))}
-                <Text style={[styles.sectionTitle, { color: colors.text, marginTop: SPACING.lg }]}>Mes amis</Text>
+              <View style={{ marginBottom: 16 }}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                  Suggestions
+                </Text>
+                {suggestions.slice(0, 5).map((u) =>
+                  renderUserCard(
+                    u,
+                    <TouchableOpacity style={styles.addBtn} onPress={() => sendRequest(u.id)}>
+                      <Ionicons name="person-add" size={16} color={COLORS.white} />
+                    </TouchableOpacity>
+                  )
+                )}
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    { color: colors.text, marginTop: 16 },
+                  ]}
+                >
+                  Mes amis
+                </Text>
               </View>
             ) : null
           }
@@ -203,42 +265,94 @@ export default function FriendsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: SPACING.lg, paddingTop: 60 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.lg },
-  headerTitle: { fontSize: FONT.size.lg, fontWeight: FONT.weight.bold },
-
-  searchBox: { flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, gap: SPACING.sm, ...SHADOW.sm },
-  searchInput: { flex: 1, paddingVertical: 12, fontSize: FONT.size.base },
-
-  tabs: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
-  tabBtn: { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.lg, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100 },
+  container: { flex: 1, padding: 16, paddingTop: 60 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  headerTitle: { fontSize: 18, fontWeight: 'bold' },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: 15 },
+  tabs: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  tabBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: COLORS.gray100,
+  },
   tabBtnActive: { backgroundColor: COLORS.primary },
-  tabText: { fontSize: FONT.size.sm, fontWeight: FONT.weight.medium, color: COLORS.gray600 },
+  tabText: { fontSize: 13, fontWeight: '500', color: COLORS.gray600 },
   tabTextActive: { color: COLORS.white },
-
-  sectionTitle: { fontSize: FONT.size.sm, fontWeight: FONT.weight.bold, marginBottom: SPACING.sm },
-
-  userRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, ...SHADOW.sm },
-  avatar: { width: 44, height: 44, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: COLORS.white, fontWeight: FONT.weight.bold },
-  userName: { fontSize: FONT.size.base, fontWeight: FONT.weight.semibold },
-  userEmail: { fontSize: FONT.size.xs, color: COLORS.gray400, marginTop: 2 },
-
-  addBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
-  acceptBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.success, alignItems: 'center', justifyContent: 'center' },
-  declineBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.error, alignItems: 'center', justifyContent: 'center' },
-
-  badgeGreen: { backgroundColor: COLORS.successLight, borderRadius: RADIUS.full, paddingVertical: 4, paddingHorizontal: SPACING.sm },
-  badgeGray: { backgroundColor: COLORS.gray100, borderRadius: RADIUS.full, paddingVertical: 4, paddingHorizontal: SPACING.sm },
-  badgeText: { color: COLORS.success, fontSize: FONT.size.xs, fontWeight: FONT.weight.semibold },
-  badgeTextGray: { color: COLORS.gray500, fontSize: FONT.size.xs, fontWeight: FONT.weight.semibold },
-
-  empty: { textAlign: 'center', color: COLORS.gray400, marginTop: SPACING.xxxl },
-
-  statusDot: (online: boolean) => ({
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: online ? COLORS.success : COLORS.gray300,
-  }) as any,
+  sectionTitle: { fontSize: 14, fontWeight: 'bold', marginBottom: 8 },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: { color: COLORS.white, fontWeight: 'bold' },
+  userName: { fontSize: 15, fontWeight: '600' },
+  userEmail: { fontSize: 12, color: COLORS.gray400, marginTop: 2 },
+  addBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  acceptBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  declineBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.error,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeGreen: {
+    backgroundColor: COLORS.successLight,
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  badgeGray: {
+    backgroundColor: COLORS.gray100,
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  badgeText: { color: COLORS.success, fontSize: 12, fontWeight: '600' },
+  badgeTextGray: { color: COLORS.gray500, fontSize: 12, fontWeight: '600' },
+  empty: { textAlign: 'center', color: COLORS.gray400, marginTop: 40 },
+  statusDot: { width: 12, height: 12, borderRadius: 6 },
 });
