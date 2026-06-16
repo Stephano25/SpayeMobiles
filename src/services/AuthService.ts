@@ -31,13 +31,11 @@ export const AuthService = {
   async logout(): Promise<void> {
     await storage.removeItem('token');
     await storage.removeItem('user');
-    delete api.defaults.headers.Authorization;
   },
 
   async saveSession(token: string, user: User): Promise<void> {
     await storage.setItem('token', token);
     await storage.setItem('user', user);
-    api.defaults.headers.Authorization = `Bearer ${token}`;
   },
 
   async getToken(): Promise<string | null> {

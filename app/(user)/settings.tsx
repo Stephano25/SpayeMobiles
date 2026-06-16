@@ -99,6 +99,12 @@ export default function UserSettingsScreen() {
             Version 1.0.0
           </Text>
         </View>
+        <View style={styles.infoRow}>
+          <Ionicons name="server-outline" size={20} color={COLORS.gray500} />
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+            {isDark ? 'Thème sombre' : 'Thème clair'}
+          </Text>
+        </View>
       </View>
 
       <TouchableOpacity

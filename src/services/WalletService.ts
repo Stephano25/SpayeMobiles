@@ -3,7 +3,7 @@ import { Wallet } from '../types';
 
 export const WalletService = {
   getWallet: async (): Promise<Wallet> => {
-    const res = await api.get<Wallet>('/wallet');
+    const res = await api.get('/wallet');
     return res.data;
   },
 

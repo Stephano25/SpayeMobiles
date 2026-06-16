@@ -7,13 +7,10 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
-  Alert,
-  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import * as Sharing from 'expo-sharing';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { WalletService } from '../../src/services/WalletService';
@@ -27,7 +24,6 @@ export default function ReceiveMoneyScreen() {
   const [qrCode, setQrCode] = useState<any>(null);
   const [amount, setAmount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
 
   const generate = useCallback(
     async (amt?: number) => {
@@ -36,7 +32,6 @@ export default function ReceiveMoneyScreen() {
         const res = await WalletService.generateReceiveQRCode(amt);
         setQrCode(res);
         setAmount(amt ?? null);
-        setCopied(false);
       } catch (e) {
         showError('Erreur génération du QR code');
       } finally {
@@ -67,38 +62,9 @@ export default function ReceiveMoneyScreen() {
     if (!qrCode) return;
     try {
       await Clipboard.setStringAsync(qrCode.qrCode);
-      setCopied(true);
       showSuccess('Code copié !');
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       showError('Erreur lors de la copie');
-    }
-  };
-
-  const shareQRCode = async () => {
-    if (!qrData) return;
-    try {
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(qrImageUrl, {
-          dialogTitle: 'Partager mon QR code',
-          mimeType: 'image/png',
-        });
-      } else {
-        copyCode();
-      }
-    } catch {
-      copyCode();
-    }
-  };
-
-  const downloadQRImage = async () => {
-    if (!qrData) return;
-    try {
-      // Sur mobile, on ne peut pas télécharger directement
-      // On propose le partage à la place
-      await shareQRCode();
-    } catch {
-      showError('Erreur lors du partage');
     }
   };
 
@@ -125,9 +91,7 @@ export default function ReceiveMoneyScreen() {
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           Recevoir de l'argent
         </Text>
-        <TouchableOpacity onPress={shareQRCode}>
-          <Ionicons name="share-outline" size={24} color={colors.text} />
-        </TouchableOpacity>
+        <View style={{ width: 24 }} />
       </View>
 
       <View style={[styles.qrCard, { backgroundColor: colors.card }]}>
@@ -154,11 +118,7 @@ export default function ReceiveMoneyScreen() {
           <Text style={[styles.codeText, { color: colors.text }]} numberOfLines={1}>
             {qrCode?.qrCode || '...'}
           </Text>
-          <Ionicons
-            name={copied ? 'checkmark-circle' : 'copy-outline'}
-            size={18}
-            color={copied ? COLORS.success : COLORS.primary}
-          />
+          <Ionicons name="copy-outline" size={18} color={COLORS.primary} />
         </TouchableOpacity>
 
         <Text style={styles.expireText}>

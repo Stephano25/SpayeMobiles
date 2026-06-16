@@ -44,7 +44,7 @@ export default function RegisterScreen() {
     try {
       await register({ firstName, lastName, email, password, phoneNumber: phone });
     } catch (e: any) {
-      showError(e.response?.data?.message || 'Erreur inscription');
+      showError(e?.response?.data?.message || 'Erreur inscription');
     } finally {
       setLoading(false);
     }

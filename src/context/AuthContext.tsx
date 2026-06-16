@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { storage } from '../utils/storage';
 import api from '../services/api';
 import { AuthService } from '../services/AuthService';
-import { User, LoginResponse } from '../types';
+import { User } from '../types';
 import { router } from 'expo-router';
 
 interface AuthContextType {
@@ -33,33 +33,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const loadUser = async () => {
-    const storedToken = await storage.getItem<string>('token');
-    const userData = await storage.getItem<User>('user');
-    if (storedToken && userData) {
-      setUser(userData);
-      setToken(storedToken);
-      api.defaults.headers.Authorization = `Bearer ${storedToken}`;
+    try {
+      const storedToken = await storage.getItem<string>('token');
+      const userData = await storage.getItem<User>('user');
+      if (storedToken && userData) {
+        setUser(userData);
+        setToken(storedToken);
+      }
+    } catch (error) {
+      console.error('Erreur chargement utilisateur:', error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const login = async (email: string, password: string) => {
-    const res = await AuthService.login(email, password);
-    const { access_token, user: userData } = res;
-    await AuthService.saveSession(access_token, userData);
-    setToken(access_token);
-    setUser(userData);
-    const isAdmin = userData.role === 'admin' || userData.role === 'super_admin';
-    router.replace(isAdmin ? '/(admin)' : '/(user)');
+    try {
+      const res = await AuthService.login(email, password);
+      const { access_token, user: userData } = res;
+      await AuthService.saveSession(access_token, userData);
+      setToken(access_token);
+      setUser(userData);
+      const isAdmin = userData.role === 'admin' || userData.role === 'super_admin';
+      router.replace(isAdmin ? '/(admin)' : '/(user)');
+    } catch (error) {
+      throw error;
+    }
   };
 
   const register = async (data: { firstName: string; lastName: string; email: string; password: string; phoneNumber?: string }) => {
-    const res = await AuthService.register(data);
-    const { access_token, user: userData } = res;
-    await AuthService.saveSession(access_token, userData);
-    setToken(access_token);
-    setUser(userData);
-    router.replace('/(user)');
+    try {
+      const res = await AuthService.register(data);
+      const { access_token, user: userData } = res;
+      await AuthService.saveSession(access_token, userData);
+      setToken(access_token);
+      setUser(userData);
+      router.replace('/(user)');
+    } catch (error) {
+      throw error;
+    }
   };
 
   const logout = async () => {

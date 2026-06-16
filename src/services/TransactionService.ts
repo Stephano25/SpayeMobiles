@@ -3,17 +3,17 @@ import { Transaction, DashboardStats } from '../types';
 
 export const TransactionService = {
   getUserDashboardStats: async (): Promise<DashboardStats> => {
-    const res = await api.get<DashboardStats>('/transactions/user/stats');
+    const res = await api.get('/transactions/user/stats');
     return res.data;
   },
 
   getUserTransactions: async (): Promise<Transaction[]> => {
-    const res = await api.get<Transaction[]>('/transactions/user');
+    const res = await api.get('/transactions/user');
     return res.data;
   },
 
   getAllTransactions: async (): Promise<Transaction[]> => {
-    const res = await api.get<Transaction[]>('/transactions/all');
+    const res = await api.get('/transactions/all');
     return res.data;
   },
 

@@ -79,7 +79,6 @@ export default function UserHome() {
       style={[styles.container, { backgroundColor: colors.background }]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <View style={styles.headerTop}>
           <View>
@@ -104,7 +103,6 @@ export default function UserHome() {
         </View>
       </View>
 
-      {/* Quick actions */}
       <View style={styles.actionsGrid}>
         {quickActions.map((a) => (
           <TouchableOpacity
@@ -120,7 +118,6 @@ export default function UserHome() {
         ))}
       </View>
 
-      {/* Recent transactions */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>

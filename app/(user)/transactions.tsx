@@ -24,7 +24,6 @@ export default function TransactionsScreen() {
   const load = useCallback(async () => {
     try {
       const data = await TransactionService.getUserTransactions();
-      // S'assurer que data est un tableau
       const sortedData = Array.isArray(data) 
         ? data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         : [];
@@ -45,11 +44,6 @@ export default function TransactionsScreen() {
     setRefreshing(true);
     await load();
     setRefreshing(false);
-  };
-
-  const getTransactionColor = (type: string) => {
-    const creditTypes = ['deposit', 'receive', 'refund'];
-    return creditTypes.includes(type) ? COLORS.success : COLORS.error;
   };
 
   const getTransactionSign = (type: string) => {

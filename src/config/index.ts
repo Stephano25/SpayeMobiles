@@ -1,10 +1,138 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+import { storage } from '../utils/storage';
 
-// Récupérer l'IP depuis les extra de app.json
-const API_URL = Constants.expoConfig?.extra?.API_URL || 'http://192.168.188.135:3000/api';
-const SOCKET_URL = Constants.expoConfig?.extra?.SOCKET_URL || 'http://192.168.188.135:3000';
+// =====================================================
+// CONFIGURATION DES URLS
+// =====================================================
 
-export { API_URL, SOCKET_URL };
+let cachedApiUrl: string | null = null;
+let cachedSocketUrl: string | null = null;
+
+// URL par défaut
+const DEFAULT_API_URL = 'http://192.168.188.135:3000/api';
+const DEFAULT_SOCKET_URL = 'http://192.168.188.135:3000';
+
+/**
+ * Récupère l'URL de l'API de manière dynamique
+ * Priorité : 1. IP stockée, 2. app.json, 3. Émulateur, 4. IP par défaut
+ */
+export const getApiUrl = async (): Promise<string> => {
+  // Si l'URL est déjà en cache, la retourner
+  if (cachedApiUrl) {
+    return cachedApiUrl;
+  }
+
+  try {
+    // 1. Vérifier l'IP stockée par l'utilisateur
+    const savedIp = await storage.getItem<string>('backend_ip');
+    if (savedIp && savedIp.trim()) {
+      cachedApiUrl = `http://${savedIp.trim()}:3000/api`;
+      console.log(`📡 API URL (stockée): ${cachedApiUrl}`);
+      return cachedApiUrl;
+    }
+  } catch (error) {
+    console.warn('Erreur lors de la récupération de l\'IP stockée:', error);
+  }
+
+  // 2. Utiliser l'IP configurée dans app.json
+  const configuredUrl = Constants.expoConfig?.extra?.API_URL;
+  if (configuredUrl && configuredUrl.trim()) {
+    cachedApiUrl = configuredUrl.trim();
+    console.log(`📡 API URL (app.json): ${cachedApiUrl}`);
+    return cachedApiUrl;
+  }
+
+  // 3. Pour émulateur Android
+  if (Platform.OS === 'android' && !Constants.isDevice) {
+    cachedApiUrl = 'http://10.0.2.2:3000/api';
+    console.log(`📡 API URL (émulateur Android): ${cachedApiUrl}`);
+    return cachedApiUrl;
+  }
+
+  // 4. Pour émulateur iOS
+  if (Platform.OS === 'ios' && !Constants.isDevice) {
+    cachedApiUrl = 'http://localhost:3000/api';
+    console.log(`📡 API URL (émulateur iOS): ${cachedApiUrl}`);
+    return cachedApiUrl;
+  }
+
+  // 5. IP par défaut pour appareil physique
+  cachedApiUrl = DEFAULT_API_URL;
+  console.log(`📡 API URL (par défaut): ${cachedApiUrl}`);
+  return cachedApiUrl;
+};
+
+/**
+ * Récupère l'URL du socket (WebSocket)
+ */
+export const getSocketUrl = async (): Promise<string> => {
+  if (cachedSocketUrl) {
+    return cachedSocketUrl;
+  }
+
+  try {
+    const apiUrl = await getApiUrl();
+    // Remplacer /api par une chaîne vide pour obtenir l'URL de base
+    cachedSocketUrl = apiUrl.replace('/api', '');
+    console.log(`📡 Socket URL: ${cachedSocketUrl}`);
+    return cachedSocketUrl;
+  } catch (error) {
+    console.warn('Erreur lors de la récupération de l\'URL socket:', error);
+    cachedSocketUrl = DEFAULT_SOCKET_URL;
+    return cachedSocketUrl;
+  }
+};
+
+/**
+ * Met à jour l'IP du backend et vide le cache
+ */
+export const setBackendIp = async (ip: string): Promise<void> => {
+  if (!ip || !ip.trim()) {
+    await storage.removeItem('backend_ip');
+  } else {
+    await storage.setItem('backend_ip', ip.trim());
+  }
+  // Vider le cache pour forcer la récupération de la nouvelle IP
+  cachedApiUrl = null;
+  cachedSocketUrl = null;
+  console.log(`✅ IP du backend mise à jour: ${ip || 'réinitialisée'}`);
+};
+
+/**
+ * Récupère l'IP stockée
+ */
+export const getStoredIp = async (): Promise<string | null> => {
+  try {
+    return await storage.getItem<string>('backend_ip');
+  } catch (error) {
+    console.warn('Erreur lors de la récupération de l\'IP stockée:', error);
+    return null;
+  }
+};
+
+/**
+ * Réinitialise l'IP du backend
+ */
+export const resetBackendIp = async (): Promise<void> => {
+  await storage.removeItem('backend_ip');
+  cachedApiUrl = null;
+  cachedSocketUrl = null;
+  console.log('✅ IP du backend réinitialisée');
+};
+
+// =====================================================
+// EXPORT POUR COMPATIBILITÉ (utilisation synchrone)
+// =====================================================
+
+// Valeurs par défaut pour la compatibilité avec le code existant
+// ATTENTION: Utilisez getApiUrl() pour une résolution dynamique
+export const API_URL = DEFAULT_API_URL;
+export const SOCKET_URL = DEFAULT_SOCKET_URL;
+
+// =====================================================
+// COULEURS
+// =====================================================
 
 export const COLORS = {
   primary: '#667eea',
@@ -41,11 +169,19 @@ export const COLORS = {
   gray900: '#111827',
 };
 
+// =====================================================
+// GRADIENTS
+// =====================================================
+
 export const GRADIENTS = {
   primary: [COLORS.primary, COLORS.secondary] as const,
   success: [COLORS.success, '#34d399'] as const,
   dark: [COLORS.gray800, COLORS.gray900] as const,
 };
+
+// =====================================================
+// STYLES
+// =====================================================
 
 export const RADIUS = {
   sm: 8,
@@ -113,28 +249,51 @@ export const SHADOW = {
 // =====================================================
 // HELPERS
 // =====================================================
+
+/**
+ * Formate un montant en Ariary (Ar)
+ */
 export const formatAmount = (amount: number): string => {
   return new Intl.NumberFormat('fr-MG').format(amount ?? 0);
 };
 
+/**
+ * Formate une date
+ */
 export const formatDate = (date: string | Date): string => {
   return new Date(date).toLocaleDateString('fr-MG');
 };
 
+/**
+ * Formate une heure
+ */
 export const formatTime = (date: string | Date): string => {
-  return new Date(date).toLocaleTimeString('fr-MG', { hour: '2-digit', minute: '2-digit' });
+  return new Date(date).toLocaleTimeString('fr-MG', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
+/**
+ * Formate une date et une heure
+ */
 export const formatDateTime = (date: string | Date): string => {
   const d = new Date(date);
-  return `${d.toLocaleDateString('fr-MG')} ${d.toLocaleTimeString('fr-MG', { hour: '2-digit', minute: '2-digit' })}`;
+  return `${d.toLocaleDateString('fr-MG')} ${d.toLocaleTimeString('fr-MG', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
 };
 
+/**
+ * Formate une date en temps relatif (ex: "il y a 5 min")
+ */
 export const formatRelativeTime = (date: string | Date): string => {
   const diffMs = Date.now() - new Date(date).getTime();
   const diffMin = Math.floor(diffMs / 60000);
   const diffH = Math.floor(diffMin / 60);
   const diffD = Math.floor(diffH / 24);
+
   if (diffMin < 1) return "à l'instant";
   if (diffMin < 60) return `il y a ${diffMin} min`;
   if (diffH < 24) return `il y a ${diffH} h`;
@@ -142,19 +301,68 @@ export const formatRelativeTime = (date: string | Date): string => {
   return formatDate(date);
 };
 
+/**
+ * Formate un montant en version compacte (K, M)
+ */
 export const formatCompact = (amount: number): string => {
   if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)} M`;
   if (amount >= 1_000) return `${(amount / 1_000).toFixed(0)} k`;
   return amount.toString();
 };
 
+/**
+ * Récupère les initiales d'un nom complet
+ */
 export const getInitials = (firstName?: string, lastName?: string): string => {
   return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
 };
 
-const AVATAR_COLORS = ['#667eea', '#764ba2', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#ef4444', '#06b6d4'];
+/**
+ * Génère une couleur pour un avatar en fonction du nom
+ */
+const AVATAR_COLORS = [
+  '#667eea',
+  '#764ba2',
+  '#10b981',
+  '#f59e0b',
+  '#3b82f6',
+  '#ec4899',
+  '#ef4444',
+  '#06b6d4',
+];
+
 export const getAvatarColor = (name: string): string => {
   let hash = 0;
-  for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < (name || '').length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+};
+
+// =====================================================
+// EXPORT PAR DÉFAUT
+// =====================================================
+
+export default {
+  API_URL,
+  SOCKET_URL,
+  getApiUrl,
+  getSocketUrl,
+  setBackendIp,
+  getStoredIp,
+  resetBackendIp,
+  COLORS,
+  GRADIENTS,
+  RADIUS,
+  SPACING,
+  FONT,
+  SHADOW,
+  formatAmount,
+  formatDate,
+  formatTime,
+  formatDateTime,
+  formatRelativeTime,
+  formatCompact,
+  getInitials,
+  getAvatarColor,
 };

@@ -42,9 +42,7 @@ export interface Wallet {
   balance: number;
 }
 
-export type TransactionType =
-  | 'deposit' | 'withdrawal' | 'transfer' | 'payment' | 'mobile_money' | 'receive' | 'send';
-
+export type TransactionType = 'deposit' | 'withdrawal' | 'transfer' | 'payment' | 'mobile_money' | 'receive' | 'send';
 export type TransactionStatus = 'pending' | 'completed' | 'failed' | 'cancelled' | 'processing';
 
 export interface TransactionUser {
@@ -80,6 +78,17 @@ export interface DashboardStats {
   largestTransaction: Transaction | null;
 }
 
+export interface AdminDashboardStats {
+  totalUsers: number;
+  activeUsers: number;
+  totalTransactions: number;
+  totalVolume: number;
+  recentUsers: User[];
+  recentTransactions: Transaction[];
+  dailyStats: DailyStat[];
+  topUsers: TopUser[];
+}
+
 export interface DailyStat {
   date: string;
   users: number;
@@ -92,17 +101,6 @@ export interface TopUser {
   name: string;
   transactionCount: number;
   totalVolume: number;
-}
-
-export interface AdminDashboardStats {
-  totalUsers: number;
-  activeUsers: number;
-  totalTransactions: number;
-  totalVolume: number;
-  recentUsers: User[];
-  recentTransactions: Transaction[];
-  dailyStats: DailyStat[];
-  topUsers: TopUser[];
 }
 
 export interface Conversation {

@@ -3,7 +3,7 @@ import { Friend } from '../types';
 
 export const FriendService = {
   getFriends: async (): Promise<Friend[]> => {
-    const res = await api.get<Friend[]>('/friends');
+    const res = await api.get('/friends');
     return res.data;
   },
 
@@ -18,7 +18,7 @@ export const FriendService = {
   },
 
   getBlockedUsers: async (): Promise<Friend[]> => {
-    const res = await api.get<Friend[]>('/friends/blocked');
+    const res = await api.get('/friends/blocked');
     return res.data;
   },
 

@@ -44,7 +44,7 @@ export default function FriendsScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showError]);
 
   useFocusEffect(
     useCallback(() => {

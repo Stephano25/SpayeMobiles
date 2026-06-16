@@ -1,14 +1,19 @@
 import api from './api';
 import { Conversation, Message } from '../types';
-import { SOCKET_URL } from '../config';
+import { getSocketUrl } from '../config';
 import { io, Socket } from 'socket.io-client';
 
 let socket: Socket | null = null;
+let socketUrl: string | null = null;
 
 export const ChatService = {
-  connect: (token: string): Socket => {
+  connect: async (token: string): Promise<Socket> => {
+    if (!socketUrl) {
+      socketUrl = await getSocketUrl();
+    }
+    
     if (!socket) {
-      socket = io(SOCKET_URL, {
+      socket = io(socketUrl, {
         auth: { token },
         transports: ['websocket'],
         reconnection: true,
@@ -27,12 +32,12 @@ export const ChatService = {
   getSocket: (): Socket | null => socket,
 
   getConversations: async (): Promise<Conversation[]> => {
-    const res = await api.get<Conversation[]>('/chat/conversations');
+    const res = await api.get('/chat/conversations');
     return res.data;
   },
 
   getMessages: async (otherUserId: string, page = 1, limit = 20): Promise<Message[]> => {
-    const res = await api.get<Message[]>(`/chat/messages/${otherUserId}`, { params: { page, limit } });
+    const res = await api.get(`/chat/messages/${otherUserId}`, { params: { page, limit } });
     return res.data;
   },
 

@@ -26,7 +26,6 @@ export default function ScanPayScreen() {
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'scan' | 'pay' | 'success'>('scan');
-  const [balance, setBalance] = useState(0);
 
   const handleScan = ({ data }: { data: string }) => {
     if (scanned) return;
@@ -35,7 +34,6 @@ export default function ScanPayScreen() {
       setScanned(parsed);
       if (parsed.amount) setAmount(String(parsed.amount));
       setStep('pay');
-      // Vibration pour feedback
       if (navigator.vibrate) navigator.vibrate(100);
     } catch {
       showError('QR code invalide');
@@ -49,12 +47,10 @@ export default function ScanPayScreen() {
       return;
     }
 
-    // Vérifier le solde
     try {
       const wallet = await WalletService.getWallet();
-      setBalance(wallet.balance || 0);
-      if (numAmount > wallet.balance) {
-        showError(`Solde insuffisant. Solde disponible : ${formatAmount(wallet.balance)} Ar`);
+      if (numAmount > (wallet.balance || 0)) {
+        showError(`Solde insuffisant. Solde disponible : ${formatAmount(wallet.balance || 0)} Ar`);
         return;
       }
     } catch {

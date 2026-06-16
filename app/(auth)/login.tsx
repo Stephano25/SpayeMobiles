@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useAuth } from '../../src/context/AuthContext';
+import { useNotification } from '../../src/context/NotificationContext';
 import { COLORS } from '../../src/config';
 import { router } from 'expo-router';
 
@@ -19,17 +20,29 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+  const { showError } = useNotification();
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      alert('Veuillez remplir tous les champs');
+    if (!email.trim()) {
+      showError('Veuillez saisir votre email');
       return;
     }
+    if (!password.trim()) {
+      showError('Veuillez saisir votre mot de passe');
+      return;
+    }
+
     setLoading(true);
     try {
-      await login(email, password);
-    } catch (error) {
-      alert('Erreur de connexion');
+      await login(email.trim(), password.trim());
+    } catch (error: any) {
+      let errorMessage = 'Erreur de connexion';
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -40,7 +53,10 @@ export default function LoginScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>SPaye</Text>
         <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
 
@@ -53,6 +69,7 @@ export default function LoginScreen() {
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
+            editable={!loading}
           />
 
           <TextInput
@@ -62,15 +79,18 @@ export default function LoginScreen() {
             secureTextEntry
             value={password}
             onChangeText={setPassword}
+            editable={!loading}
+            onSubmitEditing={handleLogin}
           />
 
           <TouchableOpacity
-            style={styles.button}
+            style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={loading}
+            activeOpacity={0.7}
           >
             {loading ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={COLORS.white} size="small" />
             ) : (
               <Text style={styles.buttonText}>Se connecter</Text>
             )}
@@ -79,10 +99,18 @@ export default function LoginScreen() {
           <TouchableOpacity
             onPress={() => router.push('/(auth)/register')}
             style={styles.registerLink}
+            disabled={loading}
           >
             <Text style={styles.registerText}>
               Pas encore de compte ? Inscrivez-vous
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.push('/(auth)/ip-config')}
+            style={styles.configLink}
+          >
+            <Text style={styles.configText}>⚙️ Configurer l'IP du serveur</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -131,6 +159,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: COLORS.primary,
     fontWeight: 'bold',
@@ -144,5 +175,13 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 14,
     textDecorationLine: 'underline',
+  },
+  configLink: {
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  configText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
   },
 });

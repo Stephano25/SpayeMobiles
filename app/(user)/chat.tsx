@@ -24,13 +24,17 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    const token = getToken();
-    if (token) {
-      ChatService.connect(token);
-    }
-    if (userId) {
-      loadMessages();
-    }
+    const initChat = async () => {
+      const token = getToken();
+      if (token) {
+        await ChatService.connect(token);
+      }
+      if (userId) {
+        loadMessages();
+      }
+    };
+    initChat();
+
     const unsub = ChatService.onNewMessage((msg) => {
       if (msg.senderId === userId || msg.receiverId === userId) {
         setMessages((prev) => [...prev, msg]);

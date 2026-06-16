@@ -80,7 +80,6 @@ export default function MobileMoneyScreen() {
       return;
     }
 
-    // Confirmer avant d'envoyer
     Alert.alert(
       'Confirmation',
       `Voulez-vous vraiment transférer ${formatAmount(numAmount)} Ar vers ${operator.name} ${cleanPhone} ?\nFrais : ${formatAmount(fee)} Ar\nTotal : ${formatAmount(total)} Ar`,
