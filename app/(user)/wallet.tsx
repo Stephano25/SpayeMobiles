@@ -1,148 +1,173 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
-import { useAuth } from '../../src/context/AuthContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { WalletService } from '../../src/services/WalletService';
 import { TransactionService } from '../../src/services/TransactionService';
-import { Wallet, Transaction } from '../../src/types';
-import { COLORS, formatAmount } from '../../src/config';
-import { router } from 'expo-router';
+import { COLORS, GRADIENTS, RADIUS, SPACING, FONT, SHADOW, formatAmount, formatRelativeTime } from '../../src/config';
+import { Transaction } from '../../src/types';
+
+function getOther(tx: Transaction): any {
+  const incoming = tx.type === 'deposit' || tx.type === 'receive';
+  const party = incoming ? tx.senderId : tx.receiverId;
+  return party && typeof party === 'object' ? party : {};
+}
+
+function txIcon(type: string): keyof typeof Ionicons.glyphMap {
+  switch (type) {
+    case 'deposit':
+    case 'receive':
+      return 'arrow-down-circle';
+    case 'mobile_money':
+      return 'phone-portrait';
+    default:
+      return 'arrow-up-circle';
+  }
+}
+
+const ACTIONS = [
+  { label: 'Envoyer', icon: 'send', color: COLORS.primary, route: '/(user)/send-money' },
+  { label: 'Recevoir', icon: 'qr-code', color: COLORS.success, route: '/(user)/receive-money' },
+  { label: 'Mobile Money', icon: 'phone-portrait', color: COLORS.warning, route: '/(user)/mobile-money' },
+  { label: 'Scanner', icon: 'scan', color: COLORS.secondary, route: '/(user)/scan-pay' },
+] as const;
 
 export default function WalletScreen() {
   const { colors } = useTheme();
   const { showError } = useNotification();
-  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = async () => {
+  const load = useCallback(async () => {
     try {
-      const [walletData, txData] = await Promise.all([
+      const [wallet, txs] = await Promise.all([
         WalletService.getWallet(),
         TransactionService.getUserTransactions(),
       ]);
-      setWallet(walletData);
-      setTransactions(txData.slice(0, 10));
-    } catch (error) {
-      showError('Erreur chargement du portefeuille');
+      setBalance(wallet.balance ?? 0);
+      setTransactions((txs || []).slice(0, 15));
+    } catch (e) {
+      showError('Erreur de chargement du portefeuille');
     }
-  };
-
-  useEffect(() => {
-    loadData();
   }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await load();
     setRefreshing(false);
   };
 
-  const navigateTo = (route: string) => router.push(route as any);
-
-  const getTransactionIcon = (type: string) => {
-    switch (type) {
-      case 'deposit': case 'receive': return '📥';
-      case 'withdrawal': case 'send': return '📤';
-      case 'transfer': return '🔄';
-      case 'mobile_money': return '📱';
-      default: return '💳';
-    }
-  };
-
-  const getTransactionColor = (type: string) =>
-    type === 'deposit' || type === 'receive' ? COLORS.success : COLORS.error;
+  const totalIn = transactions
+    .filter((t) => t.type === 'deposit' || t.type === 'receive')
+    .reduce((s, t) => s + t.amount, 0);
+  const totalOut = transactions
+    .filter((t) => t.type !== 'deposit' && t.type !== 'receive')
+    .reduce((s, t) => s + t.amount, 0);
 
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
     >
-      <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mon Portefeuille</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <View style={styles.balanceCard}>
+      <LinearGradient colors={GRADIENTS.primary} style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Solde disponible</Text>
-        <Text style={styles.balanceAmount}>{formatAmount(wallet?.balance || 0)} Ar</Text>
-        <View style={styles.balanceActions}>
-          <TouchableOpacity style={[styles.actionButton, styles.sendButton]} onPress={() => navigateTo('/send-money')}>
-            <Text style={styles.actionButtonText}>📤 Envoyer</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, styles.receiveButton]} onPress={() => navigateTo('/receive-money')}>
-            <Text style={styles.actionButtonText}>📥 Recevoir</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, styles.mobileButton]} onPress={() => navigateTo('/mobile-money')}>
-            <Text style={styles.actionButtonText}>📱 Mobile</Text>
-          </TouchableOpacity>
+        <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
+        <View style={styles.balanceFooter}>
+          <View style={styles.balanceStat}>
+            <Ionicons name="arrow-down-circle" size={16} color="#A7F3D0" />
+            <Text style={styles.balanceStatText}>+{formatAmount(totalIn)} Ar</Text>
+          </View>
+          <View style={styles.balanceStat}>
+            <Ionicons name="arrow-up-circle" size={16} color="#FECACA" />
+            <Text style={styles.balanceStatText}>-{formatAmount(totalOut)} Ar</Text>
+          </View>
         </View>
+      </LinearGradient>
+
+      <View style={styles.actionsRow}>
+        {ACTIONS.map((a) => (
+          <TouchableOpacity key={a.label} style={styles.actionBtn} onPress={() => router.push(a.route as any)}>
+            <View style={[styles.actionIcon, { backgroundColor: a.color + '18' }]}>
+              <Ionicons name={a.icon as any} size={22} color={a.color} />
+            </View>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>{a.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <View style={styles.quickActions}>
-        <TouchableOpacity style={[styles.quickAction, { backgroundColor: colors.card }]} onPress={() => navigateTo('/scan-pay')}>
-          <Text style={styles.quickActionIcon}>📷</Text>
-          <Text style={[styles.quickActionLabel, { color: colors.text }]}>Scanner</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.quickAction, { backgroundColor: colors.card }]} onPress={() => navigateTo('/transactions')}>
-          <Text style={styles.quickActionIcon}>📜</Text>
-          <Text style={[styles.quickActionLabel, { color: colors.text }]}>Historique</Text>
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Activité récente</Text>
+        <TouchableOpacity onPress={() => router.push('/(user)/transactions')}>
+          <Text style={styles.seeAll}>Voir tout</Text>
         </TouchableOpacity>
       </View>
 
-      {transactions.length > 0 && (
-        <View style={styles.recentSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Transactions récentes</Text>
-          {transactions.map((tx) => (
-            <View key={tx.id} style={[styles.transactionItem, { backgroundColor: colors.card }]}>
-              <View style={[styles.transactionIcon, { backgroundColor: getTransactionColor(tx.type) + '20' }]}>
-                <Text style={styles.transactionIconText}>{getTransactionIcon(tx.type)}</Text>
+      {transactions.length === 0 ? (
+        <View style={[styles.emptyCard, { backgroundColor: colors.card }]}>
+          <Ionicons name="receipt-outline" size={36} color={COLORS.gray400} />
+          <Text style={styles.emptyText}>Aucune transaction</Text>
+        </View>
+      ) : (
+        transactions.map((tx) => {
+          const other = getOther(tx);
+          const credit = tx.type === 'deposit' || tx.type === 'receive';
+          return (
+            <View key={tx.id || (tx as any)._id} style={[styles.txRow, { backgroundColor: colors.card }]}>
+              <View style={[styles.txIconBg, { backgroundColor: credit ? COLORS.successLight : COLORS.errorLight }]}>
+                <Ionicons name={txIcon(tx.type)} size={20} color={credit ? COLORS.success : COLORS.error} />
               </View>
-              <View style={styles.transactionInfo}>
-                <Text style={[styles.transactionDesc, { color: colors.text }]}>{tx.description || tx.type}</Text>
-                <Text style={styles.transactionDate}>{new Date(tx.createdAt).toLocaleDateString('fr-MG')}</Text>
+              <View style={styles.txInfo}>
+                <Text style={[styles.txTitle, { color: colors.text }]} numberOfLines={1}>
+                  {tx.description || (other.firstName ? `${other.firstName} ${other.lastName || ''}` : tx.type)}
+                </Text>
+                <Text style={styles.txDate}>{formatRelativeTime(tx.createdAt)}</Text>
               </View>
-              <Text style={[styles.transactionAmount, { color: getTransactionColor(tx.type) }]}>
-                {tx.type === 'deposit' || tx.type === 'receive' ? '+' : '-'}{formatAmount(tx.amount)} Ar
+              <Text style={[styles.txAmount, { color: credit ? COLORS.success : COLORS.error }]}>
+                {credit ? '+' : '-'}{formatAmount(tx.amount)} Ar
               </Text>
             </View>
-          ))}
-        </View>
+          );
+        })
       )}
+      <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20 },
-  backButton: { padding: 8 },
-  backText: { fontSize: 24, color: COLORS.white },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
-  balanceCard: { backgroundColor: COLORS.white, marginHorizontal: 20, marginTop: 20, borderRadius: 20, padding: 20, shadowColor: COLORS.black, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 5 },
-  balanceLabel: { fontSize: 14, color: COLORS.gray600, marginBottom: 8 },
-  balanceAmount: { fontSize: 32, fontWeight: 'bold', color: COLORS.primary, marginBottom: 20 },
-  balanceActions: { flexDirection: 'row', gap: 12 },
-  actionButton: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  sendButton: { backgroundColor: COLORS.primary },
-  receiveButton: { backgroundColor: COLORS.success },
-  mobileButton: { backgroundColor: COLORS.warning },
-  actionButtonText: { color: COLORS.white, fontWeight: '600' },
-  quickActions: { flexDirection: 'row', marginHorizontal: 20, marginTop: 20, gap: 12 },
-  quickAction: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, gap: 8, shadowColor: COLORS.black, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  quickActionIcon: { fontSize: 20 },
-  quickActionLabel: { fontSize: 14, fontWeight: '500' },
-  recentSection: { marginHorizontal: 20, marginTop: 24, marginBottom: 40 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
-  transactionItem: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 8 },
-  transactionIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  transactionIconText: { fontSize: 20 },
-  transactionInfo: { flex: 1 },
-  transactionDesc: { fontSize: 14, fontWeight: '500', marginBottom: 4 },
-  transactionDate: { fontSize: 12, color: COLORS.gray500 },
-  transactionAmount: { fontSize: 16, fontWeight: 'bold' },
+  content: { padding: SPACING.lg, paddingTop: 60 },
+  balanceCard: { borderRadius: RADIUS.xl, padding: SPACING.xl, marginBottom: SPACING.xl, ...SHADOW.md },
+  balanceLabel: { color: 'rgba(255,255,255,0.85)', fontSize: FONT.size.sm },
+  balanceAmount: { color: COLORS.white, fontSize: FONT.size.huge, fontWeight: FONT.weight.extrabold, marginTop: 6, marginBottom: SPACING.lg },
+  balanceFooter: { flexDirection: 'row', gap: SPACING.lg },
+  balanceStat: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  balanceStatText: { color: COLORS.white, fontSize: FONT.size.sm, fontWeight: FONT.weight.medium },
+
+  actionsRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.xl },
+  actionBtn: { alignItems: 'center', width: '23%' },
+  actionIcon: { width: 52, height: 52, borderRadius: RADIUS.lg, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.xs },
+  actionLabel: { fontSize: FONT.size.xs, fontWeight: FONT.weight.medium, textAlign: 'center' },
+
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
+  sectionTitle: { fontSize: FONT.size.md, fontWeight: FONT.weight.bold },
+  seeAll: { color: COLORS.primary, fontWeight: FONT.weight.semibold, fontSize: FONT.size.sm },
+
+  emptyCard: { alignItems: 'center', padding: SPACING.xxxl, borderRadius: RADIUS.lg },
+  emptyText: { color: COLORS.gray400, marginTop: SPACING.sm },
+
+  txRow: { flexDirection: 'row', alignItems: 'center', padding: SPACING.md, borderRadius: RADIUS.lg, marginBottom: SPACING.sm, gap: SPACING.md, ...SHADOW.sm },
+  txIconBg: { width: 42, height: 42, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  txInfo: { flex: 1 },
+  txTitle: { fontSize: FONT.size.base, fontWeight: FONT.weight.medium },
+  txDate: { fontSize: FONT.size.xs, color: COLORS.gray400, marginTop: 2 },
+  txAmount: { fontSize: FONT.size.base, fontWeight: FONT.weight.bold },
 });

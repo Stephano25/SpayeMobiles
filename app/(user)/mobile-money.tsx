@@ -1,143 +1,206 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { WalletService } from '../../src/services/WalletService';
 import { TransactionService } from '../../src/services/TransactionService';
-import { COLORS, formatAmount } from '../../src/config';
-import { router } from 'expo-router';
+import { COLORS, RADIUS, SPACING, FONT, SHADOW, formatAmount } from '../../src/config';
 
-type Operator = { id: 'airtel' | 'orange' | 'mvola'; name: string; icon: string; prefix: string; color: string };
+const OPERATORS = [
+  { id: 'airtel', name: 'Airtel Money', color: '#E60000', prefix: '033' },
+  { id: 'orange', name: 'Orange Money', color: '#FF7900', prefix: '032' },
+  { id: 'mvola', name: 'MVola', color: '#E91E63', prefix: '034' },
+] as const;
+
+const MIN_AMOUNT = 100;
+const MINIMUM_FEE = 200;
+const FEE_PERCENT = 0.5;
 
 export default function MobileMoneyScreen() {
   const { colors } = useTheme();
-  const { showError, showSuccess } = useNotification();
+  const { showError } = useNotification();
   const [balance, setBalance] = useState(0);
-  const [operator, setOperator] = useState<Operator | null>(null);
+  const [operator, setOperator] = useState<typeof OPERATORS[number] | null>(null);
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
-  const [step, setStep] = useState<'operator' | 'form' | 'confirm'>('operator');
+  const [step, setStep] = useState<'operator' | 'form' | 'success'>('operator');
   const [loading, setLoading] = useState(false);
 
-  const operators: Operator[] = [
-    { id: 'airtel', name: 'Airtel Money', icon: '📱', prefix: '033', color: '#e60000' },
-    { id: 'orange', name: 'Orange Money', icon: '📱', prefix: '032', color: '#ff7900' },
-    { id: 'mvola', name: 'MVola', icon: '📱', prefix: '034', color: '#e91e63' },
-  ];
+  useEffect(() => {
+    WalletService.getWallet().then((w) => setBalance(w.balance ?? 0)).catch(() => {});
+  }, []);
 
-  useEffect(() => { loadBalance(); }, []);
-  const loadBalance = async () => { try { const w = await WalletService.getWallet(); setBalance(w.balance); } catch (e) { showError('Erreur solde'); } };
+  const numAmount = Number(amount) || 0;
+  const fee = numAmount > 0 ? Math.max(Math.ceil((numAmount * FEE_PERCENT) / 100), MINIMUM_FEE) : 0;
+  const total = numAmount + fee;
 
-  const calculateFee = () => {
-    if (!operator || !amount) return 0;
-    const amt = parseFloat(amount);
-    let fee = amt * 0.005;
-    if (fee < 200) fee = 200;
-    return Math.ceil(fee);
-  };
-  const total = () => parseFloat(amount || '0') + calculateFee();
-
-  const goToConfirm = () => {
-    const amt = parseFloat(amount);
-    if (!operator) return showError('Choisissez un opérateur');
-    if (!phone.match(/^[0-9]{9,10}$/)) return showError('Numéro invalide (9-10 chiffres)');
-    if (isNaN(amt) || amt < 100) return showError('Montant minimum 100 Ar');
-    if (total() > balance) return showError(`Solde insuffisant (total avec frais : ${formatAmount(total())} Ar)`);
-    setStep('confirm');
+  const selectOperator = (op: typeof OPERATORS[number]) => {
+    setOperator(op);
+    setPhone(op.prefix);
+    setStep('form');
   };
 
-  const transfer = async () => {
+  const submit = async () => {
+    if (!operator) return;
+    if (numAmount < MIN_AMOUNT) return showError(`Montant minimum : ${formatAmount(MIN_AMOUNT)} Ar`);
+    if (!/^[0-9]{9,10}$/.test(phone.replace(/\s/g, ''))) return showError('Numéro invalide (9-10 chiffres)');
+    if (total > balance) return showError(`Solde insuffisant. Total avec frais : ${formatAmount(total)} Ar`);
+
     setLoading(true);
     try {
-      await TransactionService.mobileMoneyTransfer({ operator: operator!.id, phoneNumber: phone, amount: parseFloat(amount) });
-      showSuccess(`Transfert de ${formatAmount(parseFloat(amount))} Ar réussi`);
-      router.back();
-    } catch (e: any) { showError(e.response?.data?.message || 'Erreur transfert'); }
-    finally { setLoading(false); }
+      await TransactionService.mobileMoneyTransfer(operator.id, phone.replace(/\s/g, ''), numAmount);
+      setStep('success');
+      setTimeout(() => router.replace('/(user)/wallet'), 1800);
+    } catch (e: any) {
+      showError(e?.response?.data?.message || 'Erreur lors du transfert');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (step === 'confirm') {
+  if (step === 'success') {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-          <TouchableOpacity onPress={() => setStep('form')}><Text style={styles.backText}>←</Text></TouchableOpacity>
-          <Text style={styles.headerTitle}>Confirmation</Text><View style={{ width: 40 }} />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <View style={styles.successIcon}>
+          <Ionicons name="checkmark" size={48} color={COLORS.white} />
         </View>
-        <View style={styles.confirmCard}>
-          <Text style={styles.confirmTitle}>Vérifiez</Text>
-          <View style={styles.row}><Text>Opérateur</Text><Text>{operator?.name}</Text></View>
-          <View style={styles.row}><Text>Numéro</Text><Text>{phone}</Text></View>
-          <View style={styles.row}><Text>Montant</Text><Text>{formatAmount(parseFloat(amount))} Ar</Text></View>
-          <View style={styles.row}><Text>Frais</Text><Text>+ {formatAmount(calculateFee())} Ar</Text></View>
-          <View style={styles.row}><Text>Total</Text><Text style={{ fontWeight: 'bold' }}>{formatAmount(total())} Ar</Text></View>
-          <View style={styles.row}><Text>Solde après</Text><Text>{formatAmount(balance - total())} Ar</Text></View>
-          <TouchableOpacity style={styles.confirmButton} onPress={transfer} disabled={loading}>
-            {loading ? <ActivityIndicator color="white" /> : <Text style={styles.confirmButtonText}>Confirmer</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setStep('form')}><Text style={{ marginTop: 12, color: COLORS.gray600 }}>Retour</Text></TouchableOpacity>
-        </View>
+        <Text style={[styles.successTitle, { color: colors.text }]}>Transfert réussi !</Text>
+        <Text style={styles.successSub}>{formatAmount(numAmount)} Ar envoyés vers {operator?.name}</Text>
       </View>
-    );
-  }
-
-  if (step === 'form') {
-    return (
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-          <TouchableOpacity onPress={() => setStep('operator')}><Text style={styles.backText}>←</Text></TouchableOpacity>
-          <Text style={styles.headerTitle}>Mobile Money</Text><View style={{ width: 40 }} />
-        </View>
-        <View style={styles.balanceCard}><Text>Solde : {formatAmount(balance)} Ar</Text></View>
-        <View style={styles.formCard}>
-          <Text style={styles.label}>Numéro {operator?.name}</Text>
-          <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="0341234567" />
-          <Text style={styles.label}>Montant (Ar)</Text>
-          <TextInput style={styles.input} value={amount} onChangeText={setAmount} keyboardType="numeric" placeholder="1000" />
-          {amount ? <Text style={styles.fee}>Frais : {formatAmount(calculateFee())} Ar → Total {formatAmount(total())} Ar</Text> : null}
-          <TouchableOpacity style={styles.nextButton} onPress={goToConfirm}><Text style={styles.nextButtonText}>Continuer</Text></TouchableOpacity>
-        </View>
-      </ScrollView>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()}><Text style={styles.backText}>←</Text></TouchableOpacity>
-        <Text style={styles.headerTitle}>Mobile Money</Text><View style={{ width: 40 }} />
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]} contentContainerStyle={{ padding: SPACING.lg, paddingTop: 60 }}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => (step === 'form' ? setStep('operator') : router.back())}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Mobile Money</Text>
+        <View style={{ width: 24 }} />
       </View>
-      <Text style={styles.sectionTitle}>Choisissez l'opérateur</Text>
-      <View style={styles.operatorGrid}>
-        {operators.map(op => (
-          <TouchableOpacity key={op.id} style={[styles.operatorCard, { backgroundColor: colors.card }]} onPress={() => { setOperator(op); setPhone(op.prefix); setStep('form'); }}>
-            <Text style={styles.operatorIcon}>{op.icon}</Text>
-            <Text>{op.name}</Text>
+
+      <View style={styles.balanceBanner}>
+        <Text style={styles.balanceBannerLabel}>Solde disponible</Text>
+        <Text style={styles.balanceBannerValue}>{formatAmount(balance)} Ar</Text>
+      </View>
+
+      {step === 'operator' && (
+        <View style={{ gap: SPACING.md }}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Choisissez votre opérateur</Text>
+          {OPERATORS.map((op) => (
+            <TouchableOpacity
+              key={op.id}
+              style={[styles.operatorCard, { backgroundColor: op.color }]}
+              onPress={() => selectOperator(op)}
+            >
+              <View style={styles.operatorIcon}>
+                <Ionicons name="phone-portrait" size={26} color={COLORS.white} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.operatorName}>{op.name}</Text>
+                <Text style={styles.operatorPrefix}>{op.prefix} XXX XXX</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.8)" />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {step === 'form' && operator && (
+        <View>
+          <View style={[styles.operatorBadge, { backgroundColor: operator.color }]}>
+            <Ionicons name="phone-portrait" size={18} color={COLORS.white} />
+            <Text style={styles.operatorBadgeText}>{operator.name}</Text>
+          </View>
+
+          <Text style={[styles.label, { color: colors.text }]}>Numéro de téléphone</Text>
+          <TextInput
+            style={[styles.input, { color: colors.text, backgroundColor: colors.card }]}
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            placeholder="034 12 345 67"
+            placeholderTextColor={COLORS.gray400}
+          />
+
+          <Text style={[styles.label, { color: colors.text }]}>Montant (Ar)</Text>
+          <TextInput
+            style={[styles.amountInput, { color: colors.text, backgroundColor: colors.card }]}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="numeric"
+            placeholder="0"
+            placeholderTextColor={COLORS.gray400}
+          />
+
+          {numAmount > 0 && (
+            <View style={[styles.feeCard, { backgroundColor: colors.card }]}>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeLabel}>Montant</Text>
+                <Text style={[styles.feeValue, { color: colors.text }]}>{formatAmount(numAmount)} Ar</Text>
+              </View>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeLabel}>Frais ({FEE_PERCENT}%)</Text>
+                <Text style={[styles.feeValue, { color: colors.text }]}>{formatAmount(fee)} Ar</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.feeRow}>
+                <Text style={[styles.feeLabel, { fontWeight: FONT.weight.bold }]}>Total à débiter</Text>
+                <Text style={styles.totalValue}>{formatAmount(total)} Ar</Text>
+              </View>
+              {total > balance && (
+                <Text style={styles.warningText}>⚠ Solde insuffisant</Text>
+              )}
+            </View>
+          )}
+
+          <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: operator.color }]} onPress={submit} disabled={loading}>
+            {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.primaryBtnText}>Confirmer le transfert</Text>}
           </TouchableOpacity>
-        ))}
-      </View>
-    </View>
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20 },
-  backText: { fontSize: 24, color: COLORS.white },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
-  balanceCard: { backgroundColor: COLORS.white, margin: 20, padding: 16, borderRadius: 16, alignItems: 'center' },
-  formCard: { backgroundColor: COLORS.white, margin: 20, padding: 20, borderRadius: 16 },
-  label: { fontSize: 14, fontWeight: 'bold', marginTop: 12, marginBottom: 6 },
-  input: { borderWidth: 1, borderColor: COLORS.gray300, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
-  fee: { marginTop: 10, fontSize: 12, color: COLORS.gray600, textAlign: 'center' },
-  nextButton: { backgroundColor: COLORS.primary, padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 20 },
-  nextButtonText: { color: 'white', fontWeight: 'bold' },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginHorizontal: 20, marginVertical: 12 },
-  operatorGrid: { flexDirection: 'row', justifyContent: 'space-around', marginHorizontal: 20 },
-  operatorCard: { alignItems: 'center', padding: 16, borderRadius: 16, width: '30%', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, elevation: 2 },
-  operatorIcon: { fontSize: 32, marginBottom: 8 },
-  confirmCard: { backgroundColor: COLORS.white, margin: 20, padding: 20, borderRadius: 16 },
-  confirmTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 8 },
-  confirmButton: { backgroundColor: COLORS.primary, padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 16 },
-  confirmButtonText: { color: 'white', fontWeight: 'bold' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.lg },
+  headerTitle: { fontSize: FONT.size.lg, fontWeight: FONT.weight.bold },
+
+  balanceBanner: { backgroundColor: COLORS.primaryLight, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.xl },
+  balanceBannerLabel: { fontSize: FONT.size.xs, color: COLORS.primary },
+  balanceBannerValue: { fontSize: FONT.size.lg, fontWeight: FONT.weight.bold, color: COLORS.primary, marginTop: 2 },
+
+  sectionTitle: { fontSize: FONT.size.md, fontWeight: FONT.weight.bold, marginBottom: SPACING.sm },
+  operatorCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, borderRadius: RADIUS.lg, padding: SPACING.lg, ...SHADOW.sm },
+  operatorIcon: { width: 48, height: 48, borderRadius: RADIUS.md, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  operatorName: { color: COLORS.white, fontSize: FONT.size.base, fontWeight: FONT.weight.bold },
+  operatorPrefix: { color: 'rgba(255,255,255,0.85)', fontSize: FONT.size.xs, marginTop: 2 },
+
+  operatorBadge: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, alignSelf: 'flex-start', borderRadius: RADIUS.full, paddingVertical: 6, paddingHorizontal: SPACING.md, marginBottom: SPACING.lg },
+  operatorBadgeText: { color: COLORS.white, fontWeight: FONT.weight.bold, fontSize: FONT.size.sm },
+
+  label: { fontSize: FONT.size.sm, fontWeight: FONT.weight.semibold, marginBottom: SPACING.xs, marginTop: SPACING.md },
+  input: { borderRadius: RADIUS.md, padding: SPACING.md, fontSize: FONT.size.base, ...SHADOW.sm },
+  amountInput: { borderRadius: RADIUS.md, padding: SPACING.md, fontSize: FONT.size.xl, fontWeight: FONT.weight.bold, ...SHADOW.sm },
+
+  feeCard: { borderRadius: RADIUS.lg, padding: SPACING.lg, marginTop: SPACING.lg, ...SHADOW.sm },
+  feeRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: SPACING.sm },
+  feeLabel: { color: COLORS.gray500, fontSize: FONT.size.sm },
+  feeValue: { fontSize: FONT.size.sm, fontWeight: FONT.weight.semibold },
+  totalValue: { fontSize: FONT.size.base, fontWeight: FONT.weight.extrabold, color: COLORS.primary },
+  divider: { height: 1, backgroundColor: COLORS.gray100, marginVertical: SPACING.xs },
+  warningText: { color: COLORS.error, fontSize: FONT.size.xs, marginTop: SPACING.sm, fontWeight: FONT.weight.semibold },
+
+  primaryBtn: { borderRadius: RADIUS.md, paddingVertical: 16, alignItems: 'center', marginTop: SPACING.xl, ...SHADOW.md },
+  primaryBtnText: { color: COLORS.white, fontWeight: FONT.weight.bold, fontSize: FONT.size.base },
+
+  successIcon: { width: 96, height: 96, borderRadius: RADIUS.full, backgroundColor: COLORS.success, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.lg },
+  successTitle: { fontSize: FONT.size.xl, fontWeight: FONT.weight.bold, marginBottom: SPACING.sm },
+  successSub: { color: COLORS.gray400, textAlign: 'center' },
 });

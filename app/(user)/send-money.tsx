@@ -1,314 +1,261 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
-import { useAuth } from '../../src/context/AuthContext';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { WalletService } from '../../src/services/WalletService';
 import { FriendService } from '../../src/services/FriendService';
 import { TransactionService } from '../../src/services/TransactionService';
-import { COLORS, formatAmount, getInitials } from '../../src/config';
-import { router } from 'expo-router';
+import { WalletService } from '../../src/services/WalletService';
+import { COLORS, RADIUS, SPACING, FONT, SHADOW, formatAmount, getInitials, getAvatarColor } from '../../src/config';
+
+const PRESETS = [1000, 5000, 10000, 20000, 50000, 100000];
 
 export default function SendMoneyScreen() {
   const { colors } = useTheme();
   const { showError, showSuccess } = useNotification();
+
   const [balance, setBalance] = useState(0);
-  const [receiverId, setReceiverId] = useState('');
-  const [receiverName, setReceiverName] = useState('');
+  const [friends, setFriends] = useState<any[]>([]);
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<any>(null);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [friends, setFriends] = useState<any[]>([]);
-  const [showFriendPicker, setShowFriendPicker] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<'form' | 'confirm'>('form');
-
-  const amountPresets = [100, 500, 1000, 5000, 10000, 20000, 50000, 100000];
+  const [step, setStep] = useState<'form' | 'confirm' | 'success'>('form');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadData();
+    WalletService.getWallet().then((w) => setBalance(w.balance ?? 0)).catch(() => {});
+    FriendService.getFriends().then(setFriends).catch(() => {});
   }, []);
 
-  const loadData = async () => {
-    try {
-      const [wallet, friendsList] = await Promise.all([
-        WalletService.getWallet(),
-        FriendService.getFriends(),
-      ]);
-      setBalance(wallet.balance);
-      // ✅ Correction : Vérifier que friendsList est un tableau
-      setFriends(Array.isArray(friendsList) ? friendsList.filter(f => f.status === 'accepted') : []);
-    } catch (error) {
-      showError('Erreur chargement');
-    }
-  };
+  const filtered = friends.filter((f) => {
+    const name = `${f.friend?.firstName || ''} ${f.friend?.lastName || ''}`.toLowerCase();
+    return name.includes(search.toLowerCase());
+  });
 
-  const handleSend = () => {
-    const amountNum = parseFloat(amount);
-    if (!receiverId) return showError('Sélectionnez un destinataire');
-    if (isNaN(amountNum) || amountNum < 100) return showError('Montant minimum 100 Ar');
-    if (amountNum > balance) return showError('Solde insuffisant');
+  const numericAmount = Number(amount) || 0;
+
+  const goConfirm = () => {
+    if (!selected) return showError('Sélectionnez un destinataire');
+    if (numericAmount < 100) return showError('Montant minimum : 100 Ar');
+    if (numericAmount > balance) return showError('Solde insuffisant');
     setStep('confirm');
   };
 
   const confirmSend = async () => {
-    setIsLoading(true);
+    setLoading(true);
     try {
-      await TransactionService.sendMoney({ receiverId, amount: parseFloat(amount), description });
-      showSuccess(`Envoi de ${formatAmount(parseFloat(amount))} Ar réussi`);
-      router.back();
-    } catch (error: any) {
-      showError(error.response?.data?.message || 'Erreur envoi');
+      await TransactionService.sendMoney(selected.friend.id, numericAmount, description || undefined);
+      setStep('success');
+      setTimeout(() => router.replace('/(user)/wallet'), 1800);
+    } catch (e: any) {
+      showError(e?.response?.data?.message || "Erreur lors de l'envoi");
+      setStep('form');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const selectFriend = (friend: any) => {
-    setReceiverId(friend.friend.id);
-    setReceiverName(`${friend.friend.firstName} ${friend.friend.lastName}`);
-    setShowFriendPicker(false);
-  };
+  if (step === 'success') {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <View style={styles.successIcon}>
+          <Ionicons name="checkmark" size={48} color={COLORS.white} />
+        </View>
+        <Text style={[styles.successTitle, { color: colors.text }]}>Envoi réussi !</Text>
+        <Text style={styles.successSub}>
+          {formatAmount(numericAmount)} Ar envoyés à {selected?.friend?.firstName}
+        </Text>
+      </View>
+    );
+  }
 
   if (step === 'confirm') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-          <TouchableOpacity onPress={() => setStep('form')} style={styles.backButton}>
-            <Text style={styles.backText}>←</Text>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setStep('form')}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Confirmation</Text>
-          <View style={{ width: 40 }} />
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Confirmer</Text>
+          <View style={{ width: 24 }} />
         </View>
-        <View style={styles.confirmCard}>
-          <View style={styles.confirmIcon}><Text style={styles.confirmIconText}>✓</Text></View>
-          <Text style={styles.confirmTitle}>Vérifiez les informations</Text>
-          <View style={styles.confirmDetails}>
-            <View style={styles.confirmRow}>
-              <Text style={styles.confirmLabel}>Destinataire</Text>
-              <Text style={styles.confirmValue}>{receiverName}</Text>
-            </View>
-            <View style={styles.confirmRow}>
-              <Text style={styles.confirmLabel}>Montant</Text>
-              <Text style={[styles.confirmValue, styles.amountValue]}>{formatAmount(parseFloat(amount))} Ar</Text>
-            </View>
-            {description ? (
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>Description</Text>
-                <Text style={styles.confirmValue}>{description}</Text>
-              </View>
-            ) : null}
-            <View style={styles.confirmDivider} />
-            <View style={styles.confirmRow}>
-              <Text style={styles.confirmLabel}>Solde après</Text>
-              <Text style={styles.confirmValue}>{formatAmount(balance - parseFloat(amount))} Ar</Text>
-            </View>
+
+        <View style={[styles.confirmCard, { backgroundColor: colors.card }]}>
+          <View style={[styles.avatarLg, { backgroundColor: getAvatarColor(selected.friend.firstName) }]}>
+            <Text style={styles.avatarLgText}>{getInitials(selected.friend.firstName, selected.friend.lastName)}</Text>
           </View>
-          <View style={styles.confirmActions}>
-            <TouchableOpacity style={[styles.confirmButton, styles.cancelButton]} onPress={() => setStep('form')}>
-              <Text style={styles.cancelButtonText}>Retour</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.confirmButton, styles.confirmButtonActive]} onPress={confirmSend} disabled={isLoading}>
-              {isLoading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.confirmButtonText}>Confirmer</Text>}
-            </TouchableOpacity>
+          <Text style={[styles.confirmName, { color: colors.text }]}>
+            {selected.friend.firstName} {selected.friend.lastName}
+          </Text>
+          <Text style={styles.confirmAmount}>{formatAmount(numericAmount)} Ar</Text>
+          {!!description && <Text style={styles.confirmDesc}>{description}</Text>}
+
+          <View style={styles.divider} />
+          <View style={styles.confirmRow}>
+            <Text style={styles.confirmLabel}>Solde avant</Text>
+            <Text style={[styles.confirmValue, { color: colors.text }]}>{formatAmount(balance)} Ar</Text>
+          </View>
+          <View style={styles.confirmRow}>
+            <Text style={styles.confirmLabel}>Solde après</Text>
+            <Text style={[styles.confirmValue, { color: colors.text }]}>{formatAmount(balance - numericAmount)} Ar</Text>
           </View>
         </View>
+
+        <TouchableOpacity style={styles.primaryBtn} onPress={confirmSend} disabled={loading}>
+          {loading ? <ActivityIndicator color={COLORS.white} /> : <Text style={styles.primaryBtnText}>Confirmer l'envoi</Text>}
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backText}>←</Text>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: colors.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Envoyer de l'argent</Text>
-        <View style={{ width: 40 }} />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Envoyer de l'argent</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      <View style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>Solde disponible</Text>
-        <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
+      <View style={styles.balanceBanner}>
+        <Text style={styles.balanceBannerLabel}>Solde disponible</Text>
+        <Text style={styles.balanceBannerValue}>{formatAmount(balance)} Ar</Text>
       </View>
 
-      <View style={styles.formCard}>
-        <TouchableOpacity style={styles.friendSelector} onPress={() => setShowFriendPicker(true)}>
-          <Text style={styles.friendSelectorLabel}>Destinataire</Text>
-          <Text style={styles.friendSelectorValue}>{receiverName || 'Sélectionner un ami'}</Text>
-          <Text style={styles.friendSelectorIcon}>▼</Text>
-        </TouchableOpacity>
+      <View style={[styles.searchBox, { backgroundColor: colors.card }]}>
+        <Ionicons name="search" size={18} color={COLORS.gray400} />
+        <TextInput
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholder="Rechercher un ami..."
+          placeholderTextColor={COLORS.gray400}
+          value={search}
+          onChangeText={setSearch}
+        />
+      </View>
 
-        <View style={styles.amountContainer}>
-          <Text style={styles.inputLabel}>Montant (Ar)</Text>
-          <TextInput
-            style={styles.amountInput}
-            value={amount}
-            onChangeText={setAmount}
-            keyboardType="numeric"
-            placeholder="0"
-          />
-          <View style={styles.quickAmounts}>
-            {amountPresets.map(preset => (
-              <TouchableOpacity
-                key={preset}
-                style={[styles.quickAmountButton, parseFloat(amount) === preset && styles.quickAmountActive]}
-                onPress={() => setAmount(preset.toString())}
-              >
-                <Text style={[styles.quickAmountText, parseFloat(amount) === preset && styles.quickAmountTextActive]}>
-                  {formatAmount(preset)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+      {selected && (
+        <View style={styles.selectedChip}>
+          <View style={[styles.avatarSm, { backgroundColor: getAvatarColor(selected.friend.firstName) }]}>
+            <Text style={styles.avatarSmText}>{getInitials(selected.friend.firstName, selected.friend.lastName)}</Text>
           </View>
+          <Text style={styles.selectedChipText}>{selected.friend.firstName} {selected.friend.lastName}</Text>
+          <TouchableOpacity onPress={() => setSelected(null)}>
+            <Ionicons name="close-circle" size={20} color={COLORS.gray400} />
+          </TouchableOpacity>
         </View>
+      )}
 
-        <View style={styles.descriptionContainer}>
-          <Text style={styles.inputLabel}>Description (optionnelle)</Text>
-          <TextInput
-            style={styles.descriptionInput}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Ex: Remboursement..."
-            multiline
-          />
-        </View>
+      {!selected && (
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id}
+          style={{ maxHeight: 180 }}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.friendRow} onPress={() => { setSelected(item); setSearch(''); }}>
+              <View style={[styles.avatarSm, { backgroundColor: getAvatarColor(item.friend?.firstName || '') }]}>
+                <Text style={styles.avatarSmText}>{getInitials(item.friend?.firstName, item.friend?.lastName)}</Text>
+              </View>
+              <Text style={[styles.friendName, { color: colors.text }]}>{item.friend?.firstName} {item.friend?.lastName}</Text>
+            </TouchableOpacity>
+          )}
+          ListEmptyComponent={search.length > 0 ? <Text style={styles.empty}>Aucun ami trouvé</Text> : null}
+        />
+      )}
 
-        <TouchableOpacity
-          style={[styles.sendButton, (!receiverId || !amount || parseFloat(amount) > balance) && styles.sendButtonDisabled]}
-          onPress={handleSend}
-          disabled={!receiverId || !amount || parseFloat(amount) > balance}
-        >
-          <Text style={styles.sendButtonText}>Continuer</Text>
-        </TouchableOpacity>
+      <Text style={[styles.label, { color: colors.text, marginTop: SPACING.lg }]}>Montant (Ar)</Text>
+      <TextInput
+        style={[styles.amountInput, { color: colors.text, backgroundColor: colors.card }]}
+        placeholder="0"
+        placeholderTextColor={COLORS.gray400}
+        keyboardType="numeric"
+        value={amount}
+        onChangeText={setAmount}
+      />
+
+      <View style={styles.presetsRow}>
+        {PRESETS.map((p) => (
+          <TouchableOpacity key={p} style={[styles.presetBtn, amount === String(p) && styles.presetBtnActive]} onPress={() => setAmount(String(p))}>
+            <Text style={[styles.presetText, amount === String(p) && styles.presetTextActive]}>{formatAmount(p)}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <Modal visible={showFriendPicker} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Sélectionner un ami</Text>
-              <TouchableOpacity onPress={() => setShowFriendPicker(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              {friends.map(friend => (
-                <TouchableOpacity key={friend.id} style={styles.friendItem} onPress={() => selectFriend(friend)}>
-                  <View style={styles.friendAvatar}>
-                    <Text style={styles.friendAvatarText}>
-                      {getInitials(friend.friend.firstName, friend.friend.lastName)}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={[styles.friendName, { color: colors.text }]}>
-                      {friend.friend.firstName} {friend.friend.lastName}
-                    </Text>
-                    <Text style={styles.friendEmail}>{friend.friend.email}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-              {friends.length === 0 && <Text style={styles.noFriendsText}>Aucun ami. Ajoutez des amis d'abord.</Text>}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </ScrollView>
+      <Text style={[styles.label, { color: colors.text }]}>Description (optionnel)</Text>
+      <TextInput
+        style={[styles.amountInput, { color: colors.text, backgroundColor: colors.card, fontWeight: '400' }]}
+        placeholder="Ex: remboursement..."
+        placeholderTextColor={COLORS.gray400}
+        value={description}
+        onChangeText={setDescription}
+      />
+
+      <TouchableOpacity style={styles.primaryBtn} onPress={goConfirm}>
+        <Text style={styles.primaryBtnText}>Continuer</Text>
+      </TouchableOpacity>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20 },
-  backButton: { padding: 8 },
-  backText: { fontSize: 24, color: COLORS.white },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
-  balanceCard: {
-    backgroundColor: COLORS.white,
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  balanceLabel: { fontSize: 14, color: COLORS.gray600, marginBottom: 8 },
-  balanceAmount: { fontSize: 28, fontWeight: 'bold', color: COLORS.primary },
-  formCard: { backgroundColor: COLORS.white, marginHorizontal: 20, marginTop: 20, borderRadius: 20, padding: 20, marginBottom: 40 },
-  friendSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: COLORS.gray300,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 20,
-  },
-  friendSelectorLabel: { fontSize: 12, color: COLORS.gray500, position: 'absolute', top: -8, left: 12, backgroundColor: COLORS.white, paddingHorizontal: 4 },
-  friendSelectorValue: { fontSize: 16, color: COLORS.gray900 },
-  friendSelectorIcon: { fontSize: 12, color: COLORS.gray500 },
-  amountContainer: { marginBottom: 20 },
-  inputLabel: { fontSize: 14, fontWeight: '600', color: COLORS.gray700, marginBottom: 8 },
-  amountInput: {
-    borderWidth: 1,
-    borderColor: COLORS.gray300,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    textAlign: 'center',
-  },
-  quickAmounts: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, gap: 8 },
-  quickAmountButton: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: COLORS.gray100 },
-  quickAmountActive: { backgroundColor: COLORS.primary },
-  quickAmountText: { fontSize: 12, color: COLORS.gray700 },
-  quickAmountTextActive: { color: COLORS.white },
-  descriptionContainer: { marginBottom: 24 },
-  descriptionInput: {
-    borderWidth: 1,
-    borderColor: COLORS.gray300,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 14,
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-  sendButton: { backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
-  sendButtonDisabled: { backgroundColor: COLORS.gray300 },
-  sendButtonText: { color: COLORS.white, fontSize: 16, fontWeight: 'bold' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '80%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold' },
-  modalClose: { fontSize: 20, color: COLORS.gray500, padding: 8 },
-  friendItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.gray200, gap: 12 },
-  friendAvatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-  friendAvatarText: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
-  friendName: { fontSize: 16, fontWeight: '500', marginBottom: 2 },
-  friendEmail: { fontSize: 12, color: COLORS.gray500 },
-  noFriendsText: { textAlign: 'center', color: COLORS.gray500, paddingVertical: 20 },
-  confirmCard: { backgroundColor: COLORS.white, marginHorizontal: 20, marginTop: 20, borderRadius: 20, padding: 20, alignItems: 'center' },
-  confirmIcon: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.success, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  confirmIconText: { fontSize: 32, color: COLORS.white },
-  confirmTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
-  confirmDetails: { width: '100%', marginBottom: 24 },
-  confirmRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12 },
-  confirmLabel: { fontSize: 14, color: COLORS.gray600 },
-  confirmValue: { fontSize: 14, fontWeight: '500', color: COLORS.gray900 },
-  amountValue: { fontSize: 18, fontWeight: 'bold', color: COLORS.primary },
-  confirmDivider: { height: 1, backgroundColor: COLORS.gray200, marginVertical: 8 },
-  confirmActions: { flexDirection: 'row', gap: 12, width: '100%' },
-  confirmButton: { flex: 1, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
-  cancelButton: { backgroundColor: COLORS.gray100 },
-  cancelButtonText: { color: COLORS.gray700, fontWeight: '600' },
-  confirmButtonActive: { backgroundColor: COLORS.primary },
-  confirmButtonText: { color: COLORS.white, fontWeight: 'bold' },
+  container: { flex: 1, padding: SPACING.lg, paddingTop: 60 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.lg },
+  headerTitle: { fontSize: FONT.size.lg, fontWeight: FONT.weight.bold },
+
+  balanceBanner: { backgroundColor: COLORS.primaryLight, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.lg },
+  balanceBannerLabel: { fontSize: FONT.size.xs, color: COLORS.primary },
+  balanceBannerValue: { fontSize: FONT.size.lg, fontWeight: FONT.weight.bold, color: COLORS.primary, marginTop: 2 },
+
+  searchBox: { flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, gap: SPACING.sm, ...SHADOW.sm },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: FONT.size.base },
+
+  selectedChip: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.primaryLight, borderRadius: RADIUS.md, padding: SPACING.sm, marginTop: SPACING.sm },
+  selectedChipText: { flex: 1, fontWeight: FONT.weight.semibold, color: COLORS.primary },
+
+  friendRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingVertical: SPACING.sm },
+  friendName: { fontSize: FONT.size.base, fontWeight: FONT.weight.medium },
+  empty: { textAlign: 'center', color: COLORS.gray400, paddingVertical: SPACING.md },
+
+  avatarSm: { width: 36, height: 36, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
+  avatarSmText: { color: COLORS.white, fontWeight: FONT.weight.bold, fontSize: FONT.size.sm },
+  avatarLg: { width: 72, height: 72, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.md },
+  avatarLgText: { color: COLORS.white, fontWeight: FONT.weight.bold, fontSize: FONT.size.xl },
+
+  label: { fontSize: FONT.size.sm, fontWeight: FONT.weight.semibold, marginBottom: SPACING.xs, marginTop: SPACING.md },
+  amountInput: { borderRadius: RADIUS.md, padding: SPACING.md, fontSize: FONT.size.xl, fontWeight: FONT.weight.bold, ...SHADOW.sm },
+
+  presetsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.sm, marginTop: SPACING.sm },
+  presetBtn: { paddingVertical: 6, paddingHorizontal: SPACING.md, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100 },
+  presetBtnActive: { backgroundColor: COLORS.primary },
+  presetText: { fontSize: FONT.size.xs, color: COLORS.gray600, fontWeight: FONT.weight.medium },
+  presetTextActive: { color: COLORS.white },
+
+  primaryBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 16, alignItems: 'center', marginTop: SPACING.xl, ...SHADOW.md },
+  primaryBtnText: { color: COLORS.white, fontWeight: FONT.weight.bold, fontSize: FONT.size.base },
+
+  confirmCard: { borderRadius: RADIUS.xl, padding: SPACING.xl, alignItems: 'center', ...SHADOW.md },
+  confirmName: { fontSize: FONT.size.md, fontWeight: FONT.weight.semibold },
+  confirmAmount: { fontSize: FONT.size.xxl, fontWeight: FONT.weight.extrabold, color: COLORS.primary, marginTop: SPACING.sm },
+  confirmDesc: { color: COLORS.gray400, marginTop: SPACING.xs },
+  divider: { height: 1, backgroundColor: COLORS.gray100, width: '100%', marginVertical: SPACING.lg },
+  confirmRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: SPACING.sm },
+  confirmLabel: { color: COLORS.gray400, fontSize: FONT.size.sm },
+  confirmValue: { fontWeight: FONT.weight.semibold, fontSize: FONT.size.sm },
+
+  successIcon: { width: 96, height: 96, borderRadius: RADIUS.full, backgroundColor: COLORS.success, alignItems: 'center', justifyContent: 'center', marginBottom: SPACING.lg },
+  successTitle: { fontSize: FONT.size.xl, fontWeight: FONT.weight.bold, marginBottom: SPACING.sm },
+  successSub: { color: COLORS.gray400, textAlign: 'center' },
 });

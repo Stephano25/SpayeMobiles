@@ -1,150 +1,244 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, ScrollView } from 'react-native';
-import { useAuth } from '../../src/context/AuthContext';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { FriendService } from '../../src/services/FriendService';
-import { COLORS, getInitials } from '../../src/config';
-import { router } from 'expo-router';
+import { COLORS, RADIUS, SPACING, FONT, SHADOW, getInitials, getAvatarColor } from '../../src/config';
+
+type Tab = 'friends' | 'requests' | 'search';
 
 export default function FriendsScreen() {
   const { colors } = useTheme();
-  const { user } = useAuth();
   const { showSuccess, showError } = useNotification();
+  const [tab, setTab] = useState<Tab>('friends');
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadData(); }, []);
-
-  const loadData = async () => {
+  const load = useCallback(async () => {
     try {
-      const [friendsData, requestsData, suggestionsData] = await Promise.all([
+      const [f, r, s] = await Promise.all([
         FriendService.getFriends(),
         FriendService.getFriendRequests(),
         FriendService.getSuggestions(),
       ]);
-      setFriends(friendsData.filter(f => f.status === 'accepted'));
-      setRequests(requestsData);
-      setSuggestions(suggestionsData);
-    } catch (error) { showError('Erreur chargement'); } finally { setLoading(false); }
-  };
+      setFriends(f || []);
+      setRequests(r || []);
+      setSuggestions(s || []);
+    } catch (e) {
+      showError('Erreur de chargement');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const searchUsers = async () => {
-    if (searchQuery.length < 2) return;
-    try {
-      const res = await FriendService.searchUsers(searchQuery);
-      setSearchResults(res);
-    } catch (error) { showError('Erreur recherche'); }
-  };
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const sendRequest = async (userId: string) => {
+  useEffect(() => {
+    if (searchQuery.length < 2) { setSearchResults([]); return; }
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await FriendService.searchUsers(searchQuery);
+        setSearchResults(res || []);
+      } catch {}
+      setSearching(false);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const sendRequest = async (id: string) => {
     try {
-      await FriendService.sendFriendRequest(userId);
+      await FriendService.sendFriendRequest(id);
       showSuccess('Demande envoyée');
-      setShowAddModal(false);
-      setSearchQuery('');
-      setSearchResults([]);
-      loadData();
-    } catch (error: any) { showError(error.response?.data?.message || 'Erreur'); }
+      load();
+      setSearchResults((prev) => prev.filter((u) => u.id !== id));
+      setSuggestions((prev) => prev.filter((u) => u.id !== id));
+    } catch (e: any) {
+      showError(e?.response?.data?.message || 'Erreur');
+    }
   };
 
-  const acceptRequest = async (requestId: string) => {
-    try { await FriendService.acceptFriendRequest(requestId); showSuccess('Ami ajouté'); loadData(); } catch (error) { showError('Erreur'); }
+  const accept = async (id: string) => {
+    try {
+      await FriendService.acceptFriendRequest(id);
+      showSuccess('Demande acceptée');
+      load();
+    } catch {}
   };
 
-  const declineRequest = async (requestId: string) => {
-    try { await FriendService.declineFriendRequest(requestId); loadData(); } catch (error) { showError('Erreur'); }
+  const decline = async (id: string) => {
+    try {
+      await FriendService.declineFriendRequest(id);
+      load();
+    } catch {}
   };
 
-  const removeFriend = async (friendId: string) => {
-    try { await FriendService.removeFriend(friendId); showSuccess('Ami supprimé'); loadData(); } catch (error) { showError('Erreur'); }
-  };
-
-  const chatWith = (friendId: string) => router.push({ pathname: '/(user)/chat', params: { friendId } });
-
-  if (loading) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Chargement...</Text></View>;
+  const renderUserCard = (user: any, action: React.ReactNode) => (
+    <View style={[styles.userRow, { backgroundColor: colors.card }]} key={user.id}>
+      <View style={[styles.avatar, { backgroundColor: getAvatarColor(user.firstName) }]}>
+        <Text style={styles.avatarText}>{getInitials(user.firstName, user.lastName)}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.userName, { color: colors.text }]}>{user.firstName} {user.lastName}</Text>
+        <Text style={styles.userEmail}>{user.email}</Text>
+      </View>
+      {action}
+    </View>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}><Text style={styles.backText}>←</Text></TouchableOpacity>
-        <Text style={styles.headerTitle}>Mes Amis</Text>
-        <TouchableOpacity onPress={() => setShowAddModal(true)}><Text style={styles.addButton}>+</Text></TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Mes amis</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      {requests.length > 0 && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Demandes reçues ({requests.length})</Text>
-          {requests.map(req => (
-            <View key={req.id} style={[styles.requestCard, { backgroundColor: colors.card }]}>
-              <View style={styles.avatar}><Text style={styles.avatarText}>{getInitials(req.sender.firstName, req.sender.lastName)}</Text></View>
-              <View style={{ flex: 1 }}><Text style={{ fontWeight: 'bold' }}>{req.sender.firstName} {req.sender.lastName}</Text><Text>{req.sender.email}</Text></View>
-              <TouchableOpacity style={styles.acceptBtn} onPress={() => acceptRequest(req.id)}><Text style={{ color: COLORS.white }}>✓</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.declineBtn} onPress={() => declineRequest(req.id)}><Text style={{ color: COLORS.white }}>✗</Text></TouchableOpacity>
-            </View>
-          ))}
+      <View style={[styles.searchBox, { backgroundColor: colors.card }]}>
+        <Ionicons name="search" size={18} color={COLORS.gray400} />
+        <TextInput
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholder="Rechercher par nom, email..."
+          placeholderTextColor={COLORS.gray400}
+          value={searchQuery}
+          onChangeText={(v) => { setSearchQuery(v); setTab(v.length >= 2 ? 'search' : 'friends'); }}
+        />
+        {searching && <ActivityIndicator size="small" color={COLORS.primary} />}
+      </View>
+
+      {tab !== 'search' && (
+        <View style={styles.tabs}>
+          <TouchableOpacity style={[styles.tabBtn, tab === 'friends' && styles.tabBtnActive]} onPress={() => setTab('friends')}>
+            <Text style={[styles.tabText, tab === 'friends' && styles.tabTextActive]}>Amis ({friends.length})</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tabBtn, tab === 'requests' && styles.tabBtnActive]} onPress={() => setTab('requests')}>
+            <Text style={[styles.tabText, tab === 'requests' && styles.tabTextActive]}>Demandes ({requests.length})</Text>
+          </TouchableOpacity>
         </View>
       )}
 
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Mes amis ({friends.length})</Text>
+      {loading ? (
+        <ActivityIndicator color={COLORS.primary} style={{ marginTop: SPACING.xxxl }} />
+      ) : tab === 'search' ? (
         <FlatList
-          data={friends}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <View style={[styles.friendCard, { backgroundColor: colors.card }]}>
-              <TouchableOpacity style={styles.friendInfo} onPress={() => chatWith(item.friend.id)}>
-                <View style={styles.avatar}><Text style={styles.avatarText}>{getInitials(item.friend.firstName, item.friend.lastName)}</Text></View>
-                <View><Text style={{ fontWeight: 'bold' }}>{item.friend.firstName} {item.friend.lastName}</Text><Text>{item.friend.email}</Text></View>
+          data={searchResults}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingTop: SPACING.md, paddingBottom: 100 }}
+          renderItem={({ item }) => renderUserCard(
+            item,
+            item.isFriend ? (
+              <View style={styles.badgeGreen}><Text style={styles.badgeText}>Ami</Text></View>
+            ) : item.hasPendingRequest ? (
+              <View style={styles.badgeGray}><Text style={styles.badgeTextGray}>Envoyée</Text></View>
+            ) : (
+              <TouchableOpacity style={styles.addBtn} onPress={() => sendRequest(item.id)}>
+                <Ionicons name="person-add" size={16} color={COLORS.white} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => removeFriend(item.id)}><Text style={{ fontSize: 20, color: COLORS.error }}>🗑️</Text></TouchableOpacity>
+            )
+          )}
+          ListEmptyComponent={!searching ? <Text style={styles.empty}>Aucun résultat</Text> : null}
+        />
+      ) : tab === 'requests' ? (
+        <FlatList
+          data={requests}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingTop: SPACING.md, paddingBottom: 100 }}
+          renderItem={({ item }) => renderUserCard(
+            item.sender || {},
+            <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+              <TouchableOpacity style={styles.acceptBtn} onPress={() => accept(item.id)}>
+                <Ionicons name="checkmark" size={18} color={COLORS.white} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.declineBtn} onPress={() => decline(item.id)}>
+                <Ionicons name="close" size={18} color={COLORS.white} />
+              </TouchableOpacity>
             </View>
           )}
+          ListEmptyComponent={<Text style={styles.empty}>Aucune demande en attente</Text>}
         />
-      </View>
-
-      <Modal visible={showAddModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Ajouter un ami</Text>
-            <TextInput style={[styles.searchInput, { borderColor: colors.border, color: colors.text }]} placeholder="Email ou téléphone" value={searchQuery} onChangeText={setSearchQuery} onSubmitEditing={searchUsers} />
-            {searchResults.length > 0 && searchResults.map(user => (
-              <View key={user.id} style={styles.resultItem}>
-                <Text>{user.firstName} {user.lastName} ({user.email})</Text>
-                <TouchableOpacity onPress={() => sendRequest(user.id)}><Text style={{ color: COLORS.primary }}>Ajouter</Text></TouchableOpacity>
+      ) : (
+        <FlatList
+          data={friends}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingTop: SPACING.md, paddingBottom: 100 }}
+          renderItem={({ item }) => {
+            const f = item.friend || {};
+            return (
+              <TouchableOpacity onPress={() => router.push({ pathname: '/(user)/chat', params: { userId: f.id } })}>
+                {renderUserCard(
+                  f,
+                  <View style={styles.statusDot(f.isOnline)} />
+                )}
+              </TouchableOpacity>
+            );
+          }}
+          ListHeaderComponent={
+            suggestions.length > 0 ? (
+              <View style={{ marginBottom: SPACING.lg }}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Suggestions</Text>
+                {suggestions.slice(0, 5).map((u) => renderUserCard(
+                  u,
+                  <TouchableOpacity style={styles.addBtn} onPress={() => sendRequest(u.id)}>
+                    <Ionicons name="person-add" size={16} color={COLORS.white} />
+                  </TouchableOpacity>
+                ))}
+                <Text style={[styles.sectionTitle, { color: colors.text, marginTop: SPACING.lg }]}>Mes amis</Text>
               </View>
-            ))}
-            <TouchableOpacity onPress={() => setShowAddModal(false)} style={{ marginTop: 20, alignSelf: 'center' }}><Text style={{ color: COLORS.error }}>Fermer</Text></TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+            ) : null
+          }
+          ListEmptyComponent={<Text style={styles.empty}>Aucun ami pour le moment</Text>}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 60, paddingBottom: 20, paddingHorizontal: 20 },
-  backButton: { padding: 8 }, backText: { fontSize: 24, color: COLORS.white },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
-  addButton: { fontSize: 28, color: COLORS.white, paddingHorizontal: 12 },
-  section: { marginHorizontal: 20, marginTop: 20 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
-  requestCard: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 12, marginBottom: 8, gap: 12 },
-  friendCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 12, marginBottom: 8 },
-  friendInfo: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primary, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
-  acceptBtn: { backgroundColor: COLORS.success, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  declineBtn: { backgroundColor: COLORS.error, width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' },
-  modalContent: { marginHorizontal: 20, borderRadius: 20, padding: 20 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
-  searchInput: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16 },
-  resultItem: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.gray200 },
+  container: { flex: 1, padding: SPACING.lg, paddingTop: 60 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SPACING.lg },
+  headerTitle: { fontSize: FONT.size.lg, fontWeight: FONT.weight.bold },
+
+  searchBox: { flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, gap: SPACING.sm, ...SHADOW.sm },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: FONT.size.base },
+
+  tabs: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.md },
+  tabBtn: { paddingVertical: SPACING.sm, paddingHorizontal: SPACING.lg, borderRadius: RADIUS.full, backgroundColor: COLORS.gray100 },
+  tabBtnActive: { backgroundColor: COLORS.primary },
+  tabText: { fontSize: FONT.size.sm, fontWeight: FONT.weight.medium, color: COLORS.gray600 },
+  tabTextActive: { color: COLORS.white },
+
+  sectionTitle: { fontSize: FONT.size.sm, fontWeight: FONT.weight.bold, marginBottom: SPACING.sm },
+
+  userRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, borderRadius: RADIUS.lg, padding: SPACING.md, marginBottom: SPACING.sm, ...SHADOW.sm },
+  avatar: { width: 44, height: 44, borderRadius: RADIUS.full, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: COLORS.white, fontWeight: FONT.weight.bold },
+  userName: { fontSize: FONT.size.base, fontWeight: FONT.weight.semibold },
+  userEmail: { fontSize: FONT.size.xs, color: COLORS.gray400, marginTop: 2 },
+
+  addBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  acceptBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.success, alignItems: 'center', justifyContent: 'center' },
+  declineBtn: { width: 36, height: 36, borderRadius: RADIUS.full, backgroundColor: COLORS.error, alignItems: 'center', justifyContent: 'center' },
+
+  badgeGreen: { backgroundColor: COLORS.successLight, borderRadius: RADIUS.full, paddingVertical: 4, paddingHorizontal: SPACING.sm },
+  badgeGray: { backgroundColor: COLORS.gray100, borderRadius: RADIUS.full, paddingVertical: 4, paddingHorizontal: SPACING.sm },
+  badgeText: { color: COLORS.success, fontSize: FONT.size.xs, fontWeight: FONT.weight.semibold },
+  badgeTextGray: { color: COLORS.gray500, fontSize: FONT.size.xs, fontWeight: FONT.weight.semibold },
+
+  empty: { textAlign: 'center', color: COLORS.gray400, marginTop: SPACING.xxxl },
+
+  statusDot: (online: boolean) => ({
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: online ? COLORS.success : COLORS.gray300,
+  }) as any,
 });
