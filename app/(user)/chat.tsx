@@ -15,8 +15,8 @@ import {
   Dimensions,
   Alert,
   Image,
-  Linking,
-  Share,
+  ScrollView,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -32,7 +32,7 @@ import { COLORS, formatTime, getInitials, getAvatarColor, formatDateTime } from 
 
 const { width } = Dimensions.get('window');
 
-// Émojis (comme dans Angular)
+// Émojis
 const EMOJIS = [
   '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰',
   '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏',
@@ -46,13 +46,20 @@ const EMOJIS = [
   '👣', '🧠', '🩸', '🩻', '💪', '🦵', '🦶', '👂', '🦻', '👃', '👀', '🧬', '🦷', '👅', '👄', '💋'
 ];
 
+// Types
+interface CallData {
+  from: string;
+  type: 'audio' | 'video';
+  fromName?: string;
+}
+
 export default function ChatScreen() {
   const { colors } = useTheme();
   const { user, getToken } = useAuth();
   const { showError, showSuccess, showInfo, showWarning } = useNotification();
   const { userId } = useLocalSearchParams<{ userId: string }>();
 
-  // États (comme dans Angular)
+  // États
   const [conversations, setConversations] = useState<any[]>([]);
   const [messages, setMessages] = useState<any[]>([]);
   const [selectedContact, setSelectedContact] = useState<any>(null);
@@ -61,30 +68,39 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState<any>(null);
   const [onlineFriends, setOnlineFriends] = useState<any[]>([]);
+  const [allFriends, setAllFriends] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [isVoiceSupported, setIsVoiceSupported] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [showConversationsList, setShowConversationsList] = useState(true);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  
+  // États pour les appels
+  const [incomingCall, setIncomingCall] = useState<CallData | null>(null);
+  const [isCalling, setIsCalling] = useState(false);
+  const [callType, setCallType] = useState<'audio' | 'video'>('audio');
+  const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'ringing' | 'connected' | 'ended'>('idle');
 
   const flatListRef = useRef<FlatList>(null);
-  const messageContainerRef = useRef<View>(null);
-  const fileInputRef = useRef<any>(null);
+  const typingTimeoutRef = useRef<any>(null);
+  const recordingIntervalRef = useRef<any>(null);
 
-  // Initialisation (comme ngOnInit)
+  // ============================================================
+  // INITIALISATION
+  // ============================================================
   useEffect(() => {
     const userData = user;
     setCurrentUserId(userData?.id || '');
-    setIsVoiceSupported(!!('MediaRecorder' in window || 'webkitSpeechRecognition' in window));
     
     const initChat = async () => {
       const token = getToken();
       if (token) {
         await ChatService.connect(token);
       }
-      await loadConversations();
-      await loadOnlineFriends();
+      await loadAllData();
       setupSocketListeners();
       setLoading(false);
     };
@@ -92,10 +108,12 @@ export default function ChatScreen() {
 
     return () => {
       ChatService.disconnect();
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
     };
   }, []);
 
-  // Charger les messages si un userId est passé en paramètre
   useEffect(() => {
     if (userId && conversations.length > 0) {
       const existing = conversations.find(c => c.userId === userId);
@@ -108,10 +126,16 @@ export default function ChatScreen() {
   }, [userId, conversations]);
 
   // ============================================================
-  // MÉTHODES (comme dans Angular)
+  // CHARGEMENT DES DONNÉES
   // ============================================================
+  const loadAllData = async () => {
+    await Promise.all([
+      loadConversations(),
+      loadAllFriends(),
+      loadOnlineFriends(),
+    ]);
+  };
 
-  // loadConversations()
   const loadConversations = async () => {
     try {
       const convs = await ChatService.getConversations();
@@ -123,7 +147,16 @@ export default function ChatScreen() {
     }
   };
 
-  // loadOnlineFriends()
+  const loadAllFriends = async () => {
+    try {
+      const friends = await FriendService.getFriends();
+      const accepted = friends.filter(f => f.status === 'accepted');
+      setAllFriends(accepted);
+    } catch (error) {
+      console.error('Erreur chargement amis:', error);
+    }
+  };
+
   const loadOnlineFriends = async () => {
     try {
       const friends = await FriendService.getFriends();
@@ -134,7 +167,9 @@ export default function ChatScreen() {
     }
   };
 
-  // setupSocketListeners()
+  // ============================================================
+  // SOCKET LISTENERS
+  // ============================================================
   const setupSocketListeners = () => {
     ChatService.onNewMessage((msg) => {
       handleNewMessage(msg);
@@ -155,9 +190,34 @@ export default function ChatScreen() {
       );
       loadOnlineFriends();
     });
+
+    ChatService.onCall((data) => {
+      if (data.from) {
+        // Appel entrant
+        const friend = allFriends.find(f => f.friend?.id === data.from);
+        setIncomingCall({
+          from: data.from,
+          type: data.type || 'audio',
+          fromName: friend?.friend?.firstName || 'Inconnu',
+        });
+        setCallStatus('ringing');
+      } else if (data.accepted !== undefined) {
+        // Réponse à un appel
+        if (data.accepted) {
+          setCallStatus('connected');
+          showInfo('Appel connecté');
+        } else {
+          setCallStatus('ended');
+          showInfo('Appel refusé');
+          setIsCalling(false);
+        }
+      }
+    });
   };
 
-  // handleNewMessage()
+  // ============================================================
+  // GESTION DES MESSAGES
+  // ============================================================
   const handleNewMessage = (message: any) => {
     // Si le message est pour la conversation sélectionnée
     if (selectedContact && message.senderId === selectedContact.userId) {
@@ -190,7 +250,9 @@ export default function ChatScreen() {
     });
   };
 
-  // selectConversation()
+  // ============================================================
+  // SÉLECTION DES CONVERSATIONS
+  // ============================================================
   const selectConversation = async (conv: any) => {
     setSelectedContact(conv);
     setShowConversationsList(false);
@@ -212,16 +274,38 @@ export default function ChatScreen() {
     }
   };
 
-  // filteredConversations (getter)
-  const filteredConversations = () => {
-    if (!searchQuery) return conversations;
-    const query = searchQuery.toLowerCase();
-    return conversations.filter(conv =>
-      `${conv.firstName} ${conv.lastName}`.toLowerCase().includes(query)
-    );
+  const startChat = async (friendId: string) => {
+    const existing = conversations.find(c => c.userId === friendId);
+    if (existing) {
+      selectConversation(existing);
+    } else {
+      try {
+        const friend = allFriends.find(f => f.friend?.id === friendId)?.friend;
+        if (friend) {
+          const newConv = {
+            userId: friend.id,
+            firstName: friend.firstName,
+            lastName: friend.lastName,
+            profilePicture: friend.profilePicture,
+            lastMessage: { content: '', type: 'text', createdAt: new Date() },
+            lastMessageTime: new Date().toISOString(),
+            unreadCount: 0,
+            isOnline: friend.isOnline || false,
+          };
+          setConversations(prev => [newConv, ...prev]);
+          selectConversation(newConv);
+        } else {
+          showError('Utilisateur non trouvé');
+        }
+      } catch (error) {
+        showError('Erreur lors du démarrage de la conversation');
+      }
+    }
   };
 
-  // sendMessage()
+  // ============================================================
+  // ENVOI DE MESSAGES
+  // ============================================================
   const sendMessage = () => {
     if (!newMessage.trim() || !selectedContact || isSending) return;
 
@@ -252,7 +336,6 @@ export default function ChatScreen() {
     setTimeout(() => setIsSending(false), 500);
   };
 
-  // sendEmoji()
   const sendEmoji = (emoji: string) => {
     if (!selectedContact) return;
 
@@ -279,61 +362,62 @@ export default function ChatScreen() {
     setShowEmojiPicker(false);
   };
 
-  // onTyping()
-  const onTyping = () => {
+  // ============================================================
+  // MESSAGES VOCAUX
+  // ============================================================
+  const startVoiceRecording = () => {
     if (!selectedContact) return;
-    ChatService.sendTyping(selectedContact.userId, true);
-    clearTimeout(typingTimeout);
-    const timeout = setTimeout(() => {
-      if (selectedContact) {
-        ChatService.sendTyping(selectedContact.userId, false);
-      }
-    }, 1000);
-    setTypingTimeout(timeout);
-  };
-
-  // scrollToBottom()
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
-  };
-
-  // startChat()
-  const startChat = async (friendId: string) => {
-    const existing = conversations.find(c => c.userId === friendId);
-    if (existing) {
-      selectConversation(existing);
+    
+    if (!isRecording) {
+      setIsRecording(true);
+      setRecordingTime(0);
+      showInfo('Enregistrement vocal...');
+      
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1);
+      }, 1000);
     } else {
-      try {
-        const friends = await FriendService.getFriends();
-        const friend = friends.find(f => f.friend?.id === friendId)?.friend;
-        if (friend) {
-          const newConv = {
-            userId: friend.id,
-            firstName: friend.firstName,
-            lastName: friend.lastName,
-            profilePicture: friend.profilePicture,
-            lastMessage: { content: '', type: 'text', createdAt: new Date() },
-            lastMessageTime: new Date().toISOString(),
-            unreadCount: 0,
-            isOnline: friend.isOnline || false,
-          };
-          setConversations(prev => [newConv, ...prev]);
-          selectConversation(newConv);
-        }
-      } catch (error) {
-        showError('Erreur lors du démarrage de la conversation');
+      // Arrêter l'enregistrement
+      setIsRecording(false);
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
       }
+      
+      // Simuler l'envoi d'un message vocal
+      const tempMsg = {
+        id: 'temp-audio-' + Date.now(),
+        senderId: currentUserId,
+        receiverId: selectedContact.userId,
+        type: 'file',
+        content: `🎤 Message vocal (${recordingTime}s)`,
+        fileUrl: 'https://example.com/audio.mp3',
+        fileName: `audio_${Date.now()}.mp3`,
+        fileSize: recordingTime * 16,
+        isRead: false,
+        isDelivered: false,
+        createdAt: new Date().toISOString(),
+      };
+      
+      setMessages(prev => [...prev, tempMsg]);
+      scrollToBottom();
+      
+      ChatService.sendMessage({
+        receiverId: selectedContact.userId,
+        type: 'file',
+        content: `🎤 Message vocal (${recordingTime}s)`,
+        fileUrl: 'https://example.com/audio.mp3',
+        fileName: `audio_${Date.now()}.mp3`,
+        fileSize: recordingTime * 16,
+      });
+      
+      showSuccess('Message vocal envoyé');
+      setRecordingTime(0);
     }
   };
 
-  // toggleEmojiPicker()
-  const toggleEmojiPicker = () => {
-    setShowEmojiPicker(!showEmojiPicker);
-  };
-
-  // uploadFile()
+  // ============================================================
+  // UPLOAD DE FICHIERS
+  // ============================================================
   const uploadFile = async () => {
     if (!selectedContact) return;
 
@@ -353,7 +437,6 @@ export default function ChatScreen() {
           size: asset.fileSize || 0,
         };
 
-        // Vérifier la taille du fichier (max 150 Mo comme dans Angular)
         if (file.size > 150 * 1024 * 1024) {
           showError('Fichier trop volumineux (max 150 Mo)');
           return;
@@ -396,58 +479,72 @@ export default function ChatScreen() {
     }
   };
 
-  // startCall()
+  // ============================================================
+  // APPELS AUDIO/VIDÉO
+  // ============================================================
   const startCall = (type: 'audio' | 'video') => {
     if (!selectedContact) return;
+    
     if (!selectedContact.isOnline) {
-      showWarning('Utilisateur hors ligne');
+      showWarning(`${selectedContact.firstName} n'est pas en ligne`);
       return;
     }
-    showInfo(`Appel ${type} démarré avec ${selectedContact.firstName}`);
+
+    setCallType(type);
+    setCallStatus('calling');
+    setIsCalling(true);
+
+    ChatService.startCall(selectedContact.userId, type);
+    showInfo(`Appel ${type} en cours...`);
+
+    // Simuler une réponse après 5 secondes
+    setTimeout(() => {
+      if (callStatus === 'calling') {
+        setCallStatus('connected');
+        showInfo(`Appel ${type} connecté`);
+      }
+    }, 3000);
   };
 
-  // startVoiceRecording()
-  const startVoiceRecording = () => {
-    showInfo('Fonctionnalité de message vocal bientôt disponible');
+  const acceptCall = () => {
+    if (incomingCall) {
+      setCallStatus('connected');
+      ChatService.answerCall(incomingCall.from, true);
+      setIncomingCall(null);
+      showInfo('Appel accepté');
+    }
   };
 
-  // sendMoney()
+  const rejectCall = () => {
+    if (incomingCall) {
+      ChatService.answerCall(incomingCall.from, false);
+      setIncomingCall(null);
+      setCallStatus('ended');
+      showInfo('Appel refusé');
+    }
+  };
+
+  const endCall = () => {
+    setCallStatus('ended');
+    setIsCalling(false);
+    setIncomingCall(null);
+    showInfo('Appel terminé');
+  };
+
+  // ============================================================
+  // ACTIONS
+  // ============================================================
   const sendMoney = () => {
     if (!selectedContact) return;
-    Alert.prompt(
-      'Envoyer de l\'argent',
-      `Montant à envoyer à ${selectedContact.firstName}:`,
-      [
-        { text: 'Annuler', style: 'cancel' },
-        {
-          text: 'Envoyer',
-          onPress: (amount) => {
-            if (amount && !isNaN(Number(amount)) && Number(amount) > 0) {
-              const tempMsg = {
-                id: 'temp-money-' + Date.now(),
-                senderId: currentUserId,
-                receiverId: selectedContact.userId,
-                type: 'money',
-                moneyTransfer: { amount: Number(amount), status: 'pending' },
-                isRead: false,
-                isDelivered: false,
-                createdAt: new Date().toISOString(),
-              };
-              setMessages(prev => [...prev, tempMsg]);
-              scrollToBottom();
-              ChatService.sendMessage({
-                receiverId: selectedContact.userId,
-                type: 'money',
-                moneyTransfer: { amount: Number(amount) }
-              });
-            }
-          }
-        }
-      ]
-    );
+    router.push({
+      pathname: '/(user)/send-money',
+      params: {
+        receiverId: selectedContact.userId,
+        receiverName: selectedContact.firstName + ' ' + selectedContact.lastName,
+      },
+    });
   };
 
-  // blockUser()
   const blockUser = async () => {
     if (!selectedContact) return;
     Alert.alert(
@@ -467,24 +564,35 @@ export default function ChatScreen() {
             } catch (error) {
               showError('Erreur lors du blocage');
             }
-          }
-        }
+          },
+        },
       ]
     );
   };
 
-  // viewProfile()
   const viewProfile = () => {
     if (!selectedContact) return;
     router.push({
       pathname: '/(user)/profile',
-      params: { userId: selectedContact.userId }
+      params: { userId: selectedContact.userId },
     });
   };
 
-  // goBack()
-  const goBack = () => {
-    router.back();
+  const onTyping = () => {
+    if (!selectedContact) return;
+    ChatService.sendTyping(selectedContact.userId, true);
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      if (selectedContact) {
+        ChatService.sendTyping(selectedContact.userId, false);
+      }
+    }, 1000);
+  };
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 100);
   };
 
   const goBackToList = () => {
@@ -493,45 +601,79 @@ export default function ChatScreen() {
     setMessages([]);
   };
 
-  // ============================================================
-  // RENDU (comme le template Angular)
-  // ============================================================
+  const goBack = () => {
+    router.back();
+  };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadAllData();
+    setRefreshing(false);
+  };
+
+  const filteredConversations = () => {
+    if (!searchQuery) return conversations;
+    const query = searchQuery.toLowerCase();
+    return conversations.filter(conv =>
+      `${conv.firstName} ${conv.lastName}`.toLowerCase().includes(query)
+    );
+  };
+
+  // ============================================================
+  // RENDU
+  // ============================================================
   const renderMessage = ({ item }: { item: any }) => {
     const isOwn = item.senderId === currentUserId;
     const content = item.content || (item.type === 'emoji' ? item.emoji : '');
 
     return (
       <View style={[styles.messageRow, isOwn ? styles.rowRight : styles.rowLeft]}>
-        <View style={[
-          styles.bubble,
-          isOwn ? styles.bubbleRight : styles.bubbleLeft,
-          { backgroundColor: isOwn ? COLORS.primary : colors.card }
-        ]}>
+        <View
+          style={[
+            styles.bubble,
+            isOwn ? styles.bubbleRight : styles.bubbleLeft,
+            { backgroundColor: isOwn ? COLORS.primary : colors.card },
+          ]}
+        >
           {item.type === 'image' ? (
-            <TouchableOpacity 
-              onPress={() => Linking.openURL(item.fileUrl)}
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert('Image', 'Voulez-vous ouvrir cette image ?', [
+                  { text: 'Annuler', style: 'cancel' },
+                  { text: 'Ouvrir', onPress: () => {} },
+                ]);
+              }}
               style={styles.imageMessage}
             >
-              <Image 
-                source={{ uri: item.fileUrl }} 
-                style={styles.messageImage}
-                resizeMode="cover"
-              />
+              <Image source={{ uri: item.fileUrl }} style={styles.messageImage} resizeMode="cover" />
+              <View style={styles.imageOverlay}>
+                <Ionicons name="download-outline" size={20} color={COLORS.white} />
+              </View>
             </TouchableOpacity>
           ) : item.type === 'file' ? (
-            <TouchableOpacity 
-              onPress={() => Linking.openURL(item.fileUrl)}
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert('Fichier', `Télécharger ${item.fileName || 'le fichier'} ?`, [
+                  { text: 'Annuler', style: 'cancel' },
+                  { text: 'Télécharger', onPress: () => {} },
+                ]);
+              }}
               style={[styles.fileMessage, { backgroundColor: isOwn ? 'rgba(255,255,255,0.2)' : COLORS.gray100 }]}
             >
-              <Ionicons 
-                name="document-outline" 
-                size={24} 
-                color={isOwn ? COLORS.white : COLORS.primary} 
+              <Ionicons
+                name={item.content?.includes('🎤') ? 'mic-outline' : 'document-outline'}
+                size={24}
+                color={isOwn ? COLORS.white : COLORS.primary}
               />
-              <Text style={[styles.fileName, { color: isOwn ? COLORS.white : colors.text }]}>
-                {item.fileName || 'Fichier'}
-              </Text>
+              <View style={styles.fileInfo}>
+                <Text style={[styles.fileName, { color: isOwn ? COLORS.white : colors.text }]}>
+                  {item.fileName || 'Fichier'}
+                </Text>
+                <Text style={[styles.fileSize, { color: isOwn ? 'rgba(255,255,255,0.7)' : COLORS.gray500 }]}>
+                  {item.fileSize ? `${(item.fileSize / 1024).toFixed(1)} KB` : ''}
+                </Text>
+              </View>
+              <Ionicons name="download-outline" size={20} color={isOwn ? COLORS.white : COLORS.primary} />
             </TouchableOpacity>
           ) : item.type === 'money' ? (
             <View style={styles.moneyMessage}>
@@ -558,15 +700,13 @@ export default function ChatScreen() {
       style={[
         styles.convItem,
         selectedContact?.userId === item.userId && styles.convItemActive,
-        { backgroundColor: selectedContact?.userId === item.userId ? COLORS.primaryLight : colors.card }
+        { backgroundColor: selectedContact?.userId === item.userId ? COLORS.primaryLight : colors.card },
       ]}
       onPress={() => selectConversation(item)}
       activeOpacity={0.7}
     >
       <View style={[styles.convAvatar, { backgroundColor: getAvatarColor(item.firstName) }]}>
-        <Text style={styles.convAvatarText}>
-          {getInitials(item.firstName, item.lastName)}
-        </Text>
+        <Text style={styles.convAvatarText}>{getInitials(item.firstName, item.lastName)}</Text>
         {item.isOnline && <View style={styles.onlineDot} />}
       </View>
       <View style={styles.convInfo}>
@@ -603,17 +743,91 @@ export default function ChatScreen() {
         <View style={styles.liveDot} />
       </View>
       <Text style={styles.onlineFriendName} numberOfLines={1}>
-        {item.friend.firstName} {item.friend.lastName}
+        {item.friend.firstName}
       </Text>
     </TouchableOpacity>
   );
+
+  // ============================================================
+  // MODAL APPEL
+  // ============================================================
+  const renderCallModal = () => {
+    if (!incomingCall && callStatus === 'idle') return null;
+
+    const isIncoming = !!incomingCall;
+    const name = isIncoming ? incomingCall?.fromName : selectedContact?.firstName;
+    const typeIcon = callType === 'audio' ? 'call-outline' : 'videocam-outline';
+
+    return (
+      <Modal visible={true} transparent animationType="fade">
+        <View style={styles.callModal}>
+          <View style={[styles.callContent, { backgroundColor: colors.card }]}>
+            <View
+              style={[
+                styles.callAvatar,
+                { backgroundColor: getAvatarColor(name || '') },
+              ]}
+            >
+              <Text style={styles.callAvatarText}>
+                {getInitials(name?.split(' ')[0] || '', name?.split(' ')[1] || '')}
+              </Text>
+            </View>
+            <Text style={[styles.callName, { color: colors.text }]}>{name || 'Utilisateur'}</Text>
+            <Text style={styles.callStatus}>
+              {isIncoming
+                ? `${callType === 'audio' ? 'Appel audio' : 'Appel vidéo'} entrant...`
+                : callStatus === 'calling'
+                ? 'Appel en cours...'
+                : callStatus === 'connected'
+                ? 'En ligne'
+                : 'Terminé'}
+            </Text>
+
+            <View style={styles.callActions}>
+              {isIncoming ? (
+                <>
+                  <TouchableOpacity style={[styles.callBtn, styles.callBtnAccept]} onPress={acceptCall}>
+                    <Ionicons name="call" size={32} color={COLORS.white} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.callBtn, styles.callBtnReject]} onPress={rejectCall}>
+                    <Ionicons name="close" size={32} color={COLORS.white} />
+                  </TouchableOpacity>
+                </>
+              ) : callStatus === 'connected' ? (
+                <>
+                  <TouchableOpacity style={[styles.callBtn, styles.callBtnMute]}>
+                    <Ionicons name="mic-off" size={24} color={COLORS.white} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.callBtn, styles.callBtnSpeaker]}>
+                    <Ionicons name="volume-high" size={24} color={COLORS.white} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.callBtn, styles.callBtnReject]} onPress={endCall}>
+                    <Ionicons name="call" size={32} color={COLORS.white} />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity style={[styles.callBtn, styles.callBtnReject]} onPress={endCall}>
+                  <Ionicons name="close" size={32} color={COLORS.white} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
 
   // ============================================================
   // AFFICHAGE PRINCIPAL
   // ============================================================
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' },
+        ]}
+      >
         <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
@@ -622,15 +836,14 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-      
+
       <KeyboardAvoidingView
         style={[styles.container, { backgroundColor: colors.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {/* Layout comme Angular: conversations-panel | chat-area | online-friends-panel */}
+        {/* Layout: conversations-panel | chat-area | online-friends-panel */}
         <View style={styles.chatLayout}>
-          
           {/* PANEL CONVERSATIONS (gauche) */}
           {showConversationsList || !selectedContact ? (
             <View style={[styles.conversationsPanel, { backgroundColor: colors.card }]}>
@@ -646,12 +859,52 @@ export default function ChatScreen() {
                 />
               </View>
 
+              {/* Amis en ligne */}
+              {onlineFriends.length > 0 && (
+                <View style={styles.onlineSection}>
+                  <Text style={[styles.onlineSectionTitle, { color: colors.text }]}>
+                    En ligne ({onlineFriends.length})
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.onlineScrollContent}
+                  >
+                    {onlineFriends.map((friend) => (
+                      <TouchableOpacity
+                        key={friend.id}
+                        style={styles.onlineFriendCard}
+                        onPress={() => startChat(friend.friend.id)}
+                      >
+                        <View
+                          style={[
+                            styles.onlineFriendAvatar,
+                            { backgroundColor: getAvatarColor(friend.friend.firstName) },
+                          ]}
+                        >
+                          <Text style={styles.onlineFriendAvatarText}>
+                            {getInitials(friend.friend.firstName, friend.friend.lastName)}
+                          </Text>
+                          <View style={styles.onlineFriendDot} />
+                        </View>
+                        <Text style={[styles.onlineFriendName, { color: colors.text }]} numberOfLines={1}>
+                          {friend.friend.firstName}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
               {/* Conversations List */}
               <FlatList
                 data={filteredConversations()}
                 keyExtractor={(item) => item.userId}
                 renderItem={renderConversation}
                 contentContainerStyle={styles.convList}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+                }
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
                     <Ionicons name="chatbubbles-outline" size={64} color={COLORS.gray400} />
@@ -678,10 +931,16 @@ export default function ChatScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.contactInfo} onPress={viewProfile}>
-                  <View style={[styles.avatarLarge, { backgroundColor: getAvatarColor(selectedContact?.firstName || '') }]}>
+                  <View
+                    style={[
+                      styles.avatarLarge,
+                      { backgroundColor: getAvatarColor(selectedContact?.firstName || '') },
+                    ]}
+                  >
                     <Text style={styles.avatarLargeText}>
                       {getInitials(selectedContact?.firstName, selectedContact?.lastName)}
                     </Text>
+                    {selectedContact?.isOnline && <View style={styles.headerOnlineDot} />}
                   </View>
                   <View>
                     <Text style={[styles.contactName, { color: colors.text }]}>
@@ -706,7 +965,7 @@ export default function ChatScreen() {
                   <TouchableOpacity style={styles.actionBtn} onPress={() => startCall('video')}>
                     <Ionicons name="videocam-outline" size={22} color={colors.text} />
                   </TouchableOpacity>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.actionBtn}
                     onPress={() => {
                       Alert.alert(
@@ -727,30 +986,30 @@ export default function ChatScreen() {
               </View>
 
               {/* Messages Container */}
-              <View style={styles.messagesContainer} ref={messageContainerRef}>
-                <FlatList
-                  ref={flatListRef}
-                  data={messages}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderMessage}
-                  contentContainerStyle={styles.messagesList}
-                  onContentSizeChange={scrollToBottom}
-                />
-              </View>
+              <FlatList
+                ref={flatListRef}
+                data={messages}
+                keyExtractor={(item) => item.id}
+                renderItem={renderMessage}
+                contentContainerStyle={styles.messagesList}
+                onContentSizeChange={scrollToBottom}
+              />
 
-              {/* Message Input Area */}
+              {/* Message Input Area - Style Facebook */}
               <View style={[styles.messageInputArea, { backgroundColor: colors.card }]}>
-                <TouchableOpacity onPress={toggleEmojiPicker}>
+                <TouchableOpacity onPress={() => setShowEmojiPicker(!showEmojiPicker)}>
                   <Ionicons name="happy-outline" size={24} color={COLORS.gray500} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={uploadFile}>
                   <Ionicons name="attach-outline" size={24} color={COLORS.gray500} />
                 </TouchableOpacity>
-                {isVoiceSupported && (
-                  <TouchableOpacity onPress={startVoiceRecording}>
-                    <Ionicons name="mic-outline" size={24} color={COLORS.gray500} />
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity onPress={startVoiceRecording}>
+                  <Ionicons
+                    name={isRecording ? 'mic' : 'mic-outline'}
+                    size={24}
+                    color={isRecording ? COLORS.error : COLORS.gray500}
+                  />
+                </TouchableOpacity>
                 <TextInput
                   style={[styles.messageInput, { color: colors.text }]}
                   placeholder="Écrire un message..."
@@ -782,16 +1041,16 @@ export default function ChatScreen() {
                     keyExtractor={(item) => item}
                     numColumns={8}
                     renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={styles.emojiItem}
-                        onPress={() => sendEmoji(item)}
-                      >
+                      <TouchableOpacity style={styles.emojiItem} onPress={() => sendEmoji(item)}>
                         <Text style={styles.emojiText}>{item}</Text>
                       </TouchableOpacity>
                     )}
                     contentContainerStyle={styles.emojiGrid}
                   />
-                  <TouchableOpacity style={styles.emojiClose} onPress={() => setShowEmojiPicker(false)}>
+                  <TouchableOpacity
+                    style={styles.emojiClose}
+                    onPress={() => setShowEmojiPicker(false)}
+                  >
                     <Text style={styles.emojiCloseText}>Fermer</Text>
                   </TouchableOpacity>
                 </View>
@@ -799,7 +1058,7 @@ export default function ChatScreen() {
             </View>
           )}
 
-          {/* PANEL AMIS EN LIGNE (droite) - toujours visible */}
+          {/* PANEL AMIS EN LIGNE (droite) */}
           {showConversationsList && (
             <View style={[styles.onlineFriendsPanel, { backgroundColor: colors.card }]}>
               <Text style={[styles.onlinePanelTitle, { color: colors.text }]}>
@@ -815,13 +1074,16 @@ export default function ChatScreen() {
             </View>
           )}
         </View>
+
+        {/* Modals */}
+        {renderCallModal()}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 // ============================================================
-// STYLES (inspirés du CSS Angular)
+// STYLES
 // ============================================================
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -833,7 +1095,7 @@ const styles = StyleSheet.create({
 
   // ── CONVERSATIONS PANEL ──
   conversationsPanel: {
-    width: 300,
+    width: 320,
     borderRightWidth: 0.5,
     borderRightColor: COLORS.gray200,
     display: 'flex',
@@ -843,30 +1105,78 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    padding: 12,
     borderBottomWidth: 0.5,
     borderBottomColor: COLORS.gray200,
   },
   searchInput: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     fontSize: 14,
     marginLeft: 8,
+  },
+
+  onlineSection: {
+    padding: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.gray200,
+  },
+  onlineSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  onlineScrollContent: {
+    paddingRight: 8,
+  },
+  onlineFriendCard: {
+    alignItems: 'center',
+    marginRight: 12,
+    width: 56,
+  },
+  onlineFriendAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  onlineFriendAvatarText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  onlineFriendDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.success,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+  },
+  onlineFriendName: {
+    fontSize: 11,
+    marginTop: 4,
+    textAlign: 'center',
   },
 
   convList: { padding: 8 },
   convItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 11,
+    padding: 10,
     borderRadius: 12,
     marginBottom: 2,
   },
   convItemActive: {
     borderLeftWidth: 3,
     borderLeftColor: COLORS.primary,
-    paddingLeft: 8,
+    paddingLeft: 7,
   },
   convAvatar: {
     width: 46,
@@ -918,8 +1228,8 @@ const styles = StyleSheet.create({
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 13,
-    paddingHorizontal: 20,
+    padding: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 0.5,
     borderBottomColor: COLORS.gray200,
   },
@@ -932,16 +1242,28 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   avatarLarge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   avatarLargeText: {
     color: COLORS.white,
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  headerOnlineDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.success,
+    borderWidth: 2,
+    borderColor: COLORS.white,
   },
   contactName: {
     fontWeight: 'bold',
@@ -962,21 +1284,17 @@ const styles = StyleSheet.create({
   },
   actionBtn: { padding: 4 },
 
-  messagesContainer: {
-    flex: 1,
-    padding: 20,
-  },
   messagesList: {
+    padding: 12,
     paddingBottom: 20,
   },
-
-  messageRow: { marginVertical: 5 },
+  messageRow: { marginVertical: 4 },
   rowRight: { alignItems: 'flex-end' },
   rowLeft: { alignItems: 'flex-start' },
   bubble: {
-    maxWidth: '68%',
+    maxWidth: '75%',
     padding: 10,
-    paddingHorizontal: 15,
+    paddingHorizontal: 14,
     borderRadius: 18,
   },
   bubbleRight: { borderBottomRightRadius: 4 },
@@ -984,7 +1302,7 @@ const styles = StyleSheet.create({
   messageText: { fontSize: 14 },
   time: {
     fontSize: 10,
-    marginTop: 5,
+    marginTop: 4,
     opacity: 0.65,
     alignSelf: 'flex-end',
   },
@@ -992,11 +1310,20 @@ const styles = StyleSheet.create({
   imageMessage: {
     borderRadius: 12,
     overflow: 'hidden',
+    position: 'relative',
   },
   messageImage: {
     width: 200,
     height: 150,
     borderRadius: 12,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 6,
   },
 
   fileMessage: {
@@ -1006,8 +1333,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     gap: 8,
+    minWidth: 160,
   },
-  fileName: { fontSize: 13 },
+  fileInfo: { flex: 1 },
+  fileName: { fontSize: 13, fontWeight: '500' },
+  fileSize: { fontSize: 11, marginTop: 2 },
 
   moneyMessage: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   moneyText: { fontSize: 14, fontWeight: '600' },
@@ -1016,16 +1346,16 @@ const styles = StyleSheet.create({
   messageInputArea: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    paddingHorizontal: 16,
+    padding: 8,
+    paddingHorizontal: 12,
     borderTopWidth: 0.5,
     borderTopColor: COLORS.gray200,
-    gap: 10,
+    gap: 6,
   },
   messageInput: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     fontSize: 14,
     borderRadius: 20,
     borderWidth: 1,
@@ -1033,9 +1363,9 @@ const styles = StyleSheet.create({
     maxHeight: 100,
   },
   sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1045,7 +1375,7 @@ const styles = StyleSheet.create({
   // ── EMOJI PICKER ──
   emojiPicker: {
     position: 'absolute',
-    bottom: 72,
+    bottom: 70,
     left: 16,
     right: 16,
     borderRadius: 16,
@@ -1078,10 +1408,10 @@ const styles = StyleSheet.create({
 
   // ── ONLINE FRIENDS PANEL ──
   onlineFriendsPanel: {
-    width: 240,
+    width: 220,
     borderLeftWidth: 0.5,
     borderLeftColor: COLORS.gray200,
-    padding: 16,
+    padding: 12,
     display: 'flex',
     flexDirection: 'column',
   },
@@ -1144,10 +1474,48 @@ const styles = StyleSheet.create({
   },
   emptyBtnText: { color: COLORS.white, fontWeight: '600', fontSize: 14 },
 
-  noChat: {
+  // ── CALL MODAL ──
+  callModal: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  callContent: {
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    width: width * 0.85,
+  },
+  callAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    color: COLORS.gray400,
+    marginBottom: 16,
   },
+  callAvatarText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 32,
+  },
+  callName: { fontSize: 22, fontWeight: 'bold', marginBottom: 4 },
+  callStatus: { fontSize: 14, color: COLORS.gray400, marginBottom: 24 },
+  callActions: {
+    flexDirection: 'row',
+    gap: 20,
+    alignItems: 'center',
+  },
+  callBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  callBtnAccept: { backgroundColor: COLORS.success },
+  callBtnReject: { backgroundColor: COLORS.error },
+  callBtnMute: { backgroundColor: COLORS.gray600 },
+  callBtnSpeaker: { backgroundColor: COLORS.gray600 },
 });

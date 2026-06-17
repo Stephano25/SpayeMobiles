@@ -5,20 +5,69 @@ import { io, Socket } from 'socket.io-client';
 
 let socket: Socket | null = null;
 let socketUrl: string | null = null;
+let messageCallbacks: ((msg: Message) => void)[] = [];
+let typingCallbacks: ((data: { userId: string; isTyping: boolean }) => void)[] = [];
+let onlineStatusCallbacks: ((data: { userId: string; isOnline: boolean }) => void)[] = [];
+let callCallbacks: ((data: any) => void)[] = [];
 
 export const ChatService = {
   connect: async (token: string): Promise<Socket> => {
     if (!socketUrl) {
       socketUrl = await getSocketUrl();
     }
-    
+
     if (!socket) {
       socket = io(socketUrl, {
         auth: { token },
         transports: ['websocket'],
         reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+      });
+
+      socket.on('connect', () => {
+        console.log('✅ Socket connecté');
+      });
+
+      socket.on('disconnect', () => {
+        console.log('❌ Socket déconnecté');
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('❌ Erreur de connexion socket:', error);
+      });
+
+      // Écouter les nouveaux messages
+      socket.on('newMessage', (msg: Message) => {
+        messageCallbacks.forEach((callback) => callback(msg));
+      });
+
+      // Écouter le typing
+      socket.on('userTyping', (data: { userId: string; isTyping: boolean }) => {
+        typingCallbacks.forEach((callback) => callback(data));
+      });
+
+      // Écouter les changements de statut en ligne
+      socket.on('userOnline', (data: { userId: string; isOnline: boolean }) => {
+        onlineStatusCallbacks.forEach((callback) => callback(data));
+      });
+
+      // Écouter les appels entrants
+      socket.on('incomingCall', (data: any) => {
+        callCallbacks.forEach((callback) => callback(data));
+      });
+
+      // Écouter les réponses d'appel
+      socket.on('callAnswered', (data: any) => {
+        callCallbacks.forEach((callback) => callback(data));
+      });
+
+      // Écouter les erreurs
+      socket.on('error', (data: any) => {
+        console.error('❌ Erreur socket:', data);
       });
     }
+
     return socket;
   },
 
@@ -26,6 +75,10 @@ export const ChatService = {
     if (socket) {
       socket.disconnect();
       socket = null;
+      messageCallbacks = [];
+      typingCallbacks = [];
+      onlineStatusCallbacks = [];
+      callCallbacks = [];
     }
   },
 
@@ -37,14 +90,26 @@ export const ChatService = {
   },
 
   getMessages: async (otherUserId: string, page = 1, limit = 20): Promise<Message[]> => {
-    const res = await api.get(`/chat/messages/${otherUserId}`, { params: { page, limit } });
+    const res = await api.get(`/chat/messages/${otherUserId}`, {
+      params: { page, limit },
+    });
     return res.data;
   },
 
-  sendMessage: (data: { receiverId: string; type: string; content?: string; emoji?: string; fileUrl?: string; fileName?: string; fileSize?: number; moneyTransfer?: { amount: number } }) => {
+  sendMessage: (data: {
+    receiverId: string;
+    type: string;
+    content?: string;
+    emoji?: string;
+    fileUrl?: string;
+    fileName?: string;
+    fileSize?: number;
+    moneyTransfer?: { amount: number };
+  }) => {
     if (socket?.connected) {
       socket.emit('sendMessage', data);
     } else {
+      console.warn('Socket non connecté, envoi via HTTP');
       return api.post('/chat/send', data);
     }
   },
@@ -73,28 +138,44 @@ export const ChatService = {
     return res.data;
   },
 
-  onNewMessage: (callback: (msg: Message) => void) => {
-    if (socket) {
-      socket.on('newMessage', callback);
-      return () => socket?.off('newMessage', callback);
+  startCall: (receiverId: string, type: 'audio' | 'video') => {
+    if (socket?.connected) {
+      socket.emit('startCall', { receiverId, type });
     }
-    return () => {};
+  },
+
+  answerCall: (callerId: string, accepted: boolean) => {
+    if (socket?.connected) {
+      socket.emit('answerCall', { callerId, accepted });
+    }
+  },
+
+  onNewMessage: (callback: (msg: Message) => void) => {
+    messageCallbacks.push(callback);
+    return () => {
+      messageCallbacks = messageCallbacks.filter((cb) => cb !== callback);
+    };
   },
 
   onTyping: (callback: (data: { userId: string; isTyping: boolean }) => void) => {
-    if (socket) {
-      socket.on('userTyping', callback);
-      return () => socket?.off('userTyping', callback);
-    }
-    return () => {};
+    typingCallbacks.push(callback);
+    return () => {
+      typingCallbacks = typingCallbacks.filter((cb) => cb !== callback);
+    };
   },
 
   onOnlineStatus: (callback: (data: { userId: string; isOnline: boolean }) => void) => {
-    if (socket) {
-      socket.on('userOnline', callback);
-      return () => socket?.off('userOnline', callback);
-    }
-    return () => {};
+    onlineStatusCallbacks.push(callback);
+    return () => {
+      onlineStatusCallbacks = onlineStatusCallbacks.filter((cb) => cb !== callback);
+    };
+  },
+
+  onCall: (callback: (data: any) => void) => {
+    callCallbacks.push(callback);
+    return () => {
+      callCallbacks = callCallbacks.filter((cb) => cb !== callback);
+    };
   },
 
   sendTyping: (receiverId: string, isTyping: boolean) => {
