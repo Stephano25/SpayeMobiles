@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../src/config';
+import { Platform } from 'react-native';
 
 export default function UserLayout() {
   return (
@@ -10,9 +11,23 @@ export default function UserLayout() {
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.gray400,
         tabBarStyle: {
-          borderTopColor: COLORS.gray200,
-          paddingBottom: 5,
-          paddingTop: 5,
+          backgroundColor: COLORS.white,
+          borderTopWidth: 0,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 4,
+          ...(Platform.OS === 'ios' ? {
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.05,
+            shadowRadius: 10,
+          } : {
+            elevation: 8,
+          }),
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '500',
         },
       }}
     >
@@ -35,6 +50,15 @@ export default function UserLayout() {
         }}
       />
       <Tabs.Screen
+        name="transactions"
+        options={{
+          title: 'Transactions',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="swap-horizontal-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profil',
@@ -43,12 +67,11 @@ export default function UserLayout() {
           ),
         }}
       />
-      {/* Écrans accessibles sans onglet visible */}
+      {/* Écrans cachés du tab bar */}
       <Tabs.Screen name="send-money" options={{ href: null }} />
       <Tabs.Screen name="receive-money" options={{ href: null }} />
       <Tabs.Screen name="mobile-money" options={{ href: null }} />
       <Tabs.Screen name="scan-pay" options={{ href: null }} />
-      <Tabs.Screen name="transactions" options={{ href: null }} />
       <Tabs.Screen name="chat" options={{ href: null }} />
       <Tabs.Screen name="friends" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />

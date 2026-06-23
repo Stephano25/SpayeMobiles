@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,18 +9,26 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { COLORS } from '../../src/config';
+import { COLORS, RADIUS, SHADOW } from '../../src/config';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
+import { AuthService } from '../../src/services/AuthService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const { showError } = useNotification();
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const handleLogin = async () => {
     if (!email.trim()) {
@@ -36,85 +44,163 @@ export default function LoginScreen() {
     try {
       await login(email.trim(), password.trim());
     } catch (error: any) {
-      let errorMessage = 'Erreur de connexion';
-      if (error?.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-      showError(errorMessage);
+      const message = error?.response?.data?.message || error?.message || 'Erreur de connexion';
+      showError(message);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    try {
+      const apiUrl = await AuthService.getApiUrl();
+      const result = await WebBrowser.openAuthSessionAsync(
+        `${apiUrl}/auth/google`,
+        'spaye://auth/callback'
+      );
+
+      if (result.type === 'success') {
+        const url = new URL(result.url);
+        const token = url.searchParams.get('token');
+        if (token) {
+          await AuthService.handleGoogleCallback(token);
+          const user = await AuthService.getUser();
+          const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+          router.replace(isAdmin ? '/(admin)' : '/(user)');
+        } else {
+          showError('Erreur d\'authentification Google');
+        }
+      } else if (result.type === 'cancel') {
+        showError('Authentification Google annulée');
+      }
+    } catch (error: any) {
+      console.error('Erreur Google Login:', error);
+      showError(error?.message || 'Erreur lors de la connexion Google');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
+  };
+
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+    <TouchableWithoutFeedback onPress={dismissKeyboard}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
-        <Text style={styles.title}>SPaye</Text>
-        <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
+        <ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+        >
+          <View style={styles.logoContainer}>
+            <View style={styles.logoCircle}>
+              <Ionicons name="wallet-outline" size={48} color={COLORS.white} />
+            </View>
+            <Text style={styles.title}>SPaye</Text>
+            <Text style={styles.subtitle}>Service de paiement mobile</Text>
+          </View>
 
-        <View style={styles.form}>
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={COLORS.gray400}
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            editable={!loading}
-          />
+          <View style={styles.form}>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="mail-outline" size={20} color={COLORS.gray400} style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor={COLORS.gray400}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                editable={!loading && !googleLoading}
+                returnKeyType="next"
+              />
+            </View>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Mot de passe"
-            placeholderTextColor={COLORS.gray400}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-            editable={!loading}
-            onSubmitEditing={handleLogin}
-          />
+            <View style={styles.inputWrapper}>
+              <Ionicons name="lock-closed-outline" size={20} color={COLORS.gray400} style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                placeholder="Mot de passe"
+                placeholderTextColor={COLORS.gray400}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+                editable={!loading && !googleLoading}
+                onSubmitEditing={handleLogin}
+                returnKeyType="done"
+              />
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color={COLORS.gray400} />
+              </TouchableOpacity>
+            </View>
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.7}
-          >
-            {loading ? (
-              <ActivityIndicator color={COLORS.white} size="small" />
-            ) : (
-              <Text style={styles.buttonText}>Se connecter</Text>
-            )}
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.button, (loading || googleLoading) && styles.buttonDisabled]}
+              onPress={handleLogin}
+              disabled={loading || googleLoading}
+              activeOpacity={0.7}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.primary} size="small" />
+              ) : (
+                <Text style={styles.buttonText}>Se connecter</Text>
+              )}
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => router.push('/(auth)/register')}
-            style={styles.registerLink}
-            disabled={loading}
-          >
-            <Text style={styles.registerText}>
-              Pas encore de compte ? Inscrivez-vous
-            </Text>
-          </TouchableOpacity>
+            <View style={styles.dividerContainer}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>ou</Text>
+              <View style={styles.dividerLine} />
+            </View>
 
-          <TouchableOpacity
-            onPress={() => router.push('/(auth)/ip-config')}
-            style={styles.configLink}
-          >
-            <Text style={styles.configText}>⚙️ Configurer l'IP du serveur</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <TouchableOpacity
+              style={[styles.googleButton, (loading || googleLoading) && styles.buttonDisabled]}
+              onPress={handleGoogleLogin}
+              disabled={loading || googleLoading}
+              activeOpacity={0.7}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color={COLORS.primary} size="small" />
+              ) : (
+                <>
+                  <Ionicons name="logo-google" size={22} color={COLORS.primary} />
+                  <Text style={styles.googleButtonText}>Continuer avec Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push('/(auth)/register')}
+              style={styles.registerLink}
+              disabled={loading || googleLoading}
+            >
+              <Text style={styles.registerText}>
+                Pas encore de compte ? <Text style={styles.registerHighlight}>Inscrivez-vous</Text>
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push('/(auth)/ip-config')}
+              style={styles.configLink}
+            >
+              <Ionicons name="settings-outline" size={16} color="rgba(255,255,255,0.6)" />
+              <Text style={styles.configText}>Configurer l'IP du serveur</Text>
+            </TouchableOpacity>
+
+            {/* Espace supplémentaire pour le scroll */}
+            <View style={styles.bottomSpacer} />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -126,38 +212,68 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 40,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  logoCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   title: {
-    fontSize: 48,
+    fontSize: 36,
     fontWeight: 'bold',
     color: COLORS.white,
     textAlign: 'center',
-    marginBottom: 10,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: 'rgba(255,255,255,0.8)',
     textAlign: 'center',
-    marginBottom: 40,
+    marginTop: 4,
   },
   form: {
     width: '100%',
   },
-  input: {
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: COLORS.white,
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
+    borderRadius: RADIUS.md,
+    marginBottom: 14,
+    paddingHorizontal: 16,
+    ...SHADOW.sm,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 16,
     fontSize: 16,
     color: COLORS.text,
   },
+  passwordInput: {
+    paddingRight: 8,
+  },
+  eyeIcon: {
+    padding: 8,
+  },
   button: {
     backgroundColor: COLORS.white,
-    padding: 15,
-    borderRadius: 10,
+    paddingVertical: 16,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 8,
+    ...SHADOW.md,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -167,21 +283,61 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
   },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  dividerText: {
+    color: 'rgba(255,255,255,0.6)',
+    paddingHorizontal: 16,
+    fontSize: 14,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.white,
+    paddingVertical: 14,
+    borderRadius: RADIUS.md,
+    gap: 12,
+    ...SHADOW.md,
+  },
+  googleButtonText: {
+    color: COLORS.text,
+    fontWeight: '600',
+    fontSize: 16,
+  },
   registerLink: {
     marginTop: 20,
     alignItems: 'center',
   },
   registerText: {
-    color: COLORS.white,
+    color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
+  },
+  registerHighlight: {
+    color: COLORS.white,
+    fontWeight: 'bold',
     textDecorationLine: 'underline',
   },
   configLink: {
-    marginTop: 12,
+    marginTop: 16,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   configText: {
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,255,255,0.6)',
     fontSize: 13,
+  },
+  bottomSpacer: {
+    height: 20,
   },
 });

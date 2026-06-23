@@ -20,6 +20,15 @@ function StatusBarManager() {
 }
 
 export default function RootLayout() {
+  // Try/catch pour éviter l'erreur keep awake
+  try {
+    // Tentative d'import dynamique
+    // const { useKeepAwake } = require('expo-keep-awake');
+    // useKeepAwake();
+  } catch (error) {
+    console.warn('KeepAwake non disponible, continuer...');
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>

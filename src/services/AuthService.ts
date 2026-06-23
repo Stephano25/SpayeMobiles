@@ -1,8 +1,14 @@
 import api from './api';
 import { storage } from '../utils/storage';
 import { User, LoginResponse } from '../types';
+import { getApiUrl } from '../config';
 
 export const AuthService = {
+  // Récupérer l'URL de l'API
+  getApiUrl: async (): Promise<string> => {
+    return await getApiUrl();
+  },
+
   async login(email: string, password: string): Promise<LoginResponse> {
     const response = await api.post('/auth/login', { email, password });
     return response.data;
@@ -83,5 +89,17 @@ export const AuthService = {
     const user = await this.getProfile();
     await storage.setItem('user', user);
     return user;
+  },
+
+  // 🔥 Gestion du callback Google
+  async handleGoogleCallback(token: string): Promise<void> {
+    await this.saveSession(token, {} as User);
+    try {
+      const user = await this.getProfile();
+      await this.saveSession(token, user);
+    } catch (error) {
+      console.error('Erreur récupération profil Google:', error);
+      throw error;
+    }
   },
 };

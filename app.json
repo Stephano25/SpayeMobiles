@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/image02.png",
       "resizeMode": "contain",
-      "backgroundColor": "#667eea"
+      "backgroundColor": "#6366f1"
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
@@ -24,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/image02.png",
-        "backgroundColor": "#667eea"
+        "backgroundColor": "#6366f1"
       },
       "package": "com.spaye.mobile",
       "permissions": [
@@ -53,10 +53,6 @@
       ],
       "expo-sharing"
     ],
-    "scheme": "spaye",
-    "extra": {
-      "API_URL": "http://192.168.188.135:3000/api",
-      "SOCKET_URL": "http://192.168.188.135:3000"
-    }
+    "scheme": "spaye"
   }
 }

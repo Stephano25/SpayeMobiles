@@ -37,7 +37,7 @@ export const getApi = async () => {
   return apiInstance;
 };
 
-// Compatibilité avec le code existant
+// API wrapper avec fonctions async
 const api = {
   get: async (...args: any[]) => {
     const instance = await getApi();

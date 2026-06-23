@@ -183,8 +183,8 @@ export default function ChatScreen() {
 
     ChatService.onOnlineStatus((data) => {
       if (!data) return;
-      setConversations(prev =>
-        prev.map(c =>
+      setConversations((prevConversations) =>
+        prevConversations.map((c) =>
           c.userId === data.userId ? { ...c, isOnline: data.isOnline } : c
         )
       );
@@ -221,16 +221,16 @@ export default function ChatScreen() {
   const handleNewMessage = (message: any) => {
     // Si le message est pour la conversation sélectionnée
     if (selectedContact && message.senderId === selectedContact.userId) {
-      setMessages(prev => [...prev, message]);
+      setMessages((prevMessages) => [...prevMessages, message]);
       scrollToBottom();
       ChatService.markAsRead(selectedContact.userId);
     }
 
     // Mettre à jour la liste des conversations
-    setConversations(prev => {
-      const convIndex = prev.findIndex(c => c.userId === message.senderId);
+    setConversations((prevConversations) => {
+      const convIndex = prevConversations.findIndex(c => c.userId === message.senderId);
       if (convIndex !== -1) {
-        const updatedConv = { ...prev[convIndex] };
+        const updatedConv = { ...prevConversations[convIndex] };
         updatedConv.lastMessage = {
           content: message.content || (message.type === 'emoji' ? message.emoji : '[Média]'),
           type: message.type,
@@ -240,13 +240,13 @@ export default function ChatScreen() {
         if (selectedContact?.userId !== message.senderId) {
           updatedConv.unreadCount = (updatedConv.unreadCount || 0) + 1;
         }
-        const newConvs = [...prev];
+        const newConvs = [...prevConversations];
         newConvs[convIndex] = updatedConv;
         return newConvs.sort((a, b) =>
           new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime()
         );
       }
-      return prev;
+      return prevConversations;
     });
   };
 
@@ -264,8 +264,8 @@ export default function ChatScreen() {
       ));
       scrollToBottom();
       await ChatService.markAsRead(conv.userId);
-      setConversations(prev =>
-        prev.map(c =>
+      setConversations((prevConversations) =>
+        prevConversations.map((c) =>
           c.userId === conv.userId ? { ...c, unreadCount: 0 } : c
         )
       );
@@ -292,7 +292,7 @@ export default function ChatScreen() {
             unreadCount: 0,
             isOnline: friend.isOnline || false,
           };
-          setConversations(prev => [newConv, ...prev]);
+          setConversations((prevConversations) => [newConv, ...prevConversations]);
           selectConversation(newConv);
         } else {
           showError('Utilisateur non trouvé');
@@ -322,7 +322,7 @@ export default function ChatScreen() {
       createdAt: new Date().toISOString(),
     };
 
-    setMessages(prev => [...prev, tempMsg]);
+    setMessages((prevMessages) => [...prevMessages, tempMsg]);
     setNewMessage('');
     scrollToBottom();
 
@@ -350,7 +350,7 @@ export default function ChatScreen() {
       createdAt: new Date().toISOString(),
     };
 
-    setMessages(prev => [...prev, tempMsg]);
+    setMessages((prevMessages) => [...prevMessages, tempMsg]);
     scrollToBottom();
 
     ChatService.sendMessage({
@@ -374,7 +374,7 @@ export default function ChatScreen() {
       showInfo('Enregistrement vocal...');
       
       recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
+        setRecordingTime((prevTime) => prevTime + 1);
       }, 1000);
     } else {
       // Arrêter l'enregistrement
@@ -398,7 +398,7 @@ export default function ChatScreen() {
         createdAt: new Date().toISOString(),
       };
       
-      setMessages(prev => [...prev, tempMsg]);
+      setMessages((prevMessages) => [...prevMessages, tempMsg]);
       scrollToBottom();
       
       ChatService.sendMessage({
@@ -459,7 +459,7 @@ export default function ChatScreen() {
           createdAt: new Date().toISOString(),
         };
 
-        setMessages(prev => [...prev, tempMsg]);
+        setMessages((prevMessages) => [...prevMessages, tempMsg]);
         scrollToBottom();
 
         ChatService.sendMessage({
@@ -559,7 +559,7 @@ export default function ChatScreen() {
             try {
               await FriendService.blockUser(selectedContact.userId);
               showSuccess('Utilisateur bloqué');
-              setSelectedContact(prev => ({ ...prev, isOnline: false }));
+              setSelectedContact((prev) => ({ ...prev, isOnline: false }));
               loadOnlineFriends();
             } catch (error) {
               showError('Erreur lors du blocage');
@@ -614,7 +614,7 @@ export default function ChatScreen() {
   const filteredConversations = () => {
     if (!searchQuery) return conversations;
     const query = searchQuery.toLowerCase();
-    return conversations.filter(conv =>
+    return conversations.filter((conv) =>
       `${conv.firstName} ${conv.lastName}`.toLowerCase().includes(query)
     );
   };
@@ -742,7 +742,7 @@ export default function ChatScreen() {
         </Text>
         <View style={styles.liveDot} />
       </View>
-      <Text style={styles.onlineFriendName} numberOfLines={1}>
+      <Text style={styles.onlineFriendNameText} numberOfLines={1}>
         {item.friend.firstName}
       </Text>
     </TouchableOpacity>
@@ -756,7 +756,6 @@ export default function ChatScreen() {
 
     const isIncoming = !!incomingCall;
     const name = isIncoming ? incomingCall?.fromName : selectedContact?.firstName;
-    const typeIcon = callType === 'audio' ? 'call-outline' : 'videocam-outline';
 
     return (
       <Modal visible={true} transparent animationType="fade">
@@ -773,7 +772,7 @@ export default function ChatScreen() {
               </Text>
             </View>
             <Text style={[styles.callName, { color: colors.text }]}>{name || 'Utilisateur'}</Text>
-            <Text style={styles.callStatus}>
+            <Text style={styles.callStatusText}>
               {isIncoming
                 ? `${callType === 'audio' ? 'Appel audio' : 'Appel vidéo'} entrant...`
                 : callStatus === 'calling'
@@ -1455,7 +1454,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.white,
   },
-  onlineFriendName: { fontSize: 13, fontWeight: '500' },
+  onlineFriendNameText: { fontSize: 13, fontWeight: '500' },
 
   // ── EMPTY STATE ──
   emptyContainer: {
@@ -1501,7 +1500,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
   },
   callName: { fontSize: 22, fontWeight: 'bold', marginBottom: 4 },
-  callStatus: { fontSize: 14, color: COLORS.gray400, marginBottom: 24 },
+  callStatusText: { fontSize: 14, color: COLORS.gray400, marginBottom: 24 },
   callActions: {
     flexDirection: 'row',
     gap: 20,

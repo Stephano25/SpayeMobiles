@@ -92,8 +92,8 @@ export default function FriendsScreen() {
       await FriendService.sendFriendRequest(id);
       showSuccess('Demande envoyée');
       load();
-      setSearchResults((prev) => prev.filter((u) => u.id !== id));
-      setSuggestions((prev) => prev.filter((u) => u.id !== id));
+      setSearchResults((prevResults) => prevResults.filter((u) => u.id !== id));
+      setSuggestions((prevSuggestions) => prevSuggestions.filter((u) => u.id !== id));
     } catch (e: any) {
       showError(e?.response?.data?.message || 'Erreur');
     }
@@ -112,7 +112,7 @@ export default function FriendsScreen() {
   const decline = async (id: string) => {
     try {
       await FriendService.declineFriendRequest(id);
-      setRequests((prev) => prev.filter((r) => r.id !== id));
+      setRequests((prevRequests) => prevRequests.filter((r) => r.id !== id));
     } catch {
       showError('Erreur lors du refus');
     }
@@ -221,9 +221,9 @@ export default function FriendsScreen() {
         <Text style={styles.onlineAvatarText}>
           {getInitials(item.friend.firstName, item.friend.lastName)}
         </Text>
-        <View style={styles.liveDot} />
+        <View style={styles.onlineLiveDot} />
       </View>
-      <Text style={styles.onlineFriendName} numberOfLines={1}>
+      <Text style={styles.onlineFriendNameText} numberOfLines={1}>
         {item.friend.firstName}
       </Text>
     </TouchableOpacity>
@@ -254,7 +254,6 @@ export default function FriendsScreen() {
           <TouchableOpacity
             style={styles.friendActionBtn}
             onPress={() => {
-              // Envoyer de l'argent
               router.push({
                 pathname: '/(user)/send-money',
                 params: { receiverId: friend.id, receiverName: `${friend.firstName} ${friend.lastName}` },
@@ -435,7 +434,7 @@ export default function FriendsScreen() {
         {onlineFriends.length > 0 && (
           <View style={styles.onlineSection}>
             <View style={styles.onlineHeader}>
-              <View style={styles.liveDot} />
+              <View style={styles.onlineLiveDot} />
               <Text style={[styles.onlineTitle, { color: colors.text }]}>
                 En ligne ({onlineFriends.length})
               </Text>
@@ -649,7 +648,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   onlineHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  liveDot: {
+  onlineLiveDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
@@ -667,7 +666,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   onlineAvatarText: { color: COLORS.white, fontWeight: 'bold', fontSize: 14 },
-  liveDot: {
+  onlineLiveDot: {
     position: 'absolute',
     bottom: 0,
     right: 0,
@@ -678,7 +677,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.white,
   },
-  onlineFriendName: { fontSize: 11, marginTop: 4, textAlign: 'center' },
+  onlineFriendNameText: { fontSize: 11, marginTop: 4, textAlign: 'center' },
 
   friendsCard: {
     borderRadius: 12,
