@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { storage } from '../utils/storage';
 import { COLORS } from '../config';
+import { TranslationService } from '../services/TranslationService';
 
 type ThemeType = 'light' | 'dark' | 'system';
 
@@ -26,6 +27,8 @@ interface ThemeContextType {
   isDark: boolean;
   colors: typeof lightTheme;
   setTheme: (t: ThemeType) => Promise<void>;
+  changeLanguage: (lang: string) => Promise<void>;
+  currentLanguage: string;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -40,9 +43,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const system = useColorScheme();
   const [theme, setThemeState] = useState<ThemeType>('light');
   const [isDark, setIsDark] = useState(false);
+  const [currentLanguage, setCurrentLanguage] = useState<string>('fr');
+
+  const translationService = TranslationService.getInstance();
 
   useEffect(() => {
     load();
+    loadLanguage();
   }, []);
 
   useEffect(() => {
@@ -59,6 +66,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     else setIsDark(t === 'dark');
   };
 
+  const loadLanguage = async () => {
+    const lang = await translationService.getLanguage();
+    setCurrentLanguage(lang);
+  };
+
   const setTheme = async (newTheme: ThemeType) => {
     await storage.setItem('theme', newTheme);
     setThemeState(newTheme);
@@ -66,10 +78,25 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     else setIsDark(newTheme === 'dark');
   };
 
+  // 🔥 Fonction pour changer la langue
+  const changeLanguage = async (lang: string) => {
+    await translationService.setLanguage(lang);
+    setCurrentLanguage(lang);
+  };
+
   const colors = isDark ? darkTheme : lightTheme;
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, colors, setTheme }}>
+    <ThemeContext.Provider 
+      value={{ 
+        theme, 
+        isDark, 
+        colors, 
+        setTheme, 
+        changeLanguage,
+        currentLanguage 
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   );

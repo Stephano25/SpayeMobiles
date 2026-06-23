@@ -7,16 +7,23 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useNotification } from '../../src/context/NotificationContext';
 import { COLORS, formatAmount, getInitials } from '../../src/config';
-import { router } from 'expo-router';
 import { User } from '../../src/types';
+import { SafeScreen } from '../../src/components/SafeScreen';
+import { useTranslation } from '../../src/services/TranslationService';
 
 export default function ProfileScreen() {
   const { colors } = useTheme();
   const { user, updateProfile, logout } = useAuth();
+  const { showSuccess, showError } = useNotification();
+  const { t } = useTranslation();
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<Partial<User>>({
     firstName: user?.firstName || '',
@@ -31,110 +38,152 @@ export default function ProfileScreen() {
     try {
       await updateProfile(form);
       setEditMode(false);
-      Alert.alert('Succès', 'Profil mis à jour');
+      showSuccess(t('success'));
     } catch (error) {
-      Alert.alert('Erreur', 'Mise à jour échouée');
+      showError(t('error'));
     } finally {
       setLoading(false);
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      t('logout'),
+      t('confirm'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('logout'),
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+          },
+        },
+      ]
+    );
+  };
+
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeScreen backgroundColor={colors.background}>
+      {/* Header */}
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>←</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mon Profil</Text>
+        <Text style={styles.headerTitle}>{t('profile')}</Text>
         <TouchableOpacity onPress={() => setEditMode(!editMode)}>
-          <Text style={styles.editButton}>{editMode ? 'Annuler' : '✏️'}</Text>
+          <Ionicons name={editMode ? 'close' : 'create-outline'} size={22} color={COLORS.white} />
         </TouchableOpacity>
       </View>
 
+      {/* Avatar */}
       <View style={styles.avatarContainer}>
         <Text style={styles.avatarText}>
           {getInitials(user?.firstName || '', user?.lastName || '')}
         </Text>
       </View>
 
+      {/* Carte profil */}
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         {editMode ? (
           <>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
               value={form.firstName}
               onChangeText={(t) => setForm({ ...form, firstName: t })}
-              placeholder="Prénom"
+              placeholder={t('first_name')}
+              placeholderTextColor={COLORS.gray400}
             />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
               value={form.lastName}
               onChangeText={(t) => setForm({ ...form, lastName: t })}
-              placeholder="Nom"
+              placeholder={t('last_name')}
+              placeholderTextColor={COLORS.gray400}
             />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
               value={form.email}
               onChangeText={(t) => setForm({ ...form, email: t })}
-              placeholder="Email"
+              placeholder={t('email')}
               keyboardType="email-address"
               autoCapitalize="none"
+              placeholderTextColor={COLORS.gray400}
             />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
               value={form.phoneNumber}
               onChangeText={(t) => setForm({ ...form, phoneNumber: t })}
-              placeholder="Téléphone"
+              placeholder={t('phone')}
               keyboardType="phone-pad"
+              placeholderTextColor={COLORS.gray400}
             />
-            <TouchableOpacity style={styles.saveButton} onPress={save} disabled={loading}>
-              <Text style={styles.saveButtonText}>Enregistrer</Text>
+            <TouchableOpacity 
+              style={[styles.saveButton, loading && styles.saveBtnDisabled]} 
+              onPress={save} 
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Text style={styles.saveButtonText}>{t('save')}</Text>
+              )}
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <Text style={styles.row}>
-              <Text style={styles.label}>Prénom :</Text> {user?.firstName}
-            </Text>
-            <Text style={styles.row}>
-              <Text style={styles.label}>Nom :</Text> {user?.lastName}
-            </Text>
-            <Text style={styles.row}>
-              <Text style={styles.label}>Email :</Text> {user?.email}
-            </Text>
-            <Text style={styles.row}>
-              <Text style={styles.label}>Téléphone :</Text> {user?.phoneNumber || 'Non renseigné'}
-            </Text>
-            <Text style={styles.row}>
-              <Text style={styles.label}>Solde :</Text> {formatAmount(user?.balance || 0)} Ar
-            </Text>
-            <Text style={styles.row}>
-              <Text style={styles.label}>QR Code :</Text> {user?.qrCode}
-            </Text>
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: colors.text }]}>{t('first_name')} :</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{user?.firstName}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: colors.text }]}>{t('last_name')} :</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{user?.lastName}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: colors.text }]}>{t('email')} :</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{user?.email}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: colors.text }]}>{t('phone')} :</Text>
+              <Text style={[styles.value, { color: colors.text }]}>
+                {user?.phoneNumber || t('not_specified')}
+              </Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: colors.text }]}>{t('balance')} :</Text>
+              <Text style={[styles.value, { color: COLORS.primary, fontWeight: 'bold' }]}>
+                {formatAmount(user?.balance || 0)} Ar
+              </Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: colors.text }]}>QR Code :</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{user?.qrCode}</Text>
+            </View>
           </>
         )}
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-        <Text style={styles.logoutText}>Déconnexion</Text>
+      {/* Bouton déconnexion */}
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Ionicons name="log-out-outline" size={20} color={COLORS.white} />
+        <Text style={styles.logoutText}>{t('logout')}</Text>
       </TouchableOpacity>
-    </ScrollView>
+    </SafeScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingVertical: 16,
     paddingHorizontal: 20,
+    marginBottom: 10,
   },
-  backText: { fontSize: 24, color: COLORS.white },
+  backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
-  editButton: { fontSize: 20, color: COLORS.white },
   avatarContainer: {
     alignSelf: 'center',
     width: 100,
@@ -143,23 +192,50 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -30,
     marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
   avatarText: { fontSize: 36, fontWeight: 'bold', color: COLORS.white },
-  card: { marginHorizontal: 20, padding: 20, borderRadius: 16, marginBottom: 20 },
-  row: { fontSize: 16, marginVertical: 8 },
-  label: { fontWeight: 'bold' },
+  card: {
+    marginHorizontal: 20,
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.gray200,
+  },
+  label: { fontSize: 15, fontWeight: '600' },
+  value: { fontSize: 15, textAlign: 'right', flex: 1, marginLeft: 10 },
   input: {
     borderWidth: 1,
-    borderColor: COLORS.gray300,
     borderRadius: 12,
-    padding: 12,
+    padding: 14,
     marginBottom: 12,
     fontSize: 16,
   },
-  saveButton: { backgroundColor: COLORS.primary, padding: 14, borderRadius: 12, alignItems: 'center' },
-  saveButtonText: { color: 'white', fontWeight: 'bold' },
+  saveButton: {
+    backgroundColor: COLORS.primary,
+    padding: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  saveBtnDisabled: { opacity: 0.6 },
+  saveButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
   logoutButton: {
     backgroundColor: COLORS.error,
     marginHorizontal: 20,
@@ -167,6 +243,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 40,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
-  logoutText: { color: 'white', fontWeight: 'bold' },
+  logoutText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 });

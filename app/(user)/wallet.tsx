@@ -15,12 +15,13 @@ import { WalletService } from '../../src/services/WalletService';
 import { TransactionService } from '../../src/services/TransactionService';
 import { COLORS, formatAmount, formatRelativeTime } from '../../src/config';
 import { Transaction } from '../../src/types';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeScreen } from '../../src/components/SafeScreen';
+import { useTranslation } from '../../src/services/TranslationService';
 
 export default function WalletScreen() {
   const { colors } = useTheme();
   const { showError } = useNotification();
-  const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,7 +35,7 @@ export default function WalletScreen() {
       setBalance(wallet.balance ?? 0);
       setTransactions((txs || []).slice(0, 15));
     } catch (e) {
-      showError('Erreur de chargement du portefeuille');
+      showError(t('error'));
     }
   }, []);
 
@@ -59,10 +60,10 @@ export default function WalletScreen() {
     .reduce((s, t) => s + t.amount, 0);
 
   const actions = [
-    { label: 'Envoyer', icon: 'send', color: COLORS.primary, route: '/(user)/send-money' },
-    { label: 'Recevoir', icon: 'qr-code', color: COLORS.success, route: '/(user)/receive-money' },
-    { label: 'Mobile Money', icon: 'phone-portrait', color: COLORS.warning, route: '/(user)/mobile-money' },
-    { label: 'Scanner', icon: 'scan', color: COLORS.secondary, route: '/(user)/scan-pay' },
+    { label: t('send'), icon: 'send', color: COLORS.primary, route: '/(user)/send-money' },
+    { label: t('receive'), icon: 'qr-code', color: COLORS.success, route: '/(user)/receive-money' },
+    { label: t('mobile_money'), icon: 'phone-portrait', color: COLORS.warning, route: '/(user)/mobile-money' },
+    { label: t('scan'), icon: 'scan', color: COLORS.secondary, route: '/(user)/scan-pay' },
   ];
 
   const getOther = (tx: Transaction): any => {
@@ -84,103 +85,100 @@ export default function WalletScreen() {
   };
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={[
-        styles.content,
-        { paddingBottom: insets.bottom > 0 ? insets.bottom + 30 : 30 }
-      ]}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl 
-          refreshing={refreshing} 
-          onRefresh={onRefresh} 
-          tintColor={COLORS.primary} 
-        />
-      }
-    >
-      <View style={[styles.balanceCard, { backgroundColor: COLORS.primary }]}>
-        <Text style={styles.balanceLabel}>Solde disponible</Text>
-        <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
-        <View style={styles.balanceFooter}>
-          <View style={styles.balanceStat}>
-            <Ionicons name="arrow-down-circle" size={16} color="#A7F3D0" />
-            <Text style={styles.balanceStatText}>+{formatAmount(totalIn)} Ar</Text>
-          </View>
-          <View style={styles.balanceStat}>
-            <Ionicons name="arrow-up-circle" size={16} color="#FECACA" />
-            <Text style={styles.balanceStatText}>-{formatAmount(totalOut)} Ar</Text>
+    <SafeScreen backgroundColor={colors.background}>
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            tintColor={COLORS.primary} 
+          />
+        }
+      >
+        <View style={[styles.balanceCard, { backgroundColor: COLORS.primary }]}>
+          <Text style={styles.balanceLabel}>{t('balance')}</Text>
+          <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
+          <View style={styles.balanceFooter}>
+            <View style={styles.balanceStat}>
+              <Ionicons name="arrow-down-circle" size={16} color="#A7F3D0" />
+              <Text style={styles.balanceStatText}>+{formatAmount(totalIn)} Ar</Text>
+            </View>
+            <View style={styles.balanceStat}>
+              <Ionicons name="arrow-up-circle" size={16} color="#FECACA" />
+              <Text style={styles.balanceStatText}>-{formatAmount(totalOut)} Ar</Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      <View style={styles.actionsRow}>
-        {actions.map((a) => (
-          <TouchableOpacity
-            key={a.label}
-            style={styles.actionBtn}
-            onPress={() => router.push(a.route as any)}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: a.color + '18' }]}>
-              <Ionicons name={a.icon as any} size={22} color={a.color} />
-            </View>
-            <Text style={[styles.actionLabel, { color: colors.text }]}>{a.label}</Text>
+        <View style={styles.actionsRow}>
+          {actions.map((a) => (
+            <TouchableOpacity
+              key={a.label}
+              style={styles.actionBtn}
+              onPress={() => router.push(a.route as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: a.color + '18' }]}>
+                <Ionicons name={a.icon as any} size={22} color={a.color} />
+              </View>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>{a.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('recent_activity')}</Text>
+          <TouchableOpacity onPress={() => router.push('/(user)/transactions')}>
+            <Text style={styles.seeAll}>{t('view_all')}</Text>
           </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Activité récente</Text>
-        <TouchableOpacity onPress={() => router.push('/(user)/transactions')}>
-          <Text style={styles.seeAll}>Voir tout</Text>
-        </TouchableOpacity>
-      </View>
-
-      {transactions.length === 0 ? (
-        <View style={[styles.emptyCard, { backgroundColor: colors.card }]}>
-          <Ionicons name="receipt-outline" size={36} color={COLORS.gray400} />
-          <Text style={styles.emptyText}>Aucune transaction</Text>
         </View>
-      ) : (
-        transactions.map((tx) => {
-          const other = getOther(tx);
-          const credit = tx.type === 'deposit' || tx.type === 'receive';
-          return (
-            <View key={tx.id || (tx as any)._id} style={[styles.txRow, { backgroundColor: colors.card }]}>
-              <View
-                style={[
-                  styles.txIconBg,
-                  { backgroundColor: credit ? COLORS.successLight : COLORS.errorLight },
-                ]}
-              >
-                <Ionicons
-                  name={txIcon(tx.type)}
-                  size={20}
-                  color={credit ? COLORS.success : COLORS.error}
-                />
-              </View>
-              <View style={styles.txInfo}>
-                <Text style={[styles.txTitle, { color: colors.text }]} numberOfLines={1}>
-                  {tx.description ||
-                    (other.firstName ? `${other.firstName} ${other.lastName || ''}` : tx.type)}
+
+        {transactions.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: colors.card }]}>
+            <Ionicons name="receipt-outline" size={36} color={COLORS.gray400} />
+            <Text style={styles.emptyText}>{t('no_transactions')}</Text>
+          </View>
+        ) : (
+          transactions.map((tx) => {
+            const other = getOther(tx);
+            const credit = tx.type === 'deposit' || tx.type === 'receive';
+            return (
+              <View key={tx.id || (tx as any)._id} style={[styles.txRow, { backgroundColor: colors.card }]}>
+                <View
+                  style={[
+                    styles.txIconBg,
+                    { backgroundColor: credit ? COLORS.successLight : COLORS.errorLight },
+                  ]}
+                >
+                  <Ionicons
+                    name={txIcon(tx.type)}
+                    size={20}
+                    color={credit ? COLORS.success : COLORS.error}
+                  />
+                </View>
+                <View style={styles.txInfo}>
+                  <Text style={[styles.txTitle, { color: colors.text }]} numberOfLines={1}>
+                    {tx.description ||
+                      (other.firstName ? `${other.firstName} ${other.lastName || ''}` : tx.type)}
+                  </Text>
+                  <Text style={styles.txDate}>{formatRelativeTime(tx.createdAt)}</Text>
+                </View>
+                <Text style={[styles.txAmount, { color: credit ? COLORS.success : COLORS.error }]}>
+                  {credit ? '+' : '-'}
+                  {formatAmount(tx.amount)} Ar
                 </Text>
-                <Text style={styles.txDate}>{formatRelativeTime(tx.createdAt)}</Text>
               </View>
-              <Text style={[styles.txAmount, { color: credit ? COLORS.success : COLORS.error }]}>
-                {credit ? '+' : '-'}
-                {formatAmount(tx.amount)} Ar
-              </Text>
-            </View>
-          );
-        })
-      )}
-    </ScrollView>
+            );
+          })
+        )}
+      </ScrollView>
+    </SafeScreen>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, paddingTop: 60 },
   balanceCard: {
     borderRadius: 20,
     padding: 24,

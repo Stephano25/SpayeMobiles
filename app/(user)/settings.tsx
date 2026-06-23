@@ -20,6 +20,7 @@ import { AuthService } from '../../src/services/AuthService';
 import { getStoredIp, setBackendIp, getApiUrl } from '../../src/config';
 import { COLORS, getInitials } from '../../src/config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from '../../src/services/TranslationService';
 
 // Types
 interface Settings {
@@ -60,14 +61,14 @@ interface Settings {
   };
 }
 
-// 🔥 Langues disponibles
+// Langues disponibles
 const LANGUAGES = [
   { code: 'fr', label: 'Français', flag: '🇫🇷' },
   { code: 'en', label: 'English', flag: '🇬🇧' },
   { code: 'mg', label: 'Malagasy', flag: '🇲🇬' },
 ];
 
-// 🔥 Thèmes disponibles
+// Thèmes disponibles
 const THEMES = [
   { value: 'light', label: 'Clair', icon: 'sunny-outline' },
   { value: 'dark', label: 'Sombre', icon: 'moon-outline' },
@@ -78,6 +79,7 @@ export default function UserSettingsScreen() {
   const { colors, theme, setTheme, isDark } = useTheme();
   const { user, logout, updateProfile } = useAuth();
   const { showSuccess, showError } = useNotification();
+  const { t, language, setLanguage } = useTranslation();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -175,13 +177,12 @@ export default function UserSettingsScreen() {
   const saveSettings = async (newSettings: Settings) => {
     try {
       setSettings(newSettings);
-      showSuccess('Paramètres sauvegardés');
+      showSuccess(t('save'));
     } catch (error) {
-      showError('Erreur lors de la sauvegarde');
+      showError(t('error'));
     }
   };
 
-  // 🔥 Mise à jour des paramètres d'apparence (thème et langue)
   const updateAppearanceSettings = (key: keyof Settings['appearance'], value: any) => {
     const newSettings = { ...settings, appearance: { ...settings.appearance, [key]: value } };
     setSettings(newSettings);
@@ -191,19 +192,17 @@ export default function UserSettingsScreen() {
     }
   };
 
-  // 🔥 Changer la langue
-  const changeLanguage = (langCode: string) => {
+  // 🔥 Changer la langue avec traduction
+  const changeLanguage = async (langCode: string) => {
+    await setLanguage(langCode);
     updateAppearanceSettings('language', langCode);
-    // Ici vous pouvez ajouter la logique pour changer la langue de l'application
-    // Ex: i18n.changeLanguage(langCode)
+    showSuccess(t('success'));
   };
 
-  // 🔥 Changer le thème
   const changeTheme = (themeValue: 'light' | 'dark' | 'system') => {
     updateAppearanceSettings('theme', themeValue);
   };
 
-  // Sauvegarder le profil
   const saveProfile = async () => {
     setSaving(true);
     try {
@@ -214,62 +213,59 @@ export default function UserSettingsScreen() {
         phoneNumber: profileForm.phoneNumber,
       });
       setEditMode(false);
-      showSuccess('Profil mis à jour');
+      showSuccess(t('success'));
     } catch (error) {
-      showError('Erreur lors de la mise à jour');
+      showError(t('error'));
     } finally {
       setSaving(false);
     }
   };
 
-  // Changer le mot de passe
   const changePassword = async () => {
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      showError('Les mots de passe ne correspondent pas');
+      showError(t('error'));
       return;
     }
     if (passwordForm.newPassword.length < 6) {
-      showError('Le mot de passe doit contenir au moins 6 caractères');
+      showError(t('error'));
       return;
     }
 
     setChangingPassword(true);
     try {
       await AuthService.changePassword(passwordForm.currentPassword, passwordForm.newPassword);
-      showSuccess('Mot de passe modifié avec succès');
+      showSuccess(t('success'));
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
     } catch (error) {
-      showError('Erreur lors du changement de mot de passe');
+      showError(t('error'));
     } finally {
       setChangingPassword(false);
     }
   };
 
-  // Sauvegarder l'IP
   const handleSaveIp = async () => {
     if (!ipAddress.trim()) {
-      showError('Veuillez entrer une adresse IP');
+      showError(t('error'));
       return;
     }
     try {
       await setBackendIp(ipAddress.trim());
-      showSuccess('IP mise à jour avec succès !');
+      showSuccess(t('success'));
       setShowIPConfig(false);
       loadCurrentIp();
     } catch (error) {
-      showError('Erreur lors de la mise à jour de l\'IP');
+      showError(t('error'));
     }
   };
 
-  // Déconnexion
   const handleLogout = () => {
     Alert.alert(
-      'Déconnexion',
-      'Voulez-vous vraiment vous déconnecter ?',
+      t('logout'),
+      t('confirm'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Déconnecter',
+          text: t('logout'),
           style: 'destructive',
           onPress: async () => {
             await logout();
@@ -279,24 +275,27 @@ export default function UserSettingsScreen() {
     );
   };
 
-  // Onglets
+  // Onglets avec traduction
   const tabs = [
-    { label: 'Général', icon: 'settings-outline' },
-    { label: 'Profil', icon: 'person-outline' },
-    { label: 'Sécurité', icon: 'shield-outline' },
-    { label: 'Confidentialité', icon: 'eye-outline' },
-    { label: 'Notifications', icon: 'notifications-outline' },
-    { label: 'Apparence', icon: 'color-palette-outline' },
+    { label: t('general'), icon: 'settings-outline' },
+    { label: t('profile'), icon: 'person-outline' },
+    { label: t('security'), icon: 'shield-outline' },
+    { label: t('privacy'), icon: 'eye-outline' },
+    { label: t('notifications'), icon: 'notifications-outline' },
+    { label: t('appearance'), icon: 'color-palette-outline' },
   ];
 
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Chargement des paramètres...</Text>
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{t('loading')}</Text>
       </View>
     );
   }
+
+  // 🔥 Calcul du padding bottom pour éviter que le contenu soit caché
+  const bottomPadding = insets.bottom > 0 ? insets.bottom + 100 : 40;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -305,7 +304,7 @@ export default function UserSettingsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Paramètres</Text>
+        <Text style={styles.headerTitle}>{t('settings')}</Text>
         <TouchableOpacity onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={24} color={COLORS.white} />
         </TouchableOpacity>
@@ -314,9 +313,11 @@ export default function UserSettingsScreen() {
       <ScrollView
         style={[styles.content, { backgroundColor: colors.background }]}
         contentContainerStyle={{ 
-          paddingBottom: insets.bottom > 0 ? insets.bottom + 20 : 30 
+          paddingBottom: bottomPadding,
+          paddingHorizontal: 0,
         }}
         showsVerticalScrollIndicator={false}
+        bounces={true}
       >
         {/* Profil utilisateur (carte d'en-tête) */}
         <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
@@ -343,7 +344,7 @@ export default function UserSettingsScreen() {
                 onPress={() => setEditMode(!editMode)}
               >
                 <Ionicons name="create-outline" size={16} color={COLORS.primary} />
-                <Text style={styles.editProfileText}>{editMode ? 'Annuler' : 'Modifier le profil'}</Text>
+                <Text style={styles.editProfileText}>{editMode ? t('cancel') : t('profile')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -353,21 +354,21 @@ export default function UserSettingsScreen() {
             <View style={styles.editForm}>
               <TextInput
                 style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
-                placeholder="Prénom"
+                placeholder={t('first_name')}
                 placeholderTextColor={COLORS.gray400}
                 value={profileForm.firstName}
                 onChangeText={(v) => setProfileForm({ ...profileForm, firstName: v })}
               />
               <TextInput
                 style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
-                placeholder="Nom"
+                placeholder={t('last_name')}
                 placeholderTextColor={COLORS.gray400}
                 value={profileForm.lastName}
                 onChangeText={(v) => setProfileForm({ ...profileForm, lastName: v })}
               />
               <TextInput
                 style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
-                placeholder="Email"
+                placeholder={t('email')}
                 placeholderTextColor={COLORS.gray400}
                 value={profileForm.email}
                 onChangeText={(v) => setProfileForm({ ...profileForm, email: v })}
@@ -376,7 +377,7 @@ export default function UserSettingsScreen() {
               />
               <TextInput
                 style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
-                placeholder="Téléphone"
+                placeholder={t('phone')}
                 placeholderTextColor={COLORS.gray400}
                 value={profileForm.phoneNumber}
                 onChangeText={(v) => setProfileForm({ ...profileForm, phoneNumber: v })}
@@ -390,7 +391,7 @@ export default function UserSettingsScreen() {
                 {saving ? (
                   <ActivityIndicator size="small" color={COLORS.white} />
                 ) : (
-                  <Text style={styles.saveBtnText}>Enregistrer</Text>
+                  <Text style={styles.saveBtnText}>{t('save')}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -404,7 +405,7 @@ export default function UserSettingsScreen() {
         >
           <View style={styles.ipToggleLeft}>
             <Ionicons name="server-outline" size={20} color={COLORS.primary} />
-            <Text style={[styles.ipToggleText, { color: colors.text }]}>Configuration IP du serveur</Text>
+            <Text style={[styles.ipToggleText, { color: colors.text }]}>Configuration IP</Text>
           </View>
           <Ionicons name={showIPConfig ? 'chevron-up' : 'chevron-down'} size={20} color={COLORS.gray400} />
         </TouchableOpacity>
@@ -458,8 +459,10 @@ export default function UserSettingsScreen() {
           {/* Onglet Général */}
           {activeTab === 0 && (
             <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Paramètres généraux</Text>
-              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>Préférences de l'application</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('general')}</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+                Préférences de l'application
+              </Text>
 
               <View style={styles.settingRow}>
                 <Text style={[styles.settingLabel, { color: colors.text }]}>Lecture auto des vidéos</Text>
@@ -492,9 +495,9 @@ export default function UserSettingsScreen() {
           {/* Onglet Profil */}
           {activeTab === 1 && (
             <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Informations personnelles</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('profile')}</Text>
               <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-                Modifiez vos informations de profil
+                {t('profile')}
               </Text>
               <TouchableOpacity
                 style={styles.editProfileFullBtn}
@@ -502,7 +505,7 @@ export default function UserSettingsScreen() {
               >
                 <Ionicons name="create-outline" size={20} color={COLORS.white} />
                 <Text style={styles.editProfileFullText}>
-                  {editMode ? 'Fermer l\'édition' : 'Modifier le profil'}
+                  {editMode ? t('cancel') : t('profile')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -511,13 +514,13 @@ export default function UserSettingsScreen() {
           {/* Onglet Sécurité */}
           {activeTab === 2 && (
             <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Sécurité</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('security')}</Text>
 
-              <Text style={[styles.subSectionTitle, { color: colors.text }]}>Mot de passe</Text>
+              <Text style={[styles.subSectionTitle, { color: colors.text }]}>{t('password')}</Text>
 
               <TextInput
                 style={[styles.passwordInput, { color: colors.text, backgroundColor: colors.background }]}
-                placeholder="Mot de passe actuel"
+                placeholder={t('current_password')}
                 placeholderTextColor={COLORS.gray400}
                 secureTextEntry={!showPassword}
                 value={passwordForm.currentPassword}
@@ -525,7 +528,7 @@ export default function UserSettingsScreen() {
               />
               <TextInput
                 style={[styles.passwordInput, { color: colors.text, backgroundColor: colors.background }]}
-                placeholder="Nouveau mot de passe"
+                placeholder={t('new_password')}
                 placeholderTextColor={COLORS.gray400}
                 secureTextEntry={!showNewPassword}
                 value={passwordForm.newPassword}
@@ -533,7 +536,7 @@ export default function UserSettingsScreen() {
               />
               <TextInput
                 style={[styles.passwordInput, { color: colors.text, backgroundColor: colors.background }]}
-                placeholder="Confirmer le mot de passe"
+                placeholder={t('confirm_password')}
                 placeholderTextColor={COLORS.gray400}
                 secureTextEntry={!showConfirmPassword}
                 value={passwordForm.confirmPassword}
@@ -548,7 +551,7 @@ export default function UserSettingsScreen() {
                 {changingPassword ? (
                   <ActivityIndicator size="small" color={COLORS.white} />
                 ) : (
-                  <Text style={styles.passwordChangeText}>Changer le mot de passe</Text>
+                  <Text style={styles.passwordChangeText}>{t('change_password')}</Text>
                 )}
               </TouchableOpacity>
 
@@ -556,7 +559,7 @@ export default function UserSettingsScreen() {
 
               <View style={styles.settingRow}>
                 <View>
-                  <Text style={[styles.settingLabel, { color: colors.text }]}>Authentification 2FA</Text>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>{t('two_factor_auth')}</Text>
                   <Text style={[styles.settingDesc, { color: colors.textSecondary }]}>
                     Sécurisez votre compte avec une double authentification
                   </Text>
@@ -573,7 +576,7 @@ export default function UserSettingsScreen() {
               </View>
 
               <View style={styles.settingRow}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Alertes de connexion</Text>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>{t('login_alerts')}</Text>
                 <Switch
                   value={settings.security.loginAlerts}
                   onValueChange={(v) => {
@@ -590,13 +593,13 @@ export default function UserSettingsScreen() {
           {/* Onglet Confidentialité */}
           {activeTab === 3 && (
             <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Confidentialité</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('privacy')}</Text>
               <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
                 Qui peut voir votre contenu ?
               </Text>
 
               <View style={styles.settingRow}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Afficher la dernière connexion</Text>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>{t('show_last_seen')}</Text>
                 <Switch
                   value={settings.privacy.showLastSeen}
                   onValueChange={(v) => {
@@ -609,7 +612,7 @@ export default function UserSettingsScreen() {
               </View>
 
               <View style={styles.settingRow}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Afficher le statut en ligne</Text>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>{t('show_online_status')}</Text>
                 <Switch
                   value={settings.privacy.showOnlineStatus}
                   onValueChange={(v) => {
@@ -622,7 +625,7 @@ export default function UserSettingsScreen() {
               </View>
 
               <View style={styles.settingRow}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Autoriser les demandes d'amis</Text>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>{t('allow_friend_requests')}</Text>
                 <Switch
                   value={settings.privacy.allowFriendRequests}
                   onValueChange={(v) => {
@@ -639,10 +642,10 @@ export default function UserSettingsScreen() {
           {/* Onglet Notifications */}
           {activeTab === 4 && (
             <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Préférences de notification</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('notifications')}</Text>
 
               <View style={styles.settingRow}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications par email</Text>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>{t('email_notifications')}</Text>
                 <Switch
                   value={settings.notifications.email}
                   onValueChange={(v) => {
@@ -655,7 +658,7 @@ export default function UserSettingsScreen() {
               </View>
 
               <View style={styles.settingRow}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications push</Text>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>{t('push_notifications')}</Text>
                 <Switch
                   value={settings.notifications.push}
                   onValueChange={(v) => {
@@ -668,7 +671,7 @@ export default function UserSettingsScreen() {
               </View>
 
               <View style={styles.settingRow}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications par SMS</Text>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>{t('sms_notifications')}</Text>
                 <Switch
                   value={settings.notifications.sms}
                   onValueChange={(v) => {
@@ -685,7 +688,7 @@ export default function UserSettingsScreen() {
               <Text style={[styles.subSectionTitle, { color: colors.text }]}>Types de notifications</Text>
 
               <View style={styles.settingRow}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Demandes d'amis</Text>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>{t('friend_request_notifications')}</Text>
                 <Switch
                   value={settings.notifications.friendRequests}
                   onValueChange={(v) => {
@@ -698,7 +701,7 @@ export default function UserSettingsScreen() {
               </View>
 
               <View style={styles.settingRow}>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Nouveaux messages</Text>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>{t('message_notifications')}</Text>
                 <Switch
                   value={settings.notifications.messages}
                   onValueChange={(v) => {
@@ -712,17 +715,17 @@ export default function UserSettingsScreen() {
             </View>
           )}
 
-          {/* 🔥 Onglet Apparence - Changement de thème et langue */}
+          {/* Onglet Apparence - Changement de thème et langue */}
           {activeTab === 5 && (
             <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Apparence</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('appearance')}</Text>
               <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
                 Personnalisez l'apparence de l'application
               </Text>
 
-              {/* 🔥 Changement de Langue */}
+              {/* Changement de Langue */}
               <Text style={[styles.subSectionTitle, { color: colors.text, marginTop: 12 }]}>
-                Langue
+                {t('language')}
               </Text>
               <View style={styles.languageContainer}>
                 {LANGUAGES.map((lang) => (
@@ -751,9 +754,9 @@ export default function UserSettingsScreen() {
 
               <View style={styles.divider} />
 
-              {/* 🔥 Changement de Thème */}
+              {/* Changement de Thème */}
               <Text style={[styles.subSectionTitle, { color: colors.text }]}>
-                Thème
+                {t('theme')}
               </Text>
               <View style={styles.themeContainer}>
                 {THEMES.map((t) => (
@@ -790,10 +793,10 @@ export default function UserSettingsScreen() {
 
               <View style={styles.divider} />
 
-              {/* 🔥 Mode compact */}
+              {/* Mode compact */}
               <View style={styles.settingRow}>
                 <View>
-                  <Text style={[styles.settingLabel, { color: colors.text }]}>Mode compact</Text>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>{t('compact_mode')}</Text>
                   <Text style={[styles.settingDesc, { color: colors.textSecondary }]}>
                     Afficher plus d'informations en réduisant les espacements
                   </Text>
@@ -811,7 +814,7 @@ export default function UserSettingsScreen() {
 
               <View style={styles.settingRow}>
                 <View>
-                  <Text style={[styles.settingLabel, { color: colors.text }]}>Taille de police</Text>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>{t('font_size')}</Text>
                   <Text style={[styles.settingDesc, { color: colors.textSecondary }]}>
                     Ajustez la taille du texte
                   </Text>
@@ -850,8 +853,8 @@ export default function UserSettingsScreen() {
           )}
         </View>
 
-        {/* 🔥 Espace en bas pour éviter que le contenu soit caché */}
-        <View style={{ height: 20 }} />
+        {/* 🔥 GRAND ESPACE EN BAS POUR QUE LES BOUTONS NE SOIENT PAS CACHÉS */}
+        <View style={{ height: bottomPadding }} />
       </ScrollView>
     </View>
   );
