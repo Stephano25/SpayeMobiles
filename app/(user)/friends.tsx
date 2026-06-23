@@ -24,7 +24,6 @@ import { COLORS, getInitials, getAvatarColor } from '../../src/config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
-import { BarCodeScanner } from 'expo-barcode-scanner';
 
 type Tab = 'friends' | 'requests' | 'search';
 

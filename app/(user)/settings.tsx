@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -18,6 +19,7 @@ import { useNotification } from '../../src/context/NotificationContext';
 import { AuthService } from '../../src/services/AuthService';
 import { getStoredIp, setBackendIp, getApiUrl } from '../../src/config';
 import { COLORS, getInitials } from '../../src/config';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Types
 interface Settings {
@@ -58,10 +60,25 @@ interface Settings {
   };
 }
 
+// 🔥 Langues disponibles
+const LANGUAGES = [
+  { code: 'fr', label: 'Français', flag: '🇫🇷' },
+  { code: 'en', label: 'English', flag: '🇬🇧' },
+  { code: 'mg', label: 'Malagasy', flag: '🇲🇬' },
+];
+
+// 🔥 Thèmes disponibles
+const THEMES = [
+  { value: 'light', label: 'Clair', icon: 'sunny-outline' },
+  { value: 'dark', label: 'Sombre', icon: 'moon-outline' },
+  { value: 'system', label: 'Système', icon: 'phone-portrait-outline' },
+];
+
 export default function UserSettingsScreen() {
   const { colors, theme, setTheme, isDark } = useTheme();
   const { user, logout, updateProfile } = useAuth();
-  const { showSuccess, showError, showInfo, showWarning } = useNotification();
+  const { showSuccess, showError } = useNotification();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
@@ -129,7 +146,6 @@ export default function UserSettingsScreen() {
   const loadSettings = async () => {
     setLoading(true);
     try {
-      // Charger depuis le stockage local
       const savedSettings = await getStoredSettings();
       if (savedSettings) {
         setSettings(prev => ({ ...prev, ...savedSettings }));
@@ -150,8 +166,7 @@ export default function UserSettingsScreen() {
 
   const getStoredSettings = async (): Promise<Settings | null> => {
     try {
-      // Utiliser AsyncStorage ou un autre stockage
-      return null; // Retourner null par défaut
+      return null;
     } catch {
       return null;
     }
@@ -159,8 +174,6 @@ export default function UserSettingsScreen() {
 
   const saveSettings = async (newSettings: Settings) => {
     try {
-      // Sauvegarder dans le stockage local
-      // await AsyncStorage.setItem('user_settings', JSON.stringify(newSettings));
       setSettings(newSettings);
       showSuccess('Paramètres sauvegardés');
     } catch (error) {
@@ -168,31 +181,7 @@ export default function UserSettingsScreen() {
     }
   };
 
-  // Mise à jour des paramètres
-  const updateGeneralSettings = (key: keyof Settings['general'], value: boolean) => {
-    const newSettings = { ...settings, general: { ...settings.general, [key]: value } };
-    setSettings(newSettings);
-    saveSettings(newSettings);
-  };
-
-  const updateNotificationSettings = (key: keyof Settings['notifications'], value: any) => {
-    const newSettings = { ...settings, notifications: { ...settings.notifications, [key]: value } };
-    setSettings(newSettings);
-    saveSettings(newSettings);
-  };
-
-  const updatePrivacySettings = (key: keyof Settings['privacy'], value: any) => {
-    const newSettings = { ...settings, privacy: { ...settings.privacy, [key]: value } };
-    setSettings(newSettings);
-    saveSettings(newSettings);
-  };
-
-  const updateSecuritySettings = (key: keyof Settings['security'], value: any) => {
-    const newSettings = { ...settings, security: { ...settings.security, [key]: value } };
-    setSettings(newSettings);
-    saveSettings(newSettings);
-  };
-
+  // 🔥 Mise à jour des paramètres d'apparence (thème et langue)
   const updateAppearanceSettings = (key: keyof Settings['appearance'], value: any) => {
     const newSettings = { ...settings, appearance: { ...settings.appearance, [key]: value } };
     setSettings(newSettings);
@@ -200,6 +189,18 @@ export default function UserSettingsScreen() {
     if (key === 'theme') {
       setTheme(value as any);
     }
+  };
+
+  // 🔥 Changer la langue
+  const changeLanguage = (langCode: string) => {
+    updateAppearanceSettings('language', langCode);
+    // Ici vous pouvez ajouter la logique pour changer la langue de l'application
+    // Ex: i18n.changeLanguage(langCode)
+  };
+
+  // 🔥 Changer le thème
+  const changeTheme = (themeValue: 'light' | 'dark' | 'system') => {
+    updateAppearanceSettings('theme', themeValue);
   };
 
   // Sauvegarder le profil
@@ -285,6 +286,7 @@ export default function UserSettingsScreen() {
     { label: 'Sécurité', icon: 'shield-outline' },
     { label: 'Confidentialité', icon: 'eye-outline' },
     { label: 'Notifications', icon: 'notifications-outline' },
+    { label: 'Apparence', icon: 'color-palette-outline' },
   ];
 
   if (loading) {
@@ -297,7 +299,7 @@ export default function UserSettingsScreen() {
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -309,357 +311,549 @@ export default function UserSettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Profil utilisateur (carte d'en-tête) */}
-      <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
-        <View style={styles.profileContent}>
-          <View style={[styles.profileAvatar, { backgroundColor: COLORS.primary }]}>
-            <Text style={styles.profileAvatarText}>
-              {getInitials(user?.firstName, user?.lastName)}
-            </Text>
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, { color: colors.text }]}>
-              {user?.firstName} {user?.lastName}
-            </Text>
-            <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>
-              {user?.email}
-            </Text>
-            {user?.phoneNumber && (
-              <Text style={[styles.profilePhone, { color: colors.textSecondary }]}>
-                {user.phoneNumber}
-              </Text>
-            )}
-            <TouchableOpacity
-              style={styles.editProfileBtn}
-              onPress={() => setEditMode(!editMode)}
-            >
-              <Ionicons name="create-outline" size={16} color={COLORS.primary} />
-              <Text style={styles.editProfileText}>{editMode ? 'Annuler' : 'Modifier le profil'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Mode édition du profil */}
-        {editMode && (
-          <View style={styles.editForm}>
-            <TextInput
-              style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
-              placeholder="Prénom"
-              placeholderTextColor={COLORS.gray400}
-              value={profileForm.firstName}
-              onChangeText={(v) => setProfileForm({ ...profileForm, firstName: v })}
-            />
-            <TextInput
-              style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
-              placeholder="Nom"
-              placeholderTextColor={COLORS.gray400}
-              value={profileForm.lastName}
-              onChangeText={(v) => setProfileForm({ ...profileForm, lastName: v })}
-            />
-            <TextInput
-              style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
-              placeholder="Email"
-              placeholderTextColor={COLORS.gray400}
-              value={profileForm.email}
-              onChangeText={(v) => setProfileForm({ ...profileForm, email: v })}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <TextInput
-              style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
-              placeholder="Téléphone"
-              placeholderTextColor={COLORS.gray400}
-              value={profileForm.phoneNumber}
-              onChangeText={(v) => setProfileForm({ ...profileForm, phoneNumber: v })}
-              keyboardType="phone-pad"
-            />
-            <TouchableOpacity
-              style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-              onPress={saveProfile}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
-              ) : (
-                <Text style={styles.saveBtnText}>Enregistrer</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      {/* Section IP Config */}
-      <TouchableOpacity
-        style={[styles.ipToggle, { backgroundColor: colors.card }]}
-        onPress={() => setShowIPConfig(!showIPConfig)}
+      <ScrollView
+        style={[styles.content, { backgroundColor: colors.background }]}
+        contentContainerStyle={{ 
+          paddingBottom: insets.bottom > 0 ? insets.bottom + 20 : 30 
+        }}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.ipToggleLeft}>
-          <Ionicons name="server-outline" size={20} color={COLORS.primary} />
-          <Text style={[styles.ipToggleText, { color: colors.text }]}>Configuration IP du serveur</Text>
-        </View>
-        <Ionicons name={showIPConfig ? 'chevron-up' : 'chevron-down'} size={20} color={COLORS.gray400} />
-      </TouchableOpacity>
-
-      {showIPConfig && (
-        <View style={[styles.ipCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.ipCurrent, { color: colors.textSecondary }]}>
-            Actuelle: {currentIp}
-          </Text>
-          <View style={styles.ipRow}>
-            <TextInput
-              style={[styles.ipInput, { color: colors.text, backgroundColor: colors.background }]}
-              placeholder="192.168.188.135"
-              placeholderTextColor={COLORS.gray400}
-              value={ipAddress}
-              onChangeText={setIpAddress}
-              keyboardType="numeric"
-            />
-            <TouchableOpacity style={styles.ipSaveBtn} onPress={handleSaveIp}>
-              <Text style={styles.ipSaveText}>OK</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* Onglets */}
-      <View style={styles.tabsContainer}>
-        {tabs.map((tab, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[styles.tabBtn, activeTab === index && styles.tabBtnActive]}
-            onPress={() => setActiveTab(index)}
-          >
-            <Ionicons
-              name={tab.icon as any}
-              size={20}
-              color={activeTab === index ? COLORS.primary : COLORS.gray400}
-            />
-            <Text style={[
-              styles.tabLabel,
-              { color: activeTab === index ? COLORS.primary : COLORS.gray400 }
-            ]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Contenu des onglets */}
-      <View style={styles.tabContent}>
-        {/* Onglet Général */}
-        {activeTab === 0 && (
-          <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Paramètres généraux</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>Préférences de l'application</Text>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Lecture auto des vidéos</Text>
-              <Switch
-                value={settings.general.autoplayVideos}
-                onValueChange={(v) => updateGeneralSettings('autoplayVideos', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
+        {/* Profil utilisateur (carte d'en-tête) */}
+        <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
+          <View style={styles.profileContent}>
+            <View style={[styles.profileAvatar, { backgroundColor: COLORS.primary }]}>
+              <Text style={styles.profileAvatarText}>
+                {getInitials(user?.firstName, user?.lastName)}
+              </Text>
             </View>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Filtrer les contenus sensibles</Text>
-              <Switch
-                value={settings.general.nsfwFilter}
-                onValueChange={(v) => updateGeneralSettings('nsfwFilter', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Onglet Sécurité */}
-        {activeTab === 2 && (
-          <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Sécurité</Text>
-
-            {/* Changement de mot de passe */}
-            <Text style={[styles.subSectionTitle, { color: colors.text }]}>Mot de passe</Text>
-
-            <TextInput
-              style={[styles.passwordInput, { color: colors.text, backgroundColor: colors.background }]}
-              placeholder="Mot de passe actuel"
-              placeholderTextColor={COLORS.gray400}
-              secureTextEntry={!showPassword}
-              value={passwordForm.currentPassword}
-              onChangeText={(v) => setPasswordForm({ ...passwordForm, currentPassword: v })}
-            />
-            <TextInput
-              style={[styles.passwordInput, { color: colors.text, backgroundColor: colors.background }]}
-              placeholder="Nouveau mot de passe"
-              placeholderTextColor={COLORS.gray400}
-              secureTextEntry={!showNewPassword}
-              value={passwordForm.newPassword}
-              onChangeText={(v) => setPasswordForm({ ...passwordForm, newPassword: v })}
-            />
-            <TextInput
-              style={[styles.passwordInput, { color: colors.text, backgroundColor: colors.background }]}
-              placeholder="Confirmer le mot de passe"
-              placeholderTextColor={COLORS.gray400}
-              secureTextEntry={!showConfirmPassword}
-              value={passwordForm.confirmPassword}
-              onChangeText={(v) => setPasswordForm({ ...passwordForm, confirmPassword: v })}
-            />
-
-            <TouchableOpacity
-              style={[styles.passwordChangeBtn, changingPassword && styles.saveBtnDisabled]}
-              onPress={changePassword}
-              disabled={changingPassword}
-            >
-              {changingPassword ? (
-                <ActivityIndicator size="small" color={COLORS.white} />
-              ) : (
-                <Text style={styles.passwordChangeText}>Changer le mot de passe</Text>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            {/* Authentification 2FA */}
-            <View style={styles.settingRow}>
-              <View>
-                <Text style={[styles.settingLabel, { color: colors.text }]}>Authentification 2FA</Text>
-                <Text style={[styles.settingDesc, { color: colors.textSecondary }]}>
-                  Sécurisez votre compte avec une double authentification
+            <View style={styles.profileInfo}>
+              <Text style={[styles.profileName, { color: colors.text }]}>
+                {user?.firstName} {user?.lastName}
+              </Text>
+              <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>
+                {user?.email}
+              </Text>
+              {user?.phoneNumber && (
+                <Text style={[styles.profilePhone, { color: colors.textSecondary }]}>
+                  {user.phoneNumber}
                 </Text>
-              </View>
-              <Switch
-                value={settings.security.twoFactorAuth}
-                onValueChange={(v) => updateSecuritySettings('twoFactorAuth', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Alertes de connexion</Text>
-              <Switch
-                value={settings.security.loginAlerts}
-                onValueChange={(v) => updateSecuritySettings('loginAlerts', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
+              )}
+              <TouchableOpacity
+                style={styles.editProfileBtn}
+                onPress={() => setEditMode(!editMode)}
+              >
+                <Ionicons name="create-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.editProfileText}>{editMode ? 'Annuler' : 'Modifier le profil'}</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        )}
 
-        {/* Onglet Confidentialité */}
-        {activeTab === 3 && (
-          <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Confidentialité</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-              Qui peut voir votre contenu ?
+          {/* Mode édition du profil */}
+          {editMode && (
+            <View style={styles.editForm}>
+              <TextInput
+                style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
+                placeholder="Prénom"
+                placeholderTextColor={COLORS.gray400}
+                value={profileForm.firstName}
+                onChangeText={(v) => setProfileForm({ ...profileForm, firstName: v })}
+              />
+              <TextInput
+                style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
+                placeholder="Nom"
+                placeholderTextColor={COLORS.gray400}
+                value={profileForm.lastName}
+                onChangeText={(v) => setProfileForm({ ...profileForm, lastName: v })}
+              />
+              <TextInput
+                style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
+                placeholder="Email"
+                placeholderTextColor={COLORS.gray400}
+                value={profileForm.email}
+                onChangeText={(v) => setProfileForm({ ...profileForm, email: v })}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <TextInput
+                style={[styles.editInput, { color: colors.text, backgroundColor: colors.background }]}
+                placeholder="Téléphone"
+                placeholderTextColor={COLORS.gray400}
+                value={profileForm.phoneNumber}
+                onChangeText={(v) => setProfileForm({ ...profileForm, phoneNumber: v })}
+                keyboardType="phone-pad"
+              />
+              <TouchableOpacity
+                style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+                onPress={saveProfile}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Text style={styles.saveBtnText}>Enregistrer</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Section IP Config */}
+        <TouchableOpacity
+          style={[styles.ipToggle, { backgroundColor: colors.card }]}
+          onPress={() => setShowIPConfig(!showIPConfig)}
+        >
+          <View style={styles.ipToggleLeft}>
+            <Ionicons name="server-outline" size={20} color={COLORS.primary} />
+            <Text style={[styles.ipToggleText, { color: colors.text }]}>Configuration IP du serveur</Text>
+          </View>
+          <Ionicons name={showIPConfig ? 'chevron-up' : 'chevron-down'} size={20} color={COLORS.gray400} />
+        </TouchableOpacity>
+
+        {showIPConfig && (
+          <View style={[styles.ipCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.ipCurrent, { color: colors.textSecondary }]}>
+              Actuelle: {currentIp}
             </Text>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Afficher la dernière connexion</Text>
-              <Switch
-                value={settings.privacy.showLastSeen}
-                onValueChange={(v) => updatePrivacySettings('showLastSeen', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+            <View style={styles.ipRow}>
+              <TextInput
+                style={[styles.ipInput, { color: colors.text, backgroundColor: colors.background }]}
+                placeholder="192.168.188.135"
+                placeholderTextColor={COLORS.gray400}
+                value={ipAddress}
+                onChangeText={setIpAddress}
+                keyboardType="numeric"
               />
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Afficher le statut en ligne</Text>
-              <Switch
-                value={settings.privacy.showOnlineStatus}
-                onValueChange={(v) => updatePrivacySettings('showOnlineStatus', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Autoriser les demandes d'amis</Text>
-              <Switch
-                value={settings.privacy.allowFriendRequests}
-                onValueChange={(v) => updatePrivacySettings('allowFriendRequests', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
+              <TouchableOpacity style={styles.ipSaveBtn} onPress={handleSaveIp}>
+                <Text style={styles.ipSaveText}>OK</Text>
+              </TouchableOpacity>
             </View>
           </View>
         )}
 
-        {/* Onglet Notifications */}
-        {activeTab === 4 && (
-          <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Préférences de notification</Text>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications par email</Text>
-              <Switch
-                value={settings.notifications.email}
-                onValueChange={(v) => updateNotificationSettings('email', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications push</Text>
-              <Switch
-                value={settings.notifications.push}
-                onValueChange={(v) => updateNotificationSettings('push', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications par SMS</Text>
-              <Switch
-                value={settings.notifications.sms}
-                onValueChange={(v) => updateNotificationSettings('sms', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
-            </View>
-
-            <View style={styles.divider} />
-
-            <Text style={[styles.subSectionTitle, { color: colors.text }]}>Types de notifications</Text>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Demandes d'amis</Text>
-              <Switch
-                value={settings.notifications.friendRequests}
-                onValueChange={(v) => updateNotificationSettings('friendRequests', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
-            </View>
-
-            <View style={styles.settingRow}>
-              <Text style={[styles.settingLabel, { color: colors.text }]}>Nouveaux messages</Text>
-              <Switch
-                value={settings.notifications.messages}
-                onValueChange={(v) => updateNotificationSettings('messages', v)}
-                trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* Onglet Profil - déjà géré plus haut */}
-        {activeTab === 1 && (
-          <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Informations personnelles</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
-              Modifiez vos informations de profil
-            </Text>
+        {/* Onglets */}
+        <View style={styles.tabsContainer}>
+          {tabs.map((tab, index) => (
             <TouchableOpacity
-              style={styles.editProfileFullBtn}
-              onPress={() => setEditMode(!editMode)}
+              key={index}
+              style={[styles.tabBtn, activeTab === index && styles.tabBtnActive]}
+              onPress={() => setActiveTab(index)}
             >
-              <Ionicons name="create-outline" size={20} color={COLORS.white} />
-              <Text style={styles.editProfileFullText}>
-                {editMode ? 'Fermer l\'édition' : 'Modifier le profil'}
+              <Ionicons
+                name={tab.icon as any}
+                size={18}
+                color={activeTab === index ? COLORS.primary : COLORS.gray400}
+              />
+              <Text style={[
+                styles.tabLabel,
+                { color: activeTab === index ? COLORS.primary : COLORS.gray400 }
+              ]}>
+                {tab.label}
               </Text>
             </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          ))}
+        </View>
 
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        {/* Contenu des onglets */}
+        <View style={styles.tabContent}>
+          {/* Onglet Général */}
+          {activeTab === 0 && (
+            <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Paramètres généraux</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>Préférences de l'application</Text>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Lecture auto des vidéos</Text>
+                <Switch
+                  value={settings.general.autoplayVideos}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, general: { ...settings.general, autoplayVideos: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Filtrer les contenus sensibles</Text>
+                <Switch
+                  value={settings.general.nsfwFilter}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, general: { ...settings.general, nsfwFilter: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Onglet Profil */}
+          {activeTab === 1 && (
+            <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Informations personnelles</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+                Modifiez vos informations de profil
+              </Text>
+              <TouchableOpacity
+                style={styles.editProfileFullBtn}
+                onPress={() => setEditMode(!editMode)}
+              >
+                <Ionicons name="create-outline" size={20} color={COLORS.white} />
+                <Text style={styles.editProfileFullText}>
+                  {editMode ? 'Fermer l\'édition' : 'Modifier le profil'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Onglet Sécurité */}
+          {activeTab === 2 && (
+            <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Sécurité</Text>
+
+              <Text style={[styles.subSectionTitle, { color: colors.text }]}>Mot de passe</Text>
+
+              <TextInput
+                style={[styles.passwordInput, { color: colors.text, backgroundColor: colors.background }]}
+                placeholder="Mot de passe actuel"
+                placeholderTextColor={COLORS.gray400}
+                secureTextEntry={!showPassword}
+                value={passwordForm.currentPassword}
+                onChangeText={(v) => setPasswordForm({ ...passwordForm, currentPassword: v })}
+              />
+              <TextInput
+                style={[styles.passwordInput, { color: colors.text, backgroundColor: colors.background }]}
+                placeholder="Nouveau mot de passe"
+                placeholderTextColor={COLORS.gray400}
+                secureTextEntry={!showNewPassword}
+                value={passwordForm.newPassword}
+                onChangeText={(v) => setPasswordForm({ ...passwordForm, newPassword: v })}
+              />
+              <TextInput
+                style={[styles.passwordInput, { color: colors.text, backgroundColor: colors.background }]}
+                placeholder="Confirmer le mot de passe"
+                placeholderTextColor={COLORS.gray400}
+                secureTextEntry={!showConfirmPassword}
+                value={passwordForm.confirmPassword}
+                onChangeText={(v) => setPasswordForm({ ...passwordForm, confirmPassword: v })}
+              />
+
+              <TouchableOpacity
+                style={[styles.passwordChangeBtn, changingPassword && styles.saveBtnDisabled]}
+                onPress={changePassword}
+                disabled={changingPassword}
+              >
+                {changingPassword ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Text style={styles.passwordChangeText}>Changer le mot de passe</Text>
+                )}
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              <View style={styles.settingRow}>
+                <View>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>Authentification 2FA</Text>
+                  <Text style={[styles.settingDesc, { color: colors.textSecondary }]}>
+                    Sécurisez votre compte avec une double authentification
+                  </Text>
+                </View>
+                <Switch
+                  value={settings.security.twoFactorAuth}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, security: { ...settings.security, twoFactorAuth: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Alertes de connexion</Text>
+                <Switch
+                  value={settings.security.loginAlerts}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, security: { ...settings.security, loginAlerts: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Onglet Confidentialité */}
+          {activeTab === 3 && (
+            <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Confidentialité</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+                Qui peut voir votre contenu ?
+              </Text>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Afficher la dernière connexion</Text>
+                <Switch
+                  value={settings.privacy.showLastSeen}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, privacy: { ...settings.privacy, showLastSeen: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Afficher le statut en ligne</Text>
+                <Switch
+                  value={settings.privacy.showOnlineStatus}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, privacy: { ...settings.privacy, showOnlineStatus: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Autoriser les demandes d'amis</Text>
+                <Switch
+                  value={settings.privacy.allowFriendRequests}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, privacy: { ...settings.privacy, allowFriendRequests: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Onglet Notifications */}
+          {activeTab === 4 && (
+            <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Préférences de notification</Text>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications par email</Text>
+                <Switch
+                  value={settings.notifications.email}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, notifications: { ...settings.notifications, email: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications push</Text>
+                <Switch
+                  value={settings.notifications.push}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, notifications: { ...settings.notifications, push: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications par SMS</Text>
+                <Switch
+                  value={settings.notifications.sms}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, notifications: { ...settings.notifications, sms: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              <Text style={[styles.subSectionTitle, { color: colors.text }]}>Types de notifications</Text>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Demandes d'amis</Text>
+                <Switch
+                  value={settings.notifications.friendRequests}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, notifications: { ...settings.notifications, friendRequests: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <Text style={[styles.settingLabel, { color: colors.text }]}>Nouveaux messages</Text>
+                <Switch
+                  value={settings.notifications.messages}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, notifications: { ...settings.notifications, messages: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* 🔥 Onglet Apparence - Changement de thème et langue */}
+          {activeTab === 5 && (
+            <View style={[styles.settingsCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Apparence</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+                Personnalisez l'apparence de l'application
+              </Text>
+
+              {/* 🔥 Changement de Langue */}
+              <Text style={[styles.subSectionTitle, { color: colors.text, marginTop: 12 }]}>
+                Langue
+              </Text>
+              <View style={styles.languageContainer}>
+                {LANGUAGES.map((lang) => (
+                  <TouchableOpacity
+                    key={lang.code}
+                    style={[
+                      styles.languageBtn,
+                      settings.appearance.language === lang.code && styles.languageBtnActive,
+                      { borderColor: settings.appearance.language === lang.code ? COLORS.primary : COLORS.gray200 }
+                    ]}
+                    onPress={() => changeLanguage(lang.code)}
+                  >
+                    <Text style={styles.languageFlag}>{lang.flag}</Text>
+                    <Text style={[
+                      styles.languageLabel,
+                      { color: settings.appearance.language === lang.code ? COLORS.primary : colors.text }
+                    ]}>
+                      {lang.label}
+                    </Text>
+                    {settings.appearance.language === lang.code && (
+                      <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* 🔥 Changement de Thème */}
+              <Text style={[styles.subSectionTitle, { color: colors.text }]}>
+                Thème
+              </Text>
+              <View style={styles.themeContainer}>
+                {THEMES.map((t) => (
+                  <TouchableOpacity
+                    key={t.value}
+                    style={[
+                      styles.themeBtn,
+                      settings.appearance.theme === t.value && styles.themeBtnActive,
+                      { 
+                        backgroundColor: settings.appearance.theme === t.value 
+                          ? COLORS.primary + '20' 
+                          : colors.background 
+                      }
+                    ]}
+                    onPress={() => changeTheme(t.value as any)}
+                  >
+                    <Ionicons 
+                      name={t.icon as any} 
+                      size={24} 
+                      color={settings.appearance.theme === t.value ? COLORS.primary : colors.text} 
+                    />
+                    <Text style={[
+                      styles.themeLabel,
+                      { color: settings.appearance.theme === t.value ? COLORS.primary : colors.text }
+                    ]}>
+                      {t.label}
+                    </Text>
+                    {settings.appearance.theme === t.value && (
+                      <View style={styles.themeActiveDot} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* 🔥 Mode compact */}
+              <View style={styles.settingRow}>
+                <View>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>Mode compact</Text>
+                  <Text style={[styles.settingDesc, { color: colors.textSecondary }]}>
+                    Afficher plus d'informations en réduisant les espacements
+                  </Text>
+                </View>
+                <Switch
+                  value={settings.appearance.compactMode}
+                  onValueChange={(v) => {
+                    const newSettings = { ...settings, appearance: { ...settings.appearance, compactMode: v } };
+                    setSettings(newSettings);
+                    saveSettings(newSettings);
+                  }}
+                  trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+                />
+              </View>
+
+              <View style={styles.settingRow}>
+                <View>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>Taille de police</Text>
+                  <Text style={[styles.settingDesc, { color: colors.textSecondary }]}>
+                    Ajustez la taille du texte
+                  </Text>
+                </View>
+                <View style={styles.fontSizeContainer}>
+                  {['small', 'medium', 'large'].map((size) => (
+                    <TouchableOpacity
+                      key={size}
+                      style={[
+                        styles.fontSizeBtn,
+                        settings.appearance.fontSize === size && styles.fontSizeBtnActive
+                      ]}
+                      onPress={() => {
+                        const newSettings = { 
+                          ...settings, 
+                          appearance: { ...settings.appearance, fontSize: size as any } 
+                        };
+                        setSettings(newSettings);
+                        saveSettings(newSettings);
+                      }}
+                    >
+                      <Text style={[
+                        styles.fontSizeLabel,
+                        { 
+                          fontSize: size === 'small' ? 12 : size === 'medium' ? 16 : 20,
+                          color: settings.appearance.fontSize === size ? COLORS.primary : colors.text
+                        }
+                      ]}>
+                        {size === 'small' ? 'A' : size === 'medium' ? 'A' : 'A'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* 🔥 Espace en bas pour éviter que le contenu soit caché */}
+        <View style={{ height: 20 }} />
+      </ScrollView>
+    </View>
   );
 }
 
@@ -675,9 +869,10 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
-
   loadingText: { marginTop: 12, fontSize: 14 },
+  content: { flex: 1 },
 
+  // ── PROFIL ──
   profileCard: {
     marginHorizontal: 16,
     marginTop: 16,
@@ -709,7 +904,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   editProfileText: { color: COLORS.primary, fontSize: 13, fontWeight: '500' },
-
   editForm: { marginTop: 12 },
   editInput: {
     padding: 12,
@@ -729,6 +923,7 @@ const styles = StyleSheet.create({
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { color: COLORS.white, fontWeight: '600', fontSize: 15 },
 
+  // ── IP CONFIG ──
   ipToggle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -740,7 +935,6 @@ const styles = StyleSheet.create({
   },
   ipToggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   ipToggleText: { fontSize: 14, fontWeight: '500' },
-
   ipCard: {
     marginHorizontal: 16,
     marginTop: 8,
@@ -766,8 +960,10 @@ const styles = StyleSheet.create({
   },
   ipSaveText: { color: COLORS.white, fontWeight: '600' },
 
+  // ── TABS ──
   tabsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginHorizontal: 16,
     marginTop: 16,
     gap: 4,
@@ -777,6 +973,7 @@ const styles = StyleSheet.create({
   },
   tabBtn: {
     flex: 1,
+    minWidth: '30%',
     alignItems: 'center',
     paddingVertical: 8,
     borderRadius: 10,
@@ -785,10 +982,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tabBtnActive: { backgroundColor: COLORS.white },
-  tabLabel: { fontSize: 12, fontWeight: '500' },
+  tabLabel: { fontSize: 11, fontWeight: '500' },
 
   tabContent: { paddingHorizontal: 16, paddingTop: 12 },
 
+  // ── SETTINGS CARDS ──
   settingsCard: {
     borderRadius: 16,
     padding: 16,
@@ -811,10 +1009,11 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.gray100,
   },
   settingLabel: { fontSize: 14, fontWeight: '500', flex: 1 },
-  settingDesc: { fontSize: 12, marginTop: 2 },
+  settingDesc: { fontSize: 12, marginTop: 2, color: COLORS.gray500 },
 
   divider: { height: 1, backgroundColor: COLORS.gray200, marginVertical: 12 },
 
+  // ── PASSWORD ──
   passwordInput: {
     padding: 12,
     borderRadius: 8,
@@ -843,4 +1042,77 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   editProfileFullText: { color: COLORS.white, fontWeight: '600', fontSize: 15 },
+
+  // ── LANGUE ──
+  languageContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  languageBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    gap: 8,
+    flex: 1,
+    minWidth: '30%',
+    justifyContent: 'center',
+  },
+  languageBtnActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  languageFlag: { fontSize: 20 },
+  languageLabel: { fontSize: 14, fontWeight: '500' },
+
+  // ── THÈME ──
+  themeContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  themeBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    gap: 4,
+  },
+  themeBtnActive: {
+    borderColor: COLORS.primary,
+  },
+  themeLabel: { fontSize: 13, fontWeight: '500', marginTop: 4 },
+  themeActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.primary,
+    marginTop: 4,
+  },
+
+  // ── TAILLE DE POLICE ──
+  fontSizeContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  fontSizeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  fontSizeBtnActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  fontSizeLabel: {
+    fontWeight: '600',
+  },
 });
