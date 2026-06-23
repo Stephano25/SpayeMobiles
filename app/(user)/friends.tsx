@@ -22,8 +22,7 @@ type Tab = 'friends' | 'requests' | 'search';
 
 export default function FriendsScreen() {
   const { colors } = useTheme();
-  const { showSuccess, showError, showWarning } = useNotification();
-  const [tab, setTab] = useState<Tab>('friends');
+  const { showSuccess, showError } = useNotification();
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -212,6 +211,7 @@ export default function FriendsScreen() {
     </View>
   );
 
+  // 🔥 CORRECTION: Utilisation de onlineFriendDot au lieu de onlineLiveDot
   const renderOnlineFriend = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={styles.onlineFriendItem}
@@ -221,7 +221,7 @@ export default function FriendsScreen() {
         <Text style={styles.onlineAvatarText}>
           {getInitials(item.friend.firstName, item.friend.lastName)}
         </Text>
-        <View style={styles.onlineLiveDot} />
+        <View style={styles.onlineFriendDot} />
       </View>
       <Text style={styles.onlineFriendNameText} numberOfLines={1}>
         {item.friend.firstName}
@@ -332,7 +332,6 @@ export default function FriendsScreen() {
             value={searchQuery}
             onChangeText={(v) => {
               setSearchQuery(v);
-              setTab(v.length >= 2 ? 'search' : 'friends');
             }}
           />
           {searching && <ActivityIndicator size="small" color={COLORS.primary} />}
@@ -641,6 +640,7 @@ const styles = StyleSheet.create({
   },
   unblockBtnText: { color: COLORS.white, fontSize: 12, fontWeight: '500' },
 
+  // 🔥 SECTION ONLINE FRIENDS - CORRIGÉE
   onlineSection: {
     backgroundColor: COLORS.successLight,
     borderRadius: 12,
@@ -666,7 +666,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   onlineAvatarText: { color: COLORS.white, fontWeight: 'bold', fontSize: 14 },
-  onlineLiveDot: {
+  // 🔥 Correction: utiliser onlineFriendDot
+  onlineFriendDot: {
     position: 'absolute',
     bottom: 0,
     right: 0,

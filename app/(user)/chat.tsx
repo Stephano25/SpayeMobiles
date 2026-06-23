@@ -20,30 +20,28 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { ChatService } from '../../src/services/ChatService';
 import { FriendService } from '../../src/services/FriendService';
-import { COLORS, formatTime, getInitials, getAvatarColor, formatDateTime } from '../../src/config';
+import { COLORS, formatTime, getInitials, getAvatarColor } from '../../src/config';
 
 const { width } = Dimensions.get('window');
 
 // Émojis
 const EMOJIS = [
-  '😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰',
-  '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏',
-  '😒', '😞', '😔', '😟', '😕', '🙁', '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠',
-  '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🤭', '🤫', '🤥',
-  '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐',
-  '🥴', '🤢', '🤮', '🤧', '😷', '🤒', '🤕', '🤑', '🤠', '😈', '👿', '👹', '👺', '💀', '👻', '👽',
-  '🤖', '💩', '😺', '😸', '😹', '😻', '😼', '😽', '🙀', '😿', '😾', '🙈', '🙉', '🙊', '💋', '💌',
-  '💘', '💝', '💖', '💗', '💓', '💞', '💕', '💟', '❣️', '💔', '❤️', '🧡', '💛', '💚', '💙', '💜',
-  '🤎', '🖤', '🤍', '💯', '💢', '💥', '💫', '💦', '💨', '🕳️', '💣', '💬', '👁️', '🗣️', '👤', '👥',
-  '👣', '🧠', '🩸', '🩻', '💪', '🦵', '🦶', '👂', '🦻', '👃', '👀', '🧬', '🦷', '👅', '👄', '💋'
+  '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰',
+  '😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳','😏',
+  '😒','😞','😔','😟','😕','🙁','☹️','😣','😖','😫','😩','🥺','😢','😭','😤','😠',
+  '😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥',
+  '😶','😐','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐',
+  '🥴','🤢','🤮','🤧','😷','🤒','🤕','🤑','🤠','😈','👿','👹','👺','💀','👻','👽',
+  '🤖','💩','😺','😸','😹','😻','😼','😽','🙀','😿','😾','🙈','🙉','🙊','💋','💌',
+  '💘','💝','💖','💗','💓','💞','💕','💟','❣️','💔','❤️','🧡','💛','💚','💙','💜',
+  '🤎','🖤','🤍','💯','💢','💥','💫','💦','💨','🕳️','💣','💬','👁️','🗣️','👤','👥',
+  '👣','🧠','🩸','🩻','💪','🦵','🦶','👂','🦻','👃','👀','🧬','🦷','👅','👄','💋'
 ];
 
 // Types
@@ -66,7 +64,6 @@ export default function ChatScreen() {
   const [currentUserId, setCurrentUserId] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [typingTimeout, setTypingTimeout] = useState<any>(null);
   const [onlineFriends, setOnlineFriends] = useState<any[]>([]);
   const [allFriends, setAllFriends] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -193,7 +190,6 @@ export default function ChatScreen() {
 
     ChatService.onCall((data) => {
       if (data.from) {
-        // Appel entrant
         const friend = allFriends.find(f => f.friend?.id === data.from);
         setIncomingCall({
           from: data.from,
@@ -202,7 +198,6 @@ export default function ChatScreen() {
         });
         setCallStatus('ringing');
       } else if (data.accepted !== undefined) {
-        // Réponse à un appel
         if (data.accepted) {
           setCallStatus('connected');
           showInfo('Appel connecté');
@@ -219,14 +214,12 @@ export default function ChatScreen() {
   // GESTION DES MESSAGES
   // ============================================================
   const handleNewMessage = (message: any) => {
-    // Si le message est pour la conversation sélectionnée
     if (selectedContact && message.senderId === selectedContact.userId) {
       setMessages((prevMessages) => [...prevMessages, message]);
       scrollToBottom();
       ChatService.markAsRead(selectedContact.userId);
     }
 
-    // Mettre à jour la liste des conversations
     setConversations((prevConversations) => {
       const convIndex = prevConversations.findIndex(c => c.userId === message.senderId);
       if (convIndex !== -1) {
@@ -377,13 +370,11 @@ export default function ChatScreen() {
         setRecordingTime((prevTime) => prevTime + 1);
       }, 1000);
     } else {
-      // Arrêter l'enregistrement
       setIsRecording(false);
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
       }
       
-      // Simuler l'envoi d'un message vocal
       const tempMsg = {
         id: 'temp-audio-' + Date.now(),
         senderId: currentUserId,
@@ -497,7 +488,6 @@ export default function ChatScreen() {
     ChatService.startCall(selectedContact.userId, type);
     showInfo(`Appel ${type} en cours...`);
 
-    // Simuler une réponse après 5 secondes
     setTimeout(() => {
       if (callStatus === 'calling') {
         setCallStatus('connected');
@@ -545,6 +535,7 @@ export default function ChatScreen() {
     });
   };
 
+  // 🔥 CORRECTION: blockUser avec vérification de sécurité
   const blockUser = async () => {
     if (!selectedContact) return;
     Alert.alert(
@@ -559,7 +550,10 @@ export default function ChatScreen() {
             try {
               await FriendService.blockUser(selectedContact.userId);
               showSuccess('Utilisateur bloqué');
-              setSelectedContact((prev) => ({ ...prev, isOnline: false }));
+              // 🔥 CORRECTION: Vérification de sécurité
+              if (selectedContact) {
+                setSelectedContact({ ...selectedContact, isOnline: false });
+              }
               loadOnlineFriends();
             } catch (error) {
               showError('Erreur lors du blocage');
@@ -841,12 +835,10 @@ export default function ChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {/* Layout: conversations-panel | chat-area | online-friends-panel */}
         <View style={styles.chatLayout}>
-          {/* PANEL CONVERSATIONS (gauche) */}
+          {/* PANEL CONVERSATIONS */}
           {showConversationsList || !selectedContact ? (
             <View style={[styles.conversationsPanel, { backgroundColor: colors.card }]}>
-              {/* Search Box */}
               <View style={styles.searchBox}>
                 <Ionicons name="search" size={18} color={COLORS.gray400} />
                 <TextInput
@@ -858,7 +850,6 @@ export default function ChatScreen() {
                 />
               </View>
 
-              {/* Amis en ligne */}
               {onlineFriends.length > 0 && (
                 <View style={styles.onlineSection}>
                   <Text style={[styles.onlineSectionTitle, { color: colors.text }]}>
@@ -895,7 +886,6 @@ export default function ChatScreen() {
                 </View>
               )}
 
-              {/* Conversations List */}
               <FlatList
                 data={filteredConversations()}
                 keyExtractor={(item) => item.userId}
@@ -921,9 +911,8 @@ export default function ChatScreen() {
               />
             </View>
           ) : (
-            // CHAT AREA (centre)
+            // CHAT AREA
             <View style={[styles.chatArea, { backgroundColor: colors.background }]}>
-              {/* Chat Header */}
               <View style={[styles.chatHeader, { backgroundColor: colors.card }]}>
                 <TouchableOpacity onPress={goBackToList} style={styles.backBtn}>
                   <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -984,7 +973,6 @@ export default function ChatScreen() {
                 </View>
               </View>
 
-              {/* Messages Container */}
               <FlatList
                 ref={flatListRef}
                 data={messages}
@@ -994,7 +982,6 @@ export default function ChatScreen() {
                 onContentSizeChange={scrollToBottom}
               />
 
-              {/* Message Input Area - Style Facebook */}
               <View style={[styles.messageInputArea, { backgroundColor: colors.card }]}>
                 <TouchableOpacity onPress={() => setShowEmojiPicker(!showEmojiPicker)}>
                   <Ionicons name="happy-outline" size={24} color={COLORS.gray500} />
@@ -1032,7 +1019,6 @@ export default function ChatScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Emoji Picker */}
               {showEmojiPicker && (
                 <View style={[styles.emojiPicker, { backgroundColor: colors.card }]}>
                   <FlatList
@@ -1057,7 +1043,7 @@ export default function ChatScreen() {
             </View>
           )}
 
-          {/* PANEL AMIS EN LIGNE (droite) */}
+          {/* PANEL AMIS EN LIGNE */}
           {showConversationsList && (
             <View style={[styles.onlineFriendsPanel, { backgroundColor: colors.card }]}>
               <Text style={[styles.onlinePanelTitle, { color: colors.text }]}>
@@ -1074,7 +1060,6 @@ export default function ChatScreen() {
           )}
         </View>
 
-        {/* Modals */}
         {renderCallModal()}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -1086,11 +1071,7 @@ export default function ChatScreen() {
 // ============================================================
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
-  chatLayout: {
-    flex: 1,
-    flexDirection: 'row',
-  },
+  chatLayout: { flex: 1, flexDirection: 'row' },
 
   // ── CONVERSATIONS PANEL ──
   conversationsPanel: {
@@ -1100,7 +1081,6 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'column',
   },
-
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1115,7 +1095,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 8,
   },
-
   onlineSection: {
     padding: 12,
     borderBottomWidth: 0.5,
@@ -1126,14 +1105,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
   },
-  onlineScrollContent: {
-    paddingRight: 8,
-  },
-  onlineFriendCard: {
-    alignItems: 'center',
-    marginRight: 12,
-    width: 56,
-  },
+  onlineScrollContent: { paddingRight: 8 },
+  onlineFriendCard: { alignItems: 'center', marginRight: 12, width: 56 },
   onlineFriendAvatar: {
     width: 44,
     height: 44,
@@ -1158,12 +1131,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.white,
   },
-  onlineFriendName: {
-    fontSize: 11,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-
+  onlineFriendName: { fontSize: 11, marginTop: 4, textAlign: 'center' },
   convList: { padding: 8 },
   convItem: {
     flexDirection: 'row',
@@ -1219,11 +1187,7 @@ const styles = StyleSheet.create({
   unreadText: { color: COLORS.white, fontSize: 11, fontWeight: 'bold' },
 
   // ── CHAT AREA ──
-  chatArea: {
-    flex: 1,
-    flexDirection: 'column',
-  },
-
+  chatArea: { flex: 1, flexDirection: 'column' },
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1233,13 +1197,7 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.gray200,
   },
   backBtn: { padding: 4 },
-
-  contactInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 8,
-  },
+  contactInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
   avatarLarge: {
     width: 40,
     height: 40,
@@ -1264,29 +1222,14 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.white,
   },
-  contactName: {
-    fontWeight: 'bold',
-    fontSize: 16,
-    marginLeft: 10,
-  },
-  contactStatus: {
-    fontSize: 12,
-    marginLeft: 10,
-  },
+  contactName: { fontWeight: 'bold', fontSize: 16, marginLeft: 10 },
+  contactStatus: { fontSize: 12, marginLeft: 10 },
   typingText: { color: COLORS.primary, fontStyle: 'italic' },
   onlineText: { color: COLORS.success },
   offlineText: { color: COLORS.gray400 },
-
-  chatActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  chatActions: { flexDirection: 'row', gap: 8 },
   actionBtn: { padding: 4 },
-
-  messagesList: {
-    padding: 12,
-    paddingBottom: 20,
-  },
+  messagesList: { padding: 12, paddingBottom: 20 },
   messageRow: { marginVertical: 4 },
   rowRight: { alignItems: 'flex-end' },
   rowLeft: { alignItems: 'flex-start' },
@@ -1299,23 +1242,9 @@ const styles = StyleSheet.create({
   bubbleRight: { borderBottomRightRadius: 4 },
   bubbleLeft: { borderBottomLeftRadius: 4 },
   messageText: { fontSize: 14 },
-  time: {
-    fontSize: 10,
-    marginTop: 4,
-    opacity: 0.65,
-    alignSelf: 'flex-end',
-  },
-
-  imageMessage: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  messageImage: {
-    width: 200,
-    height: 150,
-    borderRadius: 12,
-  },
+  time: { fontSize: 10, marginTop: 4, opacity: 0.65, alignSelf: 'flex-end' },
+  imageMessage: { borderRadius: 12, overflow: 'hidden', position: 'relative' },
+  messageImage: { width: 200, height: 150, borderRadius: 12 },
   imageOverlay: {
     position: 'absolute',
     top: 8,
@@ -1324,7 +1253,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 6,
   },
-
   fileMessage: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1337,7 +1265,6 @@ const styles = StyleSheet.create({
   fileInfo: { flex: 1 },
   fileName: { fontSize: 13, fontWeight: '500' },
   fileSize: { fontSize: 11, marginTop: 2 },
-
   moneyMessage: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   moneyText: { fontSize: 14, fontWeight: '600' },
 
@@ -1389,12 +1316,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   emojiGrid: { paddingBottom: 8 },
-  emojiItem: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  emojiItem: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   emojiText: { fontSize: 22 },
   emojiClose: {
     marginTop: 8,
@@ -1457,12 +1379,7 @@ const styles = StyleSheet.create({
   onlineFriendNameText: { fontSize: 13, fontWeight: '500' },
 
   // ── EMPTY STATE ──
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
   emptyText: { fontSize: 15, marginTop: 12 },
   emptyBtn: {
     marginTop: 20,
@@ -1501,18 +1418,8 @@ const styles = StyleSheet.create({
   },
   callName: { fontSize: 22, fontWeight: 'bold', marginBottom: 4 },
   callStatusText: { fontSize: 14, color: COLORS.gray400, marginBottom: 24 },
-  callActions: {
-    flexDirection: 'row',
-    gap: 20,
-    alignItems: 'center',
-  },
-  callBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  callActions: { flexDirection: 'row', gap: 20, alignItems: 'center' },
+  callBtn: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
   callBtnAccept: { backgroundColor: COLORS.success },
   callBtnReject: { backgroundColor: COLORS.error },
   callBtnMute: { backgroundColor: COLORS.gray600 },
