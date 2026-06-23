@@ -20,7 +20,7 @@ import { COLORS, RADIUS, SPACING, FONT, SHADOW, formatAmount } from '../../src/c
 const OPERATORS = [
   { id: 'airtel', name: 'Airtel Money', color: '#E60000', prefix: '033' },
   { id: 'orange', name: 'Orange Money', color: '#FF7900', prefix: '032' },
-  { id: 'mvola', name: 'MVola', color: '#E91E63', prefix: '034' },
+  { id: 'mvola', name: 'MVola', color: '#045704', prefix: '034' },
 ] as const;
 
 const MIN_AMOUNT = 100;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,10 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
+  Modal,
+  Image,
+  Share,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -17,12 +21,17 @@ import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { FriendService } from '../../src/services/FriendService';
 import { COLORS, getInitials, getAvatarColor } from '../../src/config';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Clipboard from 'expo-clipboard';
+import { BarCodeScanner } from 'expo-barcode-scanner';
 
 type Tab = 'friends' | 'requests' | 'search';
 
 export default function FriendsScreen() {
   const { colors } = useTheme();
   const { showSuccess, showError } = useNotification();
+  const insets = useSafeAreaInsets();
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -37,6 +46,18 @@ export default function FriendsScreen() {
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
 
+  // 🔥 États pour QR Code
+  const [showQRCodeModal, setShowQRCodeModal] = useState(false);
+  const [showQRScannerModal, setShowQRScannerModal] = useState(false);
+  const [qrCodeData, setQrCodeData] = useState<string>('');
+  const [scannedData, setScannedData] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+
+  const qrCodeRef = useRef<any>(null);
+
+  // 🔥 Charger les amis
   const load = useCallback(async () => {
     try {
       const [f, r, s, b] = await Promise.all([
@@ -63,6 +84,7 @@ export default function FriendsScreen() {
     }, [load])
   );
 
+  // 🔥 Recherche
   useEffect(() => {
     if (searchQuery.length < 2) {
       setSearchResults([]);
@@ -86,6 +108,7 @@ export default function FriendsScreen() {
     await load();
   };
 
+  // 🔥 Actions des amis
   const sendRequest = async (id: string) => {
     try {
       await FriendService.sendFriendRequest(id);
@@ -194,6 +217,157 @@ export default function FriendsScreen() {
 
   const onlineFriends = friends.filter(f => f.friend?.isOnline === true);
 
+  // ============================================================
+  // 🔥 FONCTIONS QR CODE
+  // ============================================================
+
+  // Générer et partager le QR Code de l'utilisateur
+  const generateMyQRCode = () => {
+    try {
+      // Récupérer les données de l'utilisateur depuis le stockage ou le contexte
+      // Ici on simule avec des données d'exemple
+      const userData = {
+        type: 'friend_request',
+        userId: 'user-id-example',
+        userName: 'Mon Profil',
+        timestamp: Date.now(),
+      };
+      
+      const jsonData = JSON.stringify(userData);
+      setQrCodeData(jsonData);
+      setShowQRCodeModal(true);
+    } catch (error) {
+      showError('Erreur lors de la génération du QR code');
+    }
+  };
+
+  // Partager le QR Code
+  const shareQRCode = async () => {
+    try {
+      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}`;
+      
+      await Share.share({
+        message: `Ajoutez-moi sur SPaye ! Scannez ce QR code :\n${qrImageUrl}\n\nOu utilisez mon ID : ${qrCodeData}`,
+        title: 'Mon QR Code SPaye',
+      });
+    } catch (error) {
+      showError('Erreur lors du partage');
+    }
+  };
+
+  // Copier le QR Code
+  const copyQRCode = async () => {
+    try {
+      await Clipboard.setStringAsync(qrCodeData);
+      showSuccess('QR Code copié dans le presse-papiers');
+    } catch (error) {
+      showError('Erreur lors de la copie');
+    }
+  };
+
+  // Scanner un QR Code
+  const handleScanQRCode = async () => {
+    // Vérifier les permissions
+    const { status } = await requestCameraPermission();
+    
+    if (status === 'granted') {
+      setHasPermission(true);
+      setShowQRScannerModal(true);
+      setIsScanning(true);
+    } else {
+      Alert.alert(
+        'Permission caméra',
+        'L\'application a besoin d\'accéder à la caméra pour scanner les QR codes.',
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Autoriser', onPress: requestCameraPermission },
+        ]
+      );
+    }
+  };
+
+  // Traiter le QR code scanné
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (isScanning) {
+      setIsScanning(false);
+      setScannedData(data);
+      setShowQRScannerModal(false);
+      
+      try {
+        const parsedData = JSON.parse(data);
+        
+        if (parsedData.type === 'friend_request' && parsedData.userId) {
+          // Envoyer une demande d'ami à l'utilisateur scanné
+          Alert.alert(
+            'Ajouter un ami',
+            `Voulez-vous ajouter ${parsedData.userName || 'cet utilisateur'} comme ami ?`,
+            [
+              { text: 'Annuler', style: 'cancel', onPress: () => setIsScanning(true) },
+              {
+                text: 'Ajouter',
+                onPress: () => {
+                  sendFriendRequestFromQR(parsedData.userId);
+                },
+              },
+            ]
+          );
+        } else {
+          // Si le QR code contient juste un ID
+          Alert.alert(
+            'Ajouter un ami',
+            'Voulez-vous ajouter cet utilisateur comme ami ?',
+            [
+              { text: 'Annuler', style: 'cancel', onPress: () => setIsScanning(true) },
+              {
+                text: 'Ajouter',
+                onPress: () => {
+                  sendFriendRequestFromQR(data);
+                },
+              },
+            ]
+          );
+        }
+      } catch (error) {
+        // Si ce n'est pas du JSON, traiter comme un simple ID
+        Alert.alert(
+          'Ajouter un ami',
+          'Voulez-vous ajouter cet utilisateur comme ami ?',
+          [
+            { text: 'Annuler', style: 'cancel', onPress: () => setIsScanning(true) },
+            {
+              text: 'Ajouter',
+              onPress: () => {
+                sendFriendRequestFromQR(data);
+              },
+            },
+          ]
+        );
+      }
+    }
+  };
+
+  // Envoyer une demande d'ami depuis un QR code
+  const sendFriendRequestFromQR = async (userId: string) => {
+    try {
+      await FriendService.sendFriendRequest(userId);
+      showSuccess('Demande d\'ami envoyée !');
+      load();
+    } catch (error: any) {
+      showError(error?.response?.data?.message || 'Erreur lors de l\'envoi');
+    }
+  };
+
+  // Fermer le scanner
+  const closeQRScanner = () => {
+    setIsScanning(false);
+    setShowQRScannerModal(false);
+    setScannedData(null);
+  };
+
+  // ============================================================
+  // RENDU
+  // ============================================================
+
   const renderUserCard = (user: any, action: React.ReactNode) => (
     <View style={[styles.userRow, { backgroundColor: colors.card }]} key={user.id}>
       <View style={[styles.avatar, { backgroundColor: getAvatarColor(user.firstName || '') }]}>
@@ -211,7 +385,6 @@ export default function FriendsScreen() {
     </View>
   );
 
-  // 🔥 CORRECTION: Utilisation de onlineFriendDot au lieu de onlineLiveDot
   const renderOnlineFriend = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={styles.onlineFriendItem}
@@ -302,6 +475,14 @@ export default function FriendsScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Mes Amis</Text>
         <View style={styles.headerActions}>
+          {/* 🔥 Bouton QR Code - Partager mon contact */}
+          <TouchableOpacity style={styles.headerAction} onPress={generateMyQRCode}>
+            <Ionicons name="qr-code" size={22} color={COLORS.white} />
+          </TouchableOpacity>
+          {/* 🔥 Bouton Scanner QR Code */}
+          <TouchableOpacity style={styles.headerAction} onPress={handleScanQRCode}>
+            <Ionicons name="scan" size={22} color={COLORS.white} />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.headerAction} onPress={() => setShowAddFriend(!showAddFriend)}>
             <Ionicons name="person-add-outline" size={22} color={COLORS.white} />
           </TouchableOpacity>
@@ -321,6 +502,9 @@ export default function FriendsScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
         }
+        contentContainerStyle={{ 
+          paddingBottom: insets.bottom > 0 ? insets.bottom + 20 : 30 
+        }}
       >
         {/* Search Box */}
         <View style={[styles.searchBox, { backgroundColor: colors.card }]}>
@@ -335,6 +519,27 @@ export default function FriendsScreen() {
             }}
           />
           {searching && <ActivityIndicator size="small" color={COLORS.primary} />}
+        </View>
+
+        {/* 🔥 QR Code Actions */}
+        <View style={[styles.qrActionsCard, { backgroundColor: colors.card }]}>
+          <TouchableOpacity style={styles.qrActionBtn} onPress={generateMyQRCode}>
+            <View style={[styles.qrActionIcon, { backgroundColor: COLORS.primary + '18' }]}>
+              <Ionicons name="qr-code" size={24} color={COLORS.primary} />
+            </View>
+            <Text style={[styles.qrActionText, { color: colors.text }]}>Mon QR Code</Text>
+            <Text style={[styles.qrActionSub, { color: colors.textSecondary }]}>Partager mon contact</Text>
+          </TouchableOpacity>
+          
+          <View style={styles.qrDivider} />
+          
+          <TouchableOpacity style={styles.qrActionBtn} onPress={handleScanQRCode}>
+            <View style={[styles.qrActionIcon, { backgroundColor: COLORS.success + '18' }]}>
+              <Ionicons name="scan" size={24} color={COLORS.success} />
+            </View>
+            <Text style={[styles.qrActionText, { color: colors.text }]}>Scanner</Text>
+            <Text style={[styles.qrActionSub, { color: colors.textSecondary }]}>Ajouter par QR code</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Add Friend Section */}
@@ -536,12 +741,135 @@ export default function FriendsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ============================================================
+          🔥 MODAL QR CODE - PARTAGER MON CONTACT
+      ============================================================ */}
+      <Modal
+        visible={showQRCodeModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowQRCodeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Mon QR Code</Text>
+              <TouchableOpacity onPress={() => setShowQRCodeModal(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.qrCodeContainer}>
+              {qrCodeData ? (
+                <Image
+                  source={{ 
+                    uri: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}` 
+                  }}
+                  style={styles.qrCodeImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.qrCodePlaceholder}>
+                  <ActivityIndicator size="large" color={COLORS.primary} />
+                </View>
+              )}
+            </View>
+
+            <Text style={[styles.qrCodeHint, { color: colors.textSecondary }]}>
+              Scannez ce code pour m'ajouter comme ami
+            </Text>
+
+            <View style={styles.qrModalActions}>
+              <TouchableOpacity style={[styles.qrModalBtn, styles.qrModalBtnOutline]} onPress={copyQRCode}>
+                <Ionicons name="copy-outline" size={20} color={COLORS.primary} />
+                <Text style={[styles.qrModalBtnText, { color: COLORS.primary }]}>Copier</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.qrModalBtn, styles.qrModalBtnPrimary]} onPress={shareQRCode}>
+                <Ionicons name="share-outline" size={20} color={COLORS.white} />
+                <Text style={[styles.qrModalBtnText, { color: COLORS.white }]}>Partager</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              style={styles.closeModalBtn} 
+              onPress={() => setShowQRCodeModal(false)}
+            >
+              <Text style={styles.closeModalBtnText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ============================================================
+          🔥 MODAL SCANNER QR CODE
+      ============================================================ */}
+      <Modal
+        visible={showQRScannerModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={closeQRScanner}
+      >
+        <View style={styles.scannerContainer}>
+          <View style={styles.scannerHeader}>
+            <TouchableOpacity onPress={closeQRScanner}>
+              <Ionicons name="close" size={28} color={COLORS.white} />
+            </TouchableOpacity>
+            <Text style={styles.scannerTitle}>Scanner un QR Code</Text>
+            <View style={{ width: 28 }} />
+          </View>
+
+          <View style={styles.scannerWrapper}>
+            {hasPermission ? (
+              <CameraView
+                style={StyleSheet.absoluteFillObject}
+                facing="back"
+                onBarcodeScanned={isScanning ? handleBarCodeScanned : undefined}
+                barcodeScannerSettings={{
+                  barcodeTypes: ['qr'],
+                }}
+              />
+            ) : (
+              <View style={styles.scannerPermissionView}>
+                <Ionicons name="camera-outline" size={64} color={COLORS.gray400} />
+                <Text style={styles.scannerPermissionText}>
+                  Permission caméra requise
+                </Text>
+                <TouchableOpacity 
+                  style={styles.scannerPermissionBtn}
+                  onPress={requestCameraPermission}
+                >
+                  <Text style={styles.scannerPermissionBtnText}>Autoriser</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            
+            {/* Cadre de scan */}
+            <View style={styles.scanFrame}>
+              <View style={[styles.scanCorner, styles.scanCornerTL]} />
+              <View style={[styles.scanCorner, styles.scanCornerTR]} />
+              <View style={[styles.scanCorner, styles.scanCornerBL]} />
+              <View style={[styles.scanCorner, styles.scanCornerBR]} />
+              <View style={styles.scanLine} />
+            </View>
+          </View>
+
+          <Text style={styles.scannerHint}>
+            Placez le QR code dans le cadre
+          </Text>
+        </View>
+      </Modal>
     </View>
   );
 }
 
+// ============================================================
+// STYLES
+// ============================================================
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
+  // ── HEADER ──
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -570,6 +898,46 @@ const styles = StyleSheet.create({
 
   content: { flex: 1, padding: 12 },
 
+  // ── QR ACTIONS CARD ──
+  qrActionsCard: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  qrActionBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  qrActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  qrActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  qrActionSub: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  qrDivider: {
+    width: 1,
+    backgroundColor: COLORS.gray200,
+    marginHorizontal: 8,
+  },
+
+  // ── SEARCH ──
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -585,6 +953,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, paddingVertical: 10, fontSize: 15 },
 
+  // ── ADD FRIEND ──
   addFriendCard: {
     borderRadius: 12,
     padding: 12,
@@ -601,6 +970,7 @@ const styles = StyleSheet.create({
   suggestions: { marginTop: 12 },
   noResult: { textAlign: 'center', color: COLORS.gray400, marginTop: 12 },
 
+  // ── BLOCKED USERS ──
   blockedCard: {
     borderRadius: 12,
     padding: 12,
@@ -640,7 +1010,7 @@ const styles = StyleSheet.create({
   },
   unblockBtnText: { color: COLORS.white, fontSize: 12, fontWeight: '500' },
 
-  // 🔥 SECTION ONLINE FRIENDS - CORRIGÉE
+  // ── ONLINE FRIENDS ──
   onlineSection: {
     backgroundColor: COLORS.successLight,
     borderRadius: 12,
@@ -666,7 +1036,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   onlineAvatarText: { color: COLORS.white, fontWeight: 'bold', fontSize: 14 },
-  // 🔥 Correction: utiliser onlineFriendDot
   onlineFriendDot: {
     position: 'absolute',
     bottom: 0,
@@ -680,6 +1049,7 @@ const styles = StyleSheet.create({
   },
   onlineFriendNameText: { fontSize: 11, marginTop: 4, textAlign: 'center' },
 
+  // ── FRIENDS LIST ──
   friendsCard: {
     borderRadius: 12,
     padding: 12,
@@ -733,6 +1103,7 @@ const styles = StyleSheet.create({
   friendActions: { flexDirection: 'row', gap: 4 },
   friendActionBtn: { padding: 6 },
 
+  // ── REQUESTS ──
   requestsCard: {
     borderRadius: 12,
     padding: 12,
@@ -787,6 +1158,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  // ── USER ROW ──
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -840,4 +1212,202 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   emptyBtnText: { color: COLORS.white, fontWeight: '500', fontSize: 13 },
+
+  // ── MODAL QR CODE ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '85%',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  qrCodeContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+  },
+  qrCodeImage: {
+    width: 240,
+    height: 240,
+    borderRadius: 12,
+  },
+  qrCodePlaceholder: {
+    width: 240,
+    height: 240,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrCodeHint: {
+    textAlign: 'center',
+    fontSize: 13,
+    marginTop: 8,
+  },
+  qrModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  qrModalBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  qrModalBtnPrimary: {
+    backgroundColor: COLORS.primary,
+  },
+  qrModalBtnOutline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+  },
+  qrModalBtnText: {
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  closeModalBtn: {
+    marginTop: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  closeModalBtnText: {
+    color: COLORS.gray500,
+    fontWeight: '500',
+    fontSize: 14,
+  },
+
+  // ── MODAL SCANNER ──
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  scannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  scannerTitle: {
+    color: COLORS.white,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  scannerWrapper: {
+    flex: 1,
+    position: 'relative',
+  },
+  scannerPermissionView: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1a1a2e',
+    padding: 20,
+  },
+  scannerPermissionText: {
+    color: COLORS.white,
+    fontSize: 16,
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  scannerPermissionBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  scannerPermissionBtnText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  scanFrame: {
+    position: 'absolute',
+    top: '20%',
+    left: '10%',
+    right: '10%',
+    bottom: '20%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanCorner: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderColor: COLORS.white,
+    borderWidth: 3,
+  },
+  scanCornerTL: {
+    top: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+    borderRadius: 4,
+  },
+  scanCornerTR: {
+    top: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+    borderRadius: 4,
+  },
+  scanCornerBL: {
+    bottom: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderTopWidth: 0,
+    borderRadius: 4,
+  },
+  scanCornerBR: {
+    bottom: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
+    borderRadius: 4,
+  },
+  scanLine: {
+    position: 'absolute',
+    top: '50%',
+    left: '10%',
+    right: '10%',
+    height: 3,
+    backgroundColor: 'rgba(99, 102, 241, 0.6)',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  scannerHint: {
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    fontSize: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
 });

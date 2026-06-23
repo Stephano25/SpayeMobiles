@@ -27,6 +27,7 @@ import { useNotification } from '../../src/context/NotificationContext';
 import { ChatService } from '../../src/services/ChatService';
 import { FriendService } from '../../src/services/FriendService';
 import { COLORS, formatTime, getInitials, getAvatarColor } from '../../src/config';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -52,6 +53,7 @@ interface CallData {
 }
 
 export default function ChatScreen() {
+  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { user, getToken } = useAuth();
   const { showError, showSuccess, showInfo, showWarning } = useNotification();
@@ -535,7 +537,6 @@ export default function ChatScreen() {
     });
   };
 
-  // 🔥 CORRECTION: blockUser avec vérification de sécurité
   const blockUser = async () => {
     if (!selectedContact) return;
     Alert.alert(
@@ -550,7 +551,6 @@ export default function ChatScreen() {
             try {
               await FriendService.blockUser(selectedContact.userId);
               showSuccess('Utilisateur bloqué');
-              // 🔥 CORRECTION: Vérification de sécurité
               if (selectedContact) {
                 setSelectedContact({ ...selectedContact, isOnline: false });
               }
@@ -811,23 +811,18 @@ export default function ChatScreen() {
   };
 
   // ============================================================
-  // AFFICHAGE PRINCIPAL
+  // AFFICHAGE PRINCIPAL - AVEC SAFE AREA INSETS
   // ============================================================
   if (loading) {
     return (
-      <View
-        style={[
-          styles.container,
-          { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' },
-        ]}
-      >
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
 
       <KeyboardAvoidingView
@@ -978,11 +973,18 @@ export default function ChatScreen() {
                 data={messages}
                 keyExtractor={(item) => item.id}
                 renderItem={renderMessage}
-                contentContainerStyle={styles.messagesList}
+                contentContainerStyle={[styles.messagesList, { paddingBottom: 20 }]}
                 onContentSizeChange={scrollToBottom}
               />
 
-              <View style={[styles.messageInputArea, { backgroundColor: colors.card }]}>
+              {/* 🔥 MESSAGE INPUT AREA - AVEC BOTTOM PADDING POUR LE TELEPHONE */}
+              <View style={[
+                styles.messageInputArea, 
+                { 
+                  backgroundColor: colors.card,
+                  paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : 12,
+                }
+              ]}>
                 <TouchableOpacity onPress={() => setShowEmojiPicker(!showEmojiPicker)}>
                   <Ionicons name="happy-outline" size={24} color={COLORS.gray500} />
                 </TouchableOpacity>
@@ -1062,7 +1064,7 @@ export default function ChatScreen() {
 
         {renderCallModal()}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1071,6 +1073,7 @@ export default function ChatScreen() {
 // ============================================================
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   chatLayout: { flex: 1, flexDirection: 'row' },
 
   // ── CONVERSATIONS PANEL ──
@@ -1229,12 +1232,13 @@ const styles = StyleSheet.create({
   offlineText: { color: COLORS.gray400 },
   chatActions: { flexDirection: 'row', gap: 8 },
   actionBtn: { padding: 4 },
+
   messagesList: { padding: 12, paddingBottom: 20 },
   messageRow: { marginVertical: 4 },
   rowRight: { alignItems: 'flex-end' },
   rowLeft: { alignItems: 'flex-start' },
   bubble: {
-    maxWidth: '75%',
+    maxWidth: '80%',
     padding: 10,
     paddingHorizontal: 14,
     borderRadius: 18,
@@ -1268,7 +1272,7 @@ const styles = StyleSheet.create({
   moneyMessage: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   moneyText: { fontSize: 14, fontWeight: '600' },
 
-  // ── MESSAGE INPUT ──
+  // ── MESSAGE INPUT AREA AVEC BOTTOM PADDING ──
   messageInputArea: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1301,7 +1305,7 @@ const styles = StyleSheet.create({
   // ── EMOJI PICKER ──
   emojiPicker: {
     position: 'absolute',
-    bottom: 70,
+    bottom: 80,
     left: 16,
     right: 16,
     borderRadius: 16,

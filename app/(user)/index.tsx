@@ -85,7 +85,7 @@ export default function UserHome() {
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.greeting}>Bonjour 👋</Text>
+            <Text style={styles.greeting}>Bonjour </Text>
             <Text style={styles.userName}>
               {user?.firstName} {user?.lastName}
             </Text>

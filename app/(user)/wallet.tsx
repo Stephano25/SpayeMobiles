@@ -15,10 +15,12 @@ import { WalletService } from '../../src/services/WalletService';
 import { TransactionService } from '../../src/services/TransactionService';
 import { COLORS, formatAmount, formatRelativeTime } from '../../src/config';
 import { Transaction } from '../../src/types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function WalletScreen() {
   const { colors } = useTheme();
   const { showError } = useNotification();
+  const insets = useSafeAreaInsets();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -84,9 +86,18 @@ export default function WalletScreen() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: insets.bottom > 0 ? insets.bottom + 30 : 30 }
+      ]}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+      refreshControl={
+        <RefreshControl 
+          refreshing={refreshing} 
+          onRefresh={onRefresh} 
+          tintColor={COLORS.primary} 
+        />
+      }
     >
       <View style={[styles.balanceCard, { backgroundColor: COLORS.primary }]}>
         <Text style={styles.balanceLabel}>Solde disponible</Text>
@@ -163,7 +174,6 @@ export default function WalletScreen() {
           );
         })
       )}
-      <View style={{ height: 100 }} />
     </ScrollView>
   );
 }
