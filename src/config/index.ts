@@ -3,84 +3,72 @@ import { Platform } from 'react-native';
 import { storage } from '../utils/storage';
 
 // =====================================================
-// CONFIGURATION - DÉTECTION AUTOMATIQUE UNIQUEMENT
+// CONFIGURATION - DÉTECTION AUTOMATIQUE
 // =====================================================
 
 let cachedApiUrl: string | null = null;
 let cachedSocketUrl: string | null = null;
 
 /**
- * 🔥 Génère la liste des IP possibles à tester (aucune IP en dur)
- */
-const getPossibleIPs = (): string[] => {
-  const ips: string[] = [];
-
-  // 1. IP locales communes (détection réseau)
-  for (let i = 1; i <= 254; i++) {
-    ips.push(`192.168.1.${i}`);
-    ips.push(`192.168.0.${i}`);
-    ips.push(`10.0.0.${i}`);
-    ips.push(`10.0.1.${i}`);
-    ips.push(`172.16.0.${i}`);
-    ips.push(`172.17.0.${i}`);
-  }
-
-  // 2. Émulateurs
-  ips.push('10.0.2.2');  // Android Emulator
-  ips.push('10.0.3.2');  // Android Genymotion
-  ips.push('localhost');
-  ips.push('127.0.0.1');
-
-  return ips;
-};
-
-/**
  * 🔥 Détecte automatiquement l'IP du backend sur le réseau local
  */
 export const detectBackendIP = async (): Promise<string | null> => {
   try {
-    // Si une IP est déjà stockée, l'utiliser
     const savedIp = await storage.getItem<string>('backend_ip');
     if (savedIp && savedIp.trim()) {
       console.log(`📡 IP déjà stockée: ${savedIp}`);
       return savedIp;
     }
 
-    const ipsToTest = getPossibleIPs();
+    // 🔥 Liste des IP à tester - PRIORISER L'IP DU RÉSEAU LOCAL
+    const ipsToTest = [
+      // Priorité aux IP du réseau local (192.168.x.x)
+      '192.168.188.135', // IP de votre backend
+      '192.168.188.1',
+      '192.168.1.100',
+      '192.168.1.101',
+      '192.168.1.102',
+      '192.168.1.103',
+      '192.168.1.104',
+      '192.168.1.105',
+      '192.168.1.106',
+      '192.168.1.107',
+      '192.168.1.108',
+      '192.168.1.109',
+      '192.168.1.110',
+      '192.168.0.100',
+      '192.168.0.101',
+      '192.168.0.102',
+      '10.0.0.100',
+      '10.0.0.101',
+      '10.0.2.2',  // Android Emulator
+      '10.0.3.2',  // Android Genymotion
+      'localhost',
+      '127.0.0.1',
+    ];
+
     console.log(`🔍 Test de ${ipsToTest.length} IP possibles...`);
 
-    // Tester les IP par lots de 10 pour ne pas surcharger le réseau
-    const batchSize = 10;
-    for (let i = 0; i < ipsToTest.length; i += batchSize) {
-      const batch = ipsToTest.slice(i, i + batchSize);
-      const promises = batch.map(async (testIP) => {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 1500);
-          
-          const response = await fetch(`http://${testIP}:3000/api/health`, {
-            signal: controller.signal,
-            headers: { 'Accept': 'application/json' },
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (response.ok) {
-            console.log(`✅ Backend trouvé à l'IP: ${testIP}`);
-            return testIP;
-          }
-          return null;
-        } catch (error) {
-          return null;
+    // Tester chaque IP
+    for (const testIP of ipsToTest) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        
+        const response = await fetch(`http://${testIP}:3000/api/health`, {
+          signal: controller.signal,
+          headers: { 'Accept': 'application/json' },
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          console.log(`✅ Backend trouvé à l'IP: ${testIP}`);
+          await storage.setItem('backend_ip', testIP);
+          return testIP;
         }
-      });
-
-      const results = await Promise.all(promises);
-      for (const result of results) {
-        if (result) {
-          await storage.setItem('backend_ip', result);
-          return result;
-        }
+      } catch (error) {
+        continue;
       }
     }
 
@@ -125,7 +113,7 @@ export const getApiUrl = async (): Promise<string> => {
       return cachedApiUrl;
     }
 
-    console.warn('⚠️ Aucune IP trouvée, veuillez configurer manuellement');
+    console.warn('⚠️ Aucune IP trouvée');
     return '';
   } catch (error) {
     console.error('❌ Erreur getApiUrl:', error);
@@ -172,7 +160,7 @@ export const resetBackendIp = async (): Promise<void> => {
 };
 
 // =====================================================
-// COULEURS
+// COULEURS ET STYLES
 // =====================================================
 
 export const COLORS = {
@@ -229,6 +217,10 @@ export const SHADOW = {
   lg: { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.12, shadowRadius: 24, elevation: 8 },
 };
 
+// =====================================================
+// HELPERS
+// =====================================================
+
 export const formatAmount = (amount: number): string => {
   return new Intl.NumberFormat('fr-MG').format(amount ?? 0);
 };
@@ -272,6 +264,10 @@ export const getAvatarColor = (name: string): string => {
   }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 };
+
+// =====================================================
+// EXPORT PAR DÉFAUT
+// =====================================================
 
 export default {
   getApiUrl,

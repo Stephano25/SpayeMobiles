@@ -51,31 +51,62 @@ export default function LoginScreen() {
     }
   };
 
+  // 🔥 Connexion Google
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
       const apiUrl = await AuthService.getApiUrl();
+      console.log('📡 API URL pour Google:', apiUrl);
+      
+      if (!apiUrl || apiUrl === '') {
+        showError('URL du serveur non configurée. Veuillez configurer l\'IP.');
+        setGoogleLoading(false);
+        return;
+      }
+
+      const googleAuthUrl = `${apiUrl}/auth/google`;
+      console.log('🔗 URL Google Auth:', googleAuthUrl);
+
       const result = await WebBrowser.openAuthSessionAsync(
-        `${apiUrl}/auth/google`,
-        'spaye://auth/callback'
+        googleAuthUrl,
+        'spaye://auth/callback',
+        {
+          showInRecents: true,
+          preferEphemeralSession: false,
+        }
       );
 
-      if (result.type === 'success') {
+      console.log('📱 Résultat WebBrowser:', result);
+
+      if (result.type === 'success' && result.url) {
+        console.log('✅ URL de retour:', result.url);
+        
         const url = new URL(result.url);
         const token = url.searchParams.get('token');
+        
         if (token) {
+          console.log('🔑 Token reçu');
           await AuthService.handleGoogleCallback(token);
           const user = await AuthService.getUser();
           const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
           router.replace(isAdmin ? '/(admin)' : '/(user)');
         } else {
-          showError('Erreur d\'authentification Google');
+          const error = url.searchParams.get('error');
+          if (error === 'auth_failed') {
+            showError('Échec de l\'authentification Google');
+          } else if (error === 'server_error') {
+            showError('Erreur serveur lors de l\'authentification');
+          } else {
+            showError('Erreur d\'authentification Google');
+          }
         }
       } else if (result.type === 'cancel') {
         showError('Authentification Google annulée');
+      } else {
+        showError('Erreur lors de l\'authentification Google');
       }
     } catch (error: any) {
-      console.error('Erreur Google Login:', error);
+      console.error('❌ Erreur Google Login:', error);
       showError(error?.message || 'Erreur lors de la connexion Google');
     } finally {
       setGoogleLoading(false);
@@ -195,7 +226,6 @@ export default function LoginScreen() {
               <Text style={styles.configText}>Configurer l'IP du serveur</Text>
             </TouchableOpacity>
 
-            {/* Espace supplémentaire pour le scroll */}
             <View style={styles.bottomSpacer} />
           </View>
         </ScrollView>
@@ -205,44 +235,18 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
+  container: { flex: 1, backgroundColor: COLORS.primary },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 },
+  logoContainer: { alignItems: 'center', marginBottom: 32 },
   logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 80, height: 80, borderRadius: 40,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     marginBottom: 16,
   },
-  title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: COLORS.white,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  form: {
-    width: '100%',
-  },
+  title: { fontSize: 36, fontWeight: 'bold', color: COLORS.white, textAlign: 'center' },
+  subtitle: { fontSize: 14, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginTop: 4 },
+  form: { width: '100%' },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -252,21 +256,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     ...SHADOW.sm,
   },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 16,
-    fontSize: 16,
-    color: COLORS.text,
-  },
-  passwordInput: {
-    paddingRight: 8,
-  },
-  eyeIcon: {
-    padding: 8,
-  },
+  inputIcon: { marginRight: 12 },
+  input: { flex: 1, paddingVertical: 16, fontSize: 16, color: COLORS.text },
+  passwordInput: { paddingRight: 8 },
+  eyeIcon: { padding: 8 },
   button: {
     backgroundColor: COLORS.white,
     paddingVertical: 16,
@@ -275,29 +268,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     ...SHADOW.md,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: COLORS.primary,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  dividerText: {
-    color: 'rgba(255,255,255,0.6)',
-    paddingHorizontal: 16,
-    fontSize: 14,
-  },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: COLORS.primary, fontWeight: 'bold', fontSize: 16 },
+  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.3)' },
+  dividerText: { color: 'rgba(255,255,255,0.6)', paddingHorizontal: 16, fontSize: 14 },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -308,36 +283,11 @@ const styles = StyleSheet.create({
     gap: 12,
     ...SHADOW.md,
   },
-  googleButtonText: {
-    color: COLORS.text,
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  registerLink: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  registerText: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 14,
-  },
-  registerHighlight: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    textDecorationLine: 'underline',
-  },
-  configLink: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  configText: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 13,
-  },
-  bottomSpacer: {
-    height: 20,
-  },
+  googleButtonText: { color: COLORS.text, fontWeight: '600', fontSize: 16 },
+  registerLink: { marginTop: 20, alignItems: 'center' },
+  registerText: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
+  registerHighlight: { color: COLORS.white, fontWeight: 'bold', textDecorationLine: 'underline' },
+  configLink: { marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  configText: { color: 'rgba(255,255,255,0.6)', fontSize: 13 },
+  bottomSpacer: { height: 20 },
 });
