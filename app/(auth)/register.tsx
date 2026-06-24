@@ -19,6 +19,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { AuthService } from '../../src/services/AuthService';
+import { useTranslation } from '../../src/services/TranslationService';
 
 export default function RegisterScreen() {
   const [firstName, setFirstName] = useState('');
@@ -33,19 +34,20 @@ export default function RegisterScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { register } = useAuth();
   const { showError, showSuccess } = useNotification();
+  const { t } = useTranslation();
   const scrollViewRef = useRef<ScrollView>(null);
 
   const handleRegister = async () => {
     if (!firstName || !lastName || !email || !password) {
-      showError('Tous les champs obligatoires');
+      showError(t('error'));
       return;
     }
     if (password !== confirm) {
-      showError('Les mots de passe ne correspondent pas');
+      showError(t('error'));
       return;
     }
     if (password.length < 6) {
-      showError('Mot de passe min 6 caractères');
+      showError(t('error'));
       return;
     }
 
@@ -53,7 +55,7 @@ export default function RegisterScreen() {
     try {
       await register({ firstName, lastName, email, password, phoneNumber: phone });
     } catch (e: any) {
-      showError(e?.response?.data?.message || 'Erreur inscription');
+      showError(e?.response?.data?.message || t('error'));
     } finally {
       setLoading(false);
     }
@@ -76,16 +78,16 @@ export default function RegisterScreen() {
           const user = await AuthService.getUser();
           const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
           router.replace(isAdmin ? '/(admin)' : '/(user)');
-          showSuccess('Inscription avec Google réussie !');
+          showSuccess(t('success'));
         } else {
-          showError('Erreur d\'authentification Google');
+          showError(t('error'));
         }
       } else if (result.type === 'cancel') {
-        showError('Authentification Google annulée');
+        showError(t('error'));
       }
     } catch (error: any) {
       console.error('Erreur Google Register:', error);
-      showError(error?.message || 'Erreur lors de l\'inscription Google');
+      showError(t('error'));
     } finally {
       setGoogleLoading(false);
     }
@@ -113,14 +115,14 @@ export default function RegisterScreen() {
             <View style={styles.logoCircle}>
               <Ionicons name="person-add-outline" size={48} color={COLORS.white} />
             </View>
-            <Text style={styles.title}>SPaye</Text>
-            <Text style={styles.subtitle}>Créer un compte</Text>
+            <Text style={styles.title}>{t('app_name')}</Text>
+            <Text style={styles.subtitle}>{t('register')}</Text>
           </View>
 
           <View style={styles.form}>
             <TextInput
               style={styles.input}
-              placeholder="Prénom"
+              placeholder={t('first_name')}
               placeholderTextColor={COLORS.gray400}
               value={firstName}
               onChangeText={setFirstName}
@@ -130,7 +132,7 @@ export default function RegisterScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="Nom"
+              placeholder={t('last_name')}
               placeholderTextColor={COLORS.gray400}
               value={lastName}
               onChangeText={setLastName}
@@ -140,7 +142,7 @@ export default function RegisterScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder={t('email')}
               placeholderTextColor={COLORS.gray400}
               value={email}
               onChangeText={setEmail}
@@ -152,7 +154,7 @@ export default function RegisterScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="Téléphone (optionnel)"
+              placeholder={t('phone')}
               placeholderTextColor={COLORS.gray400}
               value={phone}
               onChangeText={setPhone}
@@ -164,7 +166,7 @@ export default function RegisterScreen() {
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.inputWithIcon}
-                placeholder="Mot de passe"
+                placeholder={t('password')}
                 placeholderTextColor={COLORS.gray400}
                 secureTextEntry={!showPassword}
                 value={password}
@@ -180,7 +182,7 @@ export default function RegisterScreen() {
             <View style={styles.inputWrapper}>
               <TextInput
                 style={styles.inputWithIcon}
-                placeholder="Confirmer le mot de passe"
+                placeholder={t('confirm_password')}
                 placeholderTextColor={COLORS.gray400}
                 secureTextEntry={!showConfirmPassword}
                 value={confirm}
@@ -199,12 +201,12 @@ export default function RegisterScreen() {
               onPress={handleRegister}
               disabled={loading || googleLoading}
             >
-              {loading ? <ActivityIndicator color={COLORS.primary} size="small" /> : <Text style={styles.buttonText}>S'inscrire</Text>}
+              {loading ? <ActivityIndicator color={COLORS.primary} size="small" /> : <Text style={styles.buttonText}>{t('register')}</Text>}
             </TouchableOpacity>
 
             <View style={styles.dividerContainer}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>ou</Text>
+              <Text style={styles.dividerText}>{t('or')}</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -219,16 +221,15 @@ export default function RegisterScreen() {
               ) : (
                 <>
                   <Ionicons name="logo-google" size={22} color={COLORS.primary} />
-                  <Text style={styles.googleButtonText}>Continuer avec Google</Text>
+                  <Text style={styles.googleButtonText}>{t('continue_with_google')}</Text>
                 </>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => router.push('/(auth)/login')} disabled={loading || googleLoading}>
-              <Text style={styles.link}>Déjà un compte ? Se connecter</Text>
+              <Text style={styles.link}>{t('have_account')}</Text>
             </TouchableOpacity>
 
-            {/* Espace supplémentaire pour le scroll */}
             <View style={styles.bottomSpacer} />
           </View>
         </ScrollView>
@@ -238,43 +239,18 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.primary,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-  },
-  logoContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
+  container: { flex: 1, backgroundColor: COLORS.primary },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingVertical: 40 },
+  logoContainer: { alignItems: 'center', marginBottom: 24 },
   logoCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 70, height: 70, borderRadius: 35,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: COLORS.white,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.8)',
-    textAlign: 'center',
-    marginTop: 4,
-  },
-  form: {
-    width: '100%',
-  },
+  title: { fontSize: 32, fontWeight: 'bold', color: COLORS.white, textAlign: 'center' },
+  subtitle: { fontSize: 16, color: 'rgba(255,255,255,0.8)', textAlign: 'center', marginTop: 4 },
+  form: { width: '100%' },
   input: {
     backgroundColor: COLORS.white,
     borderRadius: RADIUS.md,
@@ -291,15 +267,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 16,
   },
-  inputWithIcon: {
-    flex: 1,
-    paddingVertical: 16,
-    fontSize: 16,
-    color: COLORS.text,
-  },
-  eyeIcon: {
-    padding: 8,
-  },
+  inputWithIcon: { flex: 1, paddingVertical: 16, fontSize: 16, color: COLORS.text },
+  eyeIcon: { padding: 8 },
   button: {
     backgroundColor: COLORS.white,
     paddingVertical: 16,
@@ -308,29 +277,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     ...SHADOW.md,
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: COLORS.primary,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  dividerText: {
-    color: 'rgba(255,255,255,0.6)',
-    paddingHorizontal: 16,
-    fontSize: 14,
-  },
+  buttonDisabled: { opacity: 0.6 },
+  buttonText: { color: COLORS.primary, fontWeight: 'bold', fontSize: 16 },
+  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.3)' },
+  dividerText: { color: 'rgba(255,255,255,0.6)', paddingHorizontal: 16, fontSize: 14 },
   googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -341,19 +292,7 @@ const styles = StyleSheet.create({
     gap: 12,
     ...SHADOW.md,
   },
-  googleButtonText: {
-    color: COLORS.text,
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  link: {
-    color: COLORS.white,
-    textAlign: 'center',
-    marginTop: 20,
-    textDecorationLine: 'underline',
-    fontSize: 14,
-  },
-  bottomSpacer: {
-    height: 30,
-  },
+  googleButtonText: { color: COLORS.text, fontWeight: '600', fontSize: 16 },
+  link: { color: COLORS.white, textAlign: 'center', marginTop: 20, textDecorationLine: 'underline', fontSize: 14 },
+  bottomSpacer: { height: 30 },
 });

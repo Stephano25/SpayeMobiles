@@ -19,6 +19,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { AuthService } from '../../src/services/AuthService';
+import { useTranslation } from '../../src/services/TranslationService';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -28,15 +29,16 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const { showError } = useNotification();
+  const { t } = useTranslation();
   const scrollViewRef = useRef<ScrollView>(null);
 
   const handleLogin = async () => {
     if (!email.trim()) {
-      showError('Veuillez saisir votre email');
+      showError(t('error'));
       return;
     }
     if (!password.trim()) {
-      showError('Veuillez saisir votre mot de passe');
+      showError(t('error'));
       return;
     }
 
@@ -44,28 +46,25 @@ export default function LoginScreen() {
     try {
       await login(email.trim(), password.trim());
     } catch (error: any) {
-      const message = error?.response?.data?.message || error?.message || 'Erreur de connexion';
+      const message = error?.response?.data?.message || error?.message || t('error');
       showError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  // 🔥 Connexion Google
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
       const apiUrl = await AuthService.getApiUrl();
-      console.log('📡 API URL pour Google:', apiUrl);
       
       if (!apiUrl || apiUrl === '') {
-        showError('URL du serveur non configurée. Veuillez configurer l\'IP.');
+        showError(t('error'));
         setGoogleLoading(false);
         return;
       }
 
       const googleAuthUrl = `${apiUrl}/auth/google`;
-      console.log('🔗 URL Google Auth:', googleAuthUrl);
 
       const result = await WebBrowser.openAuthSessionAsync(
         googleAuthUrl,
@@ -76,38 +75,26 @@ export default function LoginScreen() {
         }
       );
 
-      console.log('📱 Résultat WebBrowser:', result);
-
       if (result.type === 'success' && result.url) {
-        console.log('✅ URL de retour:', result.url);
-        
         const url = new URL(result.url);
         const token = url.searchParams.get('token');
         
         if (token) {
-          console.log('🔑 Token reçu');
           await AuthService.handleGoogleCallback(token);
           const user = await AuthService.getUser();
           const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
           router.replace(isAdmin ? '/(admin)' : '/(user)');
         } else {
-          const error = url.searchParams.get('error');
-          if (error === 'auth_failed') {
-            showError('Échec de l\'authentification Google');
-          } else if (error === 'server_error') {
-            showError('Erreur serveur lors de l\'authentification');
-          } else {
-            showError('Erreur d\'authentification Google');
-          }
+          showError(t('error'));
         }
       } else if (result.type === 'cancel') {
-        showError('Authentification Google annulée');
+        showError(t('error'));
       } else {
-        showError('Erreur lors de l\'authentification Google');
+        showError(t('error'));
       }
     } catch (error: any) {
       console.error('❌ Erreur Google Login:', error);
-      showError(error?.message || 'Erreur lors de la connexion Google');
+      showError(t('error'));
     } finally {
       setGoogleLoading(false);
     }
@@ -135,8 +122,8 @@ export default function LoginScreen() {
             <View style={styles.logoCircle}>
               <Ionicons name="wallet-outline" size={48} color={COLORS.white} />
             </View>
-            <Text style={styles.title}>SPaye</Text>
-            <Text style={styles.subtitle}>Service de paiement mobile</Text>
+            <Text style={styles.title}>{t('app_name')}</Text>
+            <Text style={styles.subtitle}>{t('register')}</Text>
           </View>
 
           <View style={styles.form}>
@@ -144,7 +131,7 @@ export default function LoginScreen() {
               <Ionicons name="mail-outline" size={20} color={COLORS.gray400} style={styles.inputIcon} />
               <TextInput
                 style={styles.input}
-                placeholder="Email"
+                placeholder={t('email')}
                 placeholderTextColor={COLORS.gray400}
                 value={email}
                 onChangeText={setEmail}
@@ -159,7 +146,7 @@ export default function LoginScreen() {
               <Ionicons name="lock-closed-outline" size={20} color={COLORS.gray400} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, styles.passwordInput]}
-                placeholder="Mot de passe"
+                placeholder={t('password')}
                 placeholderTextColor={COLORS.gray400}
                 secureTextEntry={!showPassword}
                 value={password}
@@ -182,13 +169,13 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator color={COLORS.primary} size="small" />
               ) : (
-                <Text style={styles.buttonText}>Se connecter</Text>
+                <Text style={styles.buttonText}>{t('login')}</Text>
               )}
             </TouchableOpacity>
 
             <View style={styles.dividerContainer}>
               <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>ou</Text>
+              <Text style={styles.dividerText}>{t('or')}</Text>
               <View style={styles.dividerLine} />
             </View>
 
@@ -203,7 +190,7 @@ export default function LoginScreen() {
               ) : (
                 <>
                   <Ionicons name="logo-google" size={22} color={COLORS.primary} />
-                  <Text style={styles.googleButtonText}>Continuer avec Google</Text>
+                  <Text style={styles.googleButtonText}>{t('continue_with_google')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -214,7 +201,7 @@ export default function LoginScreen() {
               disabled={loading || googleLoading}
             >
               <Text style={styles.registerText}>
-                Pas encore de compte ? <Text style={styles.registerHighlight}>Inscrivez-vous</Text>
+                {t('no_account')} <Text style={styles.registerHighlight}>{t('register')}</Text>
               </Text>
             </TouchableOpacity>
 
@@ -223,7 +210,7 @@ export default function LoginScreen() {
               style={styles.configLink}
             >
               <Ionicons name="settings-outline" size={16} color="rgba(255,255,255,0.6)" />
-              <Text style={styles.configText}>Configurer l'IP du serveur</Text>
+              <Text style={styles.configText}>{t('settings')}</Text>
             </TouchableOpacity>
 
             <View style={styles.bottomSpacer} />

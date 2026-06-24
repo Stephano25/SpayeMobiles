@@ -9,7 +9,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
 import { TranslationService } from '../src/services/TranslationService';
 
-// Initialize translation service early
 function TranslationInit() {
   useEffect(() => {
     TranslationService.getInstance().init();
