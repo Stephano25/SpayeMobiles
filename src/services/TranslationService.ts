@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { storage } from '../utils/storage';
 
 // ============================================================
-// DICTIONNAIRE COMPLET - TOUTES LES TRADUCTIONS
+// DICTIONNAIRE COMPLET
 // ============================================================
 const TRANSLATIONS = {
   fr: {
@@ -585,7 +585,7 @@ export class TranslationService {
 }
 
 // ============================================================
-// HOOK - useTranslation
+// HOOK - useTranslation (FORCE RE-RENDER)
 // ============================================================
 export const useTranslation = () => {
   const service = TranslationService.getInstance();

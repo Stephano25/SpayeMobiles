@@ -2,14 +2,12 @@ import React from 'react';
 import { View, StyleSheet, StatusBar, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../config';
-import { NAVIGATION_BAR, TAB_BAR_HEIGHT } from '../config/navigationBar';
 
 interface SafeScreenProps {
   children: React.ReactNode;
   backgroundColor?: string;
   statusBarStyle?: 'light-content' | 'dark-content';
   scrollable?: boolean;
-  bottomPadding?: number;
   withTabBar?: boolean;
 }
 
@@ -18,19 +16,13 @@ export const SafeScreen: React.FC<SafeScreenProps> = ({
   backgroundColor = COLORS.background,
   statusBarStyle = 'light-content',
   scrollable = true,
-  bottomPadding,
-  withTabBar = true,
+  withTabBar = false,
 }) => {
   const insets = useSafeAreaInsets();
   
-  // 🔥 Calcul du padding bottom pour la barre de navigation du téléphone
-  const safeBottomPadding = bottomPadding || (
-    withTabBar 
-      ? TAB_BAR_HEIGHT + (insets.bottom > 0 ? insets.bottom : 0)
-      : NAVIGATION_BAR.getBottomPadding()
-  );
-
-  const topPadding = insets.top > 0 ? insets.top : NAVIGATION_BAR.getTopPadding();
+  // 🔥 Sans tab bar, padding bottom réduit
+  const safeBottomPadding = insets.bottom > 0 ? insets.bottom + 20 : 20;
+  const topPadding = insets.top > 0 ? insets.top : (Platform.OS === 'ios' ? 44 : 30);
 
   const Wrapper = scrollable ? ScrollView : View;
 
@@ -50,8 +42,6 @@ export const SafeScreen: React.FC<SafeScreenProps> = ({
         bounces={true}
       >
         {children}
-        {/* 🔥 Espace supplémentaire en bas pour la barre de navigation */}
-        <View style={{ height: safeBottomPadding }} />
       </Wrapper>
     </View>
   );

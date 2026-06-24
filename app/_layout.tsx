@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '../src/context/AuthContext';
-import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
+import { ThemeProvider } from '../src/context/ThemeContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
 import { COLORS } from '../src/config';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -17,25 +17,6 @@ function TranslationInit() {
   return null;
 }
 
-function ThemedStack() {
-  const { isDark, colors } = useTheme();
-  return (
-    <>
-      <StatusBar
-        style={isDark ? 'light' : 'light'}
-        backgroundColor={COLORS.primary}
-      />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          animation: 'slide_from_right',
-          contentStyle: { backgroundColor: colors.background },
-        }}
-      />
-    </>
-  );
-}
-
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
@@ -44,7 +25,18 @@ export default function RootLayout() {
           <NotificationProvider>
             <AuthProvider>
               <TranslationInit />
-              <ThemedStack />
+              <StatusBar style="light" backgroundColor={COLORS.primary} />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: 'slide_from_right',
+                }}
+              >
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(user)" />
+                <Stack.Screen name="(admin)" />
+                <Stack.Screen name="index" />
+              </Stack>
             </AuthProvider>
           </NotificationProvider>
         </ThemeProvider>
