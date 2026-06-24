@@ -28,6 +28,7 @@ import { ChatService } from '../../src/services/ChatService';
 import { FriendService } from '../../src/services/FriendService';
 import { COLORS, formatTime, getInitials, getAvatarColor } from '../../src/config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from '../../src/services/TranslationService';
 
 const { width } = Dimensions.get('window');
 
@@ -57,6 +58,7 @@ export default function ChatScreen() {
   const { colors } = useTheme();
   const { user, getToken } = useAuth();
   const { showError, showSuccess, showInfo, showWarning } = useNotification();
+  const { t } = useTranslation();
   const { userId } = useLocalSearchParams<{ userId: string }>();
 
   // États
@@ -202,10 +204,10 @@ export default function ChatScreen() {
       } else if (data.accepted !== undefined) {
         if (data.accepted) {
           setCallStatus('connected');
-          showInfo('Appel connecté');
+          showInfo(t('call'));
         } else {
           setCallStatus('ended');
-          showInfo('Appel refusé');
+          showInfo(t('error'));
           setIsCalling(false);
         }
       }
@@ -265,7 +267,7 @@ export default function ChatScreen() {
         )
       );
     } catch (error) {
-      showError('Erreur chargement des messages');
+      showError(t('error_loading'));
     }
   };
 
@@ -290,10 +292,10 @@ export default function ChatScreen() {
           setConversations((prevConversations) => [newConv, ...prevConversations]);
           selectConversation(newConv);
         } else {
-          showError('Utilisateur non trouvé');
+          showError(t('error'));
         }
       } catch (error) {
-        showError('Erreur lors du démarrage de la conversation');
+        showError(t('error'));
       }
     }
   };
@@ -366,7 +368,7 @@ export default function ChatScreen() {
     if (!isRecording) {
       setIsRecording(true);
       setRecordingTime(0);
-      showInfo('Enregistrement vocal...');
+      showInfo(t('voice_recording'));
       
       recordingIntervalRef.current = setInterval(() => {
         setRecordingTime((prevTime) => prevTime + 1);
@@ -403,7 +405,7 @@ export default function ChatScreen() {
         fileSize: recordingTime * 16,
       });
       
-      showSuccess('Message vocal envoyé');
+      showSuccess(t('success'));
       setRecordingTime(0);
     }
   };
@@ -464,10 +466,10 @@ export default function ChatScreen() {
         });
 
         setIsSending(false);
-        showSuccess('Fichier envoyé');
+        showSuccess(t('success'));
       }
     } catch (error) {
-      showError('Erreur lors de l\'upload');
+      showError(t('error'));
       setIsSending(false);
     }
   };
@@ -479,7 +481,7 @@ export default function ChatScreen() {
     if (!selectedContact) return;
     
     if (!selectedContact.isOnline) {
-      showWarning(`${selectedContact.firstName} n'est pas en ligne`);
+      showWarning(t('offline'));
       return;
     }
 
@@ -488,12 +490,12 @@ export default function ChatScreen() {
     setIsCalling(true);
 
     ChatService.startCall(selectedContact.userId, type);
-    showInfo(`Appel ${type} en cours...`);
+    showInfo(`${type === 'audio' ? t('call') : t('video_call')}...`);
 
     setTimeout(() => {
       if (callStatus === 'calling') {
         setCallStatus('connected');
-        showInfo(`Appel ${type} connecté`);
+        showInfo(`${type === 'audio' ? t('call') : t('video_call')} ${t('success')}`);
       }
     }, 3000);
   };
@@ -503,7 +505,7 @@ export default function ChatScreen() {
       setCallStatus('connected');
       ChatService.answerCall(incomingCall.from, true);
       setIncomingCall(null);
-      showInfo('Appel accepté');
+      showInfo(t('call'));
     }
   };
 
@@ -512,7 +514,7 @@ export default function ChatScreen() {
       ChatService.answerCall(incomingCall.from, false);
       setIncomingCall(null);
       setCallStatus('ended');
-      showInfo('Appel refusé');
+      showInfo(t('error'));
     }
   };
 
@@ -520,7 +522,7 @@ export default function ChatScreen() {
     setCallStatus('ended');
     setIsCalling(false);
     setIncomingCall(null);
-    showInfo('Appel terminé');
+    showInfo(t('error'));
   };
 
   // ============================================================
@@ -540,23 +542,23 @@ export default function ChatScreen() {
   const blockUser = async () => {
     if (!selectedContact) return;
     Alert.alert(
-      'Bloquer l\'utilisateur',
-      `Voulez-vous vraiment bloquer ${selectedContact.firstName} ${selectedContact.lastName} ?`,
+      t('block'),
+      `${t('confirm_delete')} ${selectedContact.firstName} ${selectedContact.lastName} ?`,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Bloquer',
+          text: t('block'),
           style: 'destructive',
           onPress: async () => {
             try {
               await FriendService.blockUser(selectedContact.userId);
-              showSuccess('Utilisateur bloqué');
+              showSuccess(t('success'));
               if (selectedContact) {
                 setSelectedContact({ ...selectedContact, isOnline: false });
               }
               loadOnlineFriends();
             } catch (error) {
-              showError('Erreur lors du blocage');
+              showError(t('error'));
             }
           },
         },
@@ -633,7 +635,7 @@ export default function ChatScreen() {
             <TouchableOpacity
               onPress={() => {
                 Alert.alert('Image', 'Voulez-vous ouvrir cette image ?', [
-                  { text: 'Annuler', style: 'cancel' },
+                  { text: t('cancel'), style: 'cancel' },
                   { text: 'Ouvrir', onPress: () => {} },
                 ]);
               }}
@@ -647,8 +649,8 @@ export default function ChatScreen() {
           ) : item.type === 'file' ? (
             <TouchableOpacity
               onPress={() => {
-                Alert.alert('Fichier', `Télécharger ${item.fileName || 'le fichier'} ?`, [
-                  { text: 'Annuler', style: 'cancel' },
+                Alert.alert(t('upload_file'), `${t('confirm_delete')} ${item.fileName || 'le fichier'} ?`, [
+                  { text: t('cancel'), style: 'cancel' },
                   { text: 'Télécharger', onPress: () => {} },
                 ]);
               }}
@@ -661,7 +663,7 @@ export default function ChatScreen() {
               />
               <View style={styles.fileInfo}>
                 <Text style={[styles.fileName, { color: isOwn ? COLORS.white : colors.text }]}>
-                  {item.fileName || 'Fichier'}
+                  {item.fileName || t('upload_file')}
                 </Text>
                 <Text style={[styles.fileSize, { color: isOwn ? 'rgba(255,255,255,0.7)' : COLORS.gray500 }]}>
                   {item.fileSize ? `${(item.fileSize / 1024).toFixed(1)} KB` : ''}
@@ -708,7 +710,7 @@ export default function ChatScreen() {
           {item.firstName} {item.lastName}
         </Text>
         <Text style={[styles.convLastMsg, { color: colors.textSecondary }]} numberOfLines={1}>
-          {item.lastMessage?.content || 'Aucun message'}
+          {item.lastMessage?.content || t('no_conversations')}
         </Text>
       </View>
       <View style={styles.convMeta}>
@@ -768,11 +770,11 @@ export default function ChatScreen() {
             <Text style={[styles.callName, { color: colors.text }]}>{name || 'Utilisateur'}</Text>
             <Text style={styles.callStatusText}>
               {isIncoming
-                ? `${callType === 'audio' ? 'Appel audio' : 'Appel vidéo'} entrant...`
+                ? `${callType === 'audio' ? t('call') : t('video_call')} entrant...`
                 : callStatus === 'calling'
-                ? 'Appel en cours...'
+                ? `${t('call')} en cours...`
                 : callStatus === 'connected'
-                ? 'En ligne'
+                ? t('online')
                 : 'Terminé'}
             </Text>
 
@@ -811,12 +813,13 @@ export default function ChatScreen() {
   };
 
   // ============================================================
-  // AFFICHAGE PRINCIPAL - AVEC SAFE AREA INSETS
+  // AFFICHAGE PRINCIPAL
   // ============================================================
   if (loading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={{ marginTop: 12, color: colors.textSecondary }}>{t('loading')}</Text>
       </View>
     );
   }
@@ -838,7 +841,7 @@ export default function ChatScreen() {
                 <Ionicons name="search" size={18} color={COLORS.gray400} />
                 <TextInput
                   style={[styles.searchInput, { color: colors.text }]}
-                  placeholder="Rechercher..."
+                  placeholder={t('search_friends')}
                   placeholderTextColor={COLORS.gray400}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
@@ -848,7 +851,7 @@ export default function ChatScreen() {
               {onlineFriends.length > 0 && (
                 <View style={styles.onlineSection}>
                   <Text style={[styles.onlineSectionTitle, { color: colors.text }]}>
-                    En ligne ({onlineFriends.length})
+                    {t('online')} ({onlineFriends.length})
                   </Text>
                   <ScrollView
                     horizontal
@@ -893,13 +896,13 @@ export default function ChatScreen() {
                   <View style={styles.emptyContainer}>
                     <Ionicons name="chatbubbles-outline" size={64} color={COLORS.gray400} />
                     <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                      Aucune conversation
+                      {t('no_conversations')}
                     </Text>
                     <TouchableOpacity
                       style={styles.emptyBtn}
                       onPress={() => router.push('/(user)/friends')}
                     >
-                      <Text style={styles.emptyBtnText}>Ajouter des amis</Text>
+                      <Text style={styles.emptyBtnText}>{t('add_friend')}</Text>
                     </TouchableOpacity>
                   </View>
                 }
@@ -931,11 +934,11 @@ export default function ChatScreen() {
                     </Text>
                     <Text style={styles.contactStatus}>
                       {isTyping ? (
-                        <Text style={styles.typingText}>En train d'écrire...</Text>
+                        <Text style={styles.typingText}>{t('typing')}</Text>
                       ) : selectedContact?.isOnline ? (
-                        <Text style={styles.onlineText}>🟢 En ligne</Text>
+                        <Text style={styles.onlineText}>🟢 {t('online')}</Text>
                       ) : (
-                        <Text style={styles.offlineText}>Hors ligne</Text>
+                        <Text style={styles.offlineText}>{t('offline')}</Text>
                       )}
                     </Text>
                   </View>
@@ -952,13 +955,13 @@ export default function ChatScreen() {
                     style={styles.actionBtn}
                     onPress={() => {
                       Alert.alert(
-                        'Options',
-                        'Choisissez une action',
+                        t('settings'),
+                        t('confirm'),
                         [
-                          { text: 'Envoyer de l\'argent', onPress: sendMoney },
-                          { text: 'Voir le profil', onPress: viewProfile },
-                          { text: 'Bloquer', onPress: blockUser, style: 'destructive' },
-                          { text: 'Annuler', style: 'cancel' },
+                          { text: t('send_money'), onPress: sendMoney },
+                          { text: t('profile'), onPress: viewProfile },
+                          { text: t('block'), onPress: blockUser, style: 'destructive' },
+                          { text: t('cancel'), style: 'cancel' },
                         ]
                       );
                     }}
@@ -977,7 +980,7 @@ export default function ChatScreen() {
                 onContentSizeChange={scrollToBottom}
               />
 
-              {/* 🔥 MESSAGE INPUT AREA - AVEC BOTTOM PADDING POUR LE TELEPHONE */}
+              {/* MESSAGE INPUT AREA */}
               <View style={[
                 styles.messageInputArea, 
                 { 
@@ -1000,7 +1003,7 @@ export default function ChatScreen() {
                 </TouchableOpacity>
                 <TextInput
                   style={[styles.messageInput, { color: colors.text }]}
-                  placeholder="Écrire un message..."
+                  placeholder={t('type_message')}
                   placeholderTextColor={COLORS.gray400}
                   value={newMessage}
                   onChangeText={setNewMessage}
@@ -1038,7 +1041,7 @@ export default function ChatScreen() {
                     style={styles.emojiClose}
                     onPress={() => setShowEmojiPicker(false)}
                   >
-                    <Text style={styles.emojiCloseText}>Fermer</Text>
+                    <Text style={styles.emojiCloseText}>{t('cancel')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -1049,7 +1052,7 @@ export default function ChatScreen() {
           {showConversationsList && (
             <View style={[styles.onlineFriendsPanel, { backgroundColor: colors.card }]}>
               <Text style={[styles.onlinePanelTitle, { color: colors.text }]}>
-                En ligne ({onlineFriends.length})
+                {t('online')} ({onlineFriends.length})
               </Text>
               <FlatList
                 data={onlineFriends}
@@ -1069,7 +1072,7 @@ export default function ChatScreen() {
 }
 
 // ============================================================
-// STYLES
+// STYLES - INCHANGÉS
 // ============================================================
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -1272,7 +1275,7 @@ const styles = StyleSheet.create({
   moneyMessage: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   moneyText: { fontSize: 14, fontWeight: '600' },
 
-  // ── MESSAGE INPUT AREA AVEC BOTTOM PADDING ──
+  // ── MESSAGE INPUT AREA ──
   messageInputArea: {
     flexDirection: 'row',
     alignItems: 'center',

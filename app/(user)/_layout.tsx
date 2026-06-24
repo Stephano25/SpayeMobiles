@@ -2,8 +2,14 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../src/config';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function UserLayout() {
+  const insets = useSafeAreaInsets();
+
+  // 🔥 Hauteur de la tab bar avec safe area
+  const tabBarHeight = Platform.OS === 'ios' ? 80 + insets.bottom : 60;
+
   return (
     <Tabs
       screenOptions={{
@@ -13,8 +19,8 @@ export default function UserLayout() {
         tabBarStyle: {
           backgroundColor: COLORS.white,
           borderTopWidth: 0,
-          height: 60,
-          paddingBottom: 8,
+          height: tabBarHeight,
+          paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : 8,
           paddingTop: 4,
           ...(Platform.OS === 'ios' ? {
             shadowColor: '#000',
@@ -67,7 +73,7 @@ export default function UserLayout() {
           ),
         }}
       />
-      {/* Écrans cachés du tab bar */}
+      {/* Écrans cachés */}
       <Tabs.Screen name="send-money" options={{ href: null }} />
       <Tabs.Screen name="receive-money" options={{ href: null }} />
       <Tabs.Screen name="mobile-money" options={{ href: null }} />

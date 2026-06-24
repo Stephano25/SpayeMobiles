@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,15 +8,20 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { TransactionService } from '../../src/services/TransactionService';
 import { COLORS, formatAmount, formatDateTime } from '../../src/config';
-import { router } from 'expo-router';
+import { SafeScreen } from '../../src/components/SafeScreen';
+import { useTranslation } from '../../src/services/TranslationService';
+import { translateTransactionType, translateTransactionStatus } from '../../src/utils/transactionTranslations';
 
 export default function TransactionsScreen() {
   const { colors } = useTheme();
   const { showError } = useNotification();
+  const { t } = useTranslation();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -29,16 +34,18 @@ export default function TransactionsScreen() {
         : [];
       setTransactions(sortedData);
     } catch (error) {
-      showError('Erreur chargement des transactions');
+      showError(t('error_loading'));
       setTransactions([]);
     } finally {
       setLoading(false);
     }
   }, [showError]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -51,13 +58,21 @@ export default function TransactionsScreen() {
     return creditTypes.includes(type) ? '+' : '-';
   };
 
+  const getTransactionLabel = (type: string): string => {
+    return translateTransactionType(type);
+  };
+
+  const getStatusLabel = (status: string): string => {
+    return translateTransactionStatus(status);
+  };
+
   const renderItem = ({ item }: { item: any }) => {
     const isCredit = getTransactionSign(item.type) === '+';
     return (
       <View style={[styles.item, { backgroundColor: colors.card }]}>
         <View style={styles.left}>
           <Text style={[styles.desc, { color: colors.text }]}>
-            {item.description || item.type}
+            {getTransactionLabel(item.type)}
           </Text>
           <Text style={styles.date}>{formatDateTime(item.createdAt)}</Text>
           {item.status && (
@@ -65,7 +80,7 @@ export default function TransactionsScreen() {
               styles.status,
               item.status === 'completed' ? styles.statusCompleted : styles.statusPending
             ]}>
-              {item.status}
+              {getStatusLabel(item.status)}
             </Text>
           )}
         </View>
@@ -83,18 +98,18 @@ export default function TransactionsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={{ marginTop: 12, color: colors.textSecondary }}>Chargement...</Text>
+        <Text style={{ marginTop: 12, color: colors.textSecondary }}>{t('loading')}</Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeScreen backgroundColor={colors.background}>
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Transactions</Text>
+        <Text style={styles.headerTitle}>{t('transaction_history')}</Text>
         <View style={{ width: 40 }} />
       </View>
       <FlatList
@@ -106,12 +121,13 @@ export default function TransactionsScreen() {
         renderItem={renderItem}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.empty}>Aucune transaction</Text>
+            <Ionicons name="receipt-outline" size={48} color={COLORS.gray400} />
+            <Text style={styles.empty}>{t('no_transactions')}</Text>
           </View>
         }
         contentContainerStyle={transactions.length === 0 ? styles.emptyContent : undefined}
       />
-    </View>
+    </SafeScreen>
   );
 }
 
@@ -121,12 +137,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 60,
-    paddingBottom: 20,
+    paddingVertical: 16,
     paddingHorizontal: 20,
   },
   backBtn: { padding: 4 },
-  backText: { fontSize: 24, color: COLORS.white },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
   item: {
     flexDirection: 'row',
@@ -150,6 +164,6 @@ const styles = StyleSheet.create({
   statusPending: { color: COLORS.warning },
   amount: { fontSize: 16, fontWeight: 'bold' },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 },
-  empty: { textAlign: 'center', marginTop: 40, color: COLORS.gray500, fontSize: 16 },
+  empty: { textAlign: 'center', marginTop: 16, color: COLORS.gray500, fontSize: 16 },
   emptyContent: { flexGrow: 1 },
 });

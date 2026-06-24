@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, StatusBar, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../config';
+import { NAVIGATION_BAR, TAB_BAR_HEIGHT } from '../config/navigationBar';
 
 interface SafeScreenProps {
   children: React.ReactNode;
@@ -9,6 +10,7 @@ interface SafeScreenProps {
   statusBarStyle?: 'light-content' | 'dark-content';
   scrollable?: boolean;
   bottomPadding?: number;
+  withTabBar?: boolean;
 }
 
 export const SafeScreen: React.FC<SafeScreenProps> = ({
@@ -17,11 +19,18 @@ export const SafeScreen: React.FC<SafeScreenProps> = ({
   statusBarStyle = 'light-content',
   scrollable = true,
   bottomPadding,
+  withTabBar = true,
 }) => {
   const insets = useSafeAreaInsets();
   
-  // Padding bottom minimum pour que le contenu ne soit pas caché
-  const safeBottomPadding = bottomPadding || (insets.bottom > 0 ? insets.bottom + 80 : 40);
+  // 🔥 Calcul du padding bottom pour la barre de navigation du téléphone
+  const safeBottomPadding = bottomPadding || (
+    withTabBar 
+      ? TAB_BAR_HEIGHT + (insets.bottom > 0 ? insets.bottom : 0)
+      : NAVIGATION_BAR.getBottomPadding()
+  );
+
+  const topPadding = insets.top > 0 ? insets.top : NAVIGATION_BAR.getTopPadding();
 
   const Wrapper = scrollable ? ScrollView : View;
 
@@ -32,12 +41,16 @@ export const SafeScreen: React.FC<SafeScreenProps> = ({
         style={[styles.content, { backgroundColor }]}
         contentContainerStyle={[
           styles.contentContainer,
-          { paddingBottom: safeBottomPadding }
+          { 
+            paddingBottom: safeBottomPadding,
+            paddingTop: topPadding,
+          }
         ]}
         showsVerticalScrollIndicator={false}
         bounces={true}
       >
         {children}
+        {/* 🔥 Espace supplémentaire en bas pour la barre de navigation */}
         <View style={{ height: safeBottomPadding }} />
       </Wrapper>
     </View>
@@ -54,6 +67,5 @@ const styles = StyleSheet.create({
   contentContainer: {
     flexGrow: 1,
     paddingHorizontal: 0,
-    paddingTop: 0,
   },
 });

@@ -17,6 +17,7 @@ import { COLORS, formatAmount, formatRelativeTime } from '../../src/config';
 import { Transaction } from '../../src/types';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
+import { translateTransactionType } from '../../src/utils/transactionTranslations';
 
 export default function WalletScreen() {
   const { colors } = useTheme();
@@ -160,7 +161,7 @@ export default function WalletScreen() {
                 <View style={styles.txInfo}>
                   <Text style={[styles.txTitle, { color: colors.text }]} numberOfLines={1}>
                     {tx.description ||
-                      (other.firstName ? `${other.firstName} ${other.lastName || ''}` : tx.type)}
+                      (other.firstName ? `${other.firstName} ${other.lastName || ''}` : translateTransactionType(tx.type))}
                   </Text>
                   <Text style={styles.txDate}>{formatRelativeTime(tx.createdAt)}</Text>
                 </View>

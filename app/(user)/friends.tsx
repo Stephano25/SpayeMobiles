@@ -24,12 +24,14 @@ import { COLORS, getInitials, getAvatarColor } from '../../src/config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
+import { useTranslation } from '../../src/services/TranslationService';
 
 type Tab = 'friends' | 'requests' | 'search';
 
 export default function FriendsScreen() {
   const { colors } = useTheme();
   const { showSuccess, showError } = useNotification();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -45,7 +47,7 @@ export default function FriendsScreen() {
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
 
-  // 🔥 États pour QR Code
+  // États pour QR Code
   const [showQRCodeModal, setShowQRCodeModal] = useState(false);
   const [showQRScannerModal, setShowQRScannerModal] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string>('');
@@ -56,7 +58,7 @@ export default function FriendsScreen() {
 
   const qrCodeRef = useRef<any>(null);
 
-  // 🔥 Charger les amis
+  // Charger les amis
   const load = useCallback(async () => {
     try {
       const [f, r, s, b] = await Promise.all([
@@ -70,7 +72,7 @@ export default function FriendsScreen() {
       setSuggestions(s || []);
       setBlockedUsers(b || []);
     } catch (e) {
-      showError('Erreur de chargement');
+      showError(t('error_loading'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -83,7 +85,7 @@ export default function FriendsScreen() {
     }, [load])
   );
 
-  // 🔥 Recherche
+  // Recherche
   useEffect(() => {
     if (searchQuery.length < 2) {
       setSearchResults([]);
@@ -107,26 +109,26 @@ export default function FriendsScreen() {
     await load();
   };
 
-  // 🔥 Actions des amis
+  // Actions des amis
   const sendRequest = async (id: string) => {
     try {
       await FriendService.sendFriendRequest(id);
-      showSuccess('Demande envoyée');
+      showSuccess(t('send_request'));
       load();
       setSearchResults((prevResults) => prevResults.filter((u) => u.id !== id));
       setSuggestions((prevSuggestions) => prevSuggestions.filter((u) => u.id !== id));
     } catch (e: any) {
-      showError(e?.response?.data?.message || 'Erreur');
+      showError(e?.response?.data?.message || t('error'));
     }
   };
 
   const accept = async (id: string) => {
     try {
       await FriendService.acceptFriendRequest(id);
-      showSuccess('Demande acceptée');
+      showSuccess(t('accept'));
       load();
     } catch {
-      showError('Erreur lors de l\'acceptation');
+      showError(t('error'));
     }
   };
 
@@ -135,26 +137,26 @@ export default function FriendsScreen() {
       await FriendService.declineFriendRequest(id);
       setRequests((prevRequests) => prevRequests.filter((r) => r.id !== id));
     } catch {
-      showError('Erreur lors du refus');
+      showError(t('error'));
     }
   };
 
   const removeFriend = (friendId: string, name: string) => {
     Alert.alert(
-      'Supprimer',
-      `Voulez-vous vraiment supprimer ${name} de vos amis ?`,
+      t('remove'),
+      `${t('confirm_delete')} ${name} ?`,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Supprimer',
+          text: t('remove'),
           style: 'destructive',
           onPress: async () => {
             try {
               await FriendService.removeFriend(friendId);
-              showSuccess('Ami supprimé');
+              showSuccess(t('success'));
               load();
             } catch {
-              showError('Erreur lors de la suppression');
+              showError(t('error'));
             }
           },
         },
@@ -164,20 +166,20 @@ export default function FriendsScreen() {
 
   const blockUser = (userId: string, name: string) => {
     Alert.alert(
-      'Bloquer',
-      `Voulez-vous vraiment bloquer ${name} ?`,
+      t('block'),
+      `${t('confirm_delete')} ${name} ?`,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Bloquer',
+          text: t('block'),
           style: 'destructive',
           onPress: async () => {
             try {
               await FriendService.blockUser(userId);
-              showSuccess('Utilisateur bloqué');
+              showSuccess(t('success'));
               load();
             } catch {
-              showError('Erreur lors du blocage');
+              showError(t('error'));
             }
           },
         },
@@ -187,19 +189,19 @@ export default function FriendsScreen() {
 
   const unblockUser = async (userId: string, name: string) => {
     Alert.alert(
-      'Débloquer',
-      `Voulez-vous vraiment débloquer ${name} ?`,
+      t('unblock'),
+      `${t('confirm_delete')} ${name} ?`,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Débloquer',
+          text: t('unblock'),
           onPress: async () => {
             try {
               await FriendService.unblockUser(userId);
-              showSuccess('Utilisateur débloqué');
+              showSuccess(t('success'));
               load();
             } catch {
-              showError('Erreur lors du déblocage');
+              showError(t('error'));
             }
           },
         },
@@ -217,14 +219,11 @@ export default function FriendsScreen() {
   const onlineFriends = friends.filter(f => f.friend?.isOnline === true);
 
   // ============================================================
-  // 🔥 FONCTIONS QR CODE
+  // FONCTIONS QR CODE
   // ============================================================
 
-  // Générer et partager le QR Code de l'utilisateur
   const generateMyQRCode = () => {
     try {
-      // Récupérer les données de l'utilisateur depuis le stockage ou le contexte
-      // Ici on simule avec des données d'exemple
       const userData = {
         type: 'friend_request',
         userId: 'user-id-example',
@@ -236,37 +235,33 @@ export default function FriendsScreen() {
       setQrCodeData(jsonData);
       setShowQRCodeModal(true);
     } catch (error) {
-      showError('Erreur lors de la génération du QR code');
+      showError(t('error'));
     }
   };
 
-  // Partager le QR Code
   const shareQRCode = async () => {
     try {
       const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}`;
       
       await Share.share({
         message: `Ajoutez-moi sur SPaye ! Scannez ce QR code :\n${qrImageUrl}\n\nOu utilisez mon ID : ${qrCodeData}`,
-        title: 'Mon QR Code SPaye',
+        title: t('my_qr_code'),
       });
     } catch (error) {
-      showError('Erreur lors du partage');
+      showError(t('error'));
     }
   };
 
-  // Copier le QR Code
   const copyQRCode = async () => {
     try {
       await Clipboard.setStringAsync(qrCodeData);
-      showSuccess('QR Code copié dans le presse-papiers');
+      showSuccess(t('copy'));
     } catch (error) {
-      showError('Erreur lors de la copie');
+      showError(t('error'));
     }
   };
 
-  // Scanner un QR Code
   const handleScanQRCode = async () => {
-    // Vérifier les permissions
     const { status } = await requestCameraPermission();
     
     if (status === 'granted') {
@@ -275,17 +270,16 @@ export default function FriendsScreen() {
       setIsScanning(true);
     } else {
       Alert.alert(
-        'Permission caméra',
-        'L\'application a besoin d\'accéder à la caméra pour scanner les QR codes.',
+        t('scan_qr_code'),
+        t('scan_hint'),
         [
-          { text: 'Annuler', style: 'cancel' },
+          { text: t('cancel'), style: 'cancel' },
           { text: 'Autoriser', onPress: requestCameraPermission },
         ]
       );
     }
   };
 
-  // Traiter le QR code scanné
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     if (isScanning) {
       setIsScanning(false);
@@ -296,14 +290,13 @@ export default function FriendsScreen() {
         const parsedData = JSON.parse(data);
         
         if (parsedData.type === 'friend_request' && parsedData.userId) {
-          // Envoyer une demande d'ami à l'utilisateur scanné
           Alert.alert(
-            'Ajouter un ami',
+            t('add_friend'),
             `Voulez-vous ajouter ${parsedData.userName || 'cet utilisateur'} comme ami ?`,
             [
-              { text: 'Annuler', style: 'cancel', onPress: () => setIsScanning(true) },
+              { text: t('cancel'), style: 'cancel', onPress: () => setIsScanning(true) },
               {
-                text: 'Ajouter',
+                text: t('add_friend'),
                 onPress: () => {
                   sendFriendRequestFromQR(parsedData.userId);
                 },
@@ -311,14 +304,13 @@ export default function FriendsScreen() {
             ]
           );
         } else {
-          // Si le QR code contient juste un ID
           Alert.alert(
-            'Ajouter un ami',
+            t('add_friend'),
             'Voulez-vous ajouter cet utilisateur comme ami ?',
             [
-              { text: 'Annuler', style: 'cancel', onPress: () => setIsScanning(true) },
+              { text: t('cancel'), style: 'cancel', onPress: () => setIsScanning(true) },
               {
-                text: 'Ajouter',
+                text: t('add_friend'),
                 onPress: () => {
                   sendFriendRequestFromQR(data);
                 },
@@ -327,14 +319,13 @@ export default function FriendsScreen() {
           );
         }
       } catch (error) {
-        // Si ce n'est pas du JSON, traiter comme un simple ID
         Alert.alert(
-          'Ajouter un ami',
+          t('add_friend'),
           'Voulez-vous ajouter cet utilisateur comme ami ?',
           [
-            { text: 'Annuler', style: 'cancel', onPress: () => setIsScanning(true) },
+            { text: t('cancel'), style: 'cancel', onPress: () => setIsScanning(true) },
             {
-              text: 'Ajouter',
+              text: t('add_friend'),
               onPress: () => {
                 sendFriendRequestFromQR(data);
               },
@@ -345,18 +336,16 @@ export default function FriendsScreen() {
     }
   };
 
-  // Envoyer une demande d'ami depuis un QR code
   const sendFriendRequestFromQR = async (userId: string) => {
     try {
       await FriendService.sendFriendRequest(userId);
-      showSuccess('Demande d\'ami envoyée !');
+      showSuccess(t('send_request'));
       load();
     } catch (error: any) {
-      showError(error?.response?.data?.message || 'Erreur lors de l\'envoi');
+      showError(error?.response?.data?.message || t('error'));
     }
   };
 
-  // Fermer le scanner
   const closeQRScanner = () => {
     setIsScanning(false);
     setShowQRScannerModal(false);
@@ -419,7 +408,7 @@ export default function FriendsScreen() {
             {friend.firstName} {friend.lastName}
           </Text>
           <Text style={[styles.friendStatus, { color: friend.isOnline ? COLORS.success : COLORS.gray400 }]}>
-            {friend.isOnline ? '🟢 En ligne' : 'Hors ligne'}
+            {friend.isOnline ? t('online') : t('offline')}
           </Text>
         </View>
         <View style={styles.friendActions}>
@@ -438,13 +427,13 @@ export default function FriendsScreen() {
             style={styles.friendActionBtn}
             onPress={() => {
               Alert.alert(
-                'Actions',
-                `Que voulez-vous faire avec ${friend.firstName} ?`,
+                t('settings'),
+                `${t('confirm')} ${friend.firstName} ?`,
                 [
-                  { text: 'Annuler', style: 'cancel' },
-                  { text: 'Voir le profil', onPress: () => {} },
-                  { text: 'Supprimer', onPress: () => removeFriend(item.id, friend.firstName), style: 'destructive' },
-                  { text: 'Bloquer', onPress: () => blockUser(friend.id, friend.firstName), style: 'destructive' },
+                  { text: t('cancel'), style: 'cancel' },
+                  { text: t('profile'), onPress: () => {} },
+                  { text: t('remove'), onPress: () => removeFriend(item.id, friend.firstName), style: 'destructive' },
+                  { text: t('block'), onPress: () => blockUser(friend.id, friend.firstName), style: 'destructive' },
                 ]
               );
             }}
@@ -460,7 +449,7 @@ export default function FriendsScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={{ marginTop: 12, color: colors.textSecondary }}>Chargement...</Text>
+        <Text style={{ marginTop: 12, color: colors.textSecondary }}>{t('loading')}</Text>
       </View>
     );
   }
@@ -472,13 +461,11 @@ export default function FriendsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mes Amis</Text>
+        <Text style={styles.headerTitle}>{t('my_friends')}</Text>
         <View style={styles.headerActions}>
-          {/* 🔥 Bouton QR Code - Partager mon contact */}
           <TouchableOpacity style={styles.headerAction} onPress={generateMyQRCode}>
             <Ionicons name="qr-code" size={22} color={COLORS.white} />
           </TouchableOpacity>
-          {/* 🔥 Bouton Scanner QR Code */}
           <TouchableOpacity style={styles.headerAction} onPress={handleScanQRCode}>
             <Ionicons name="scan" size={22} color={COLORS.white} />
           </TouchableOpacity>
@@ -510,7 +497,7 @@ export default function FriendsScreen() {
           <Ionicons name="search" size={18} color={COLORS.gray400} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Rechercher par nom, email..."
+            placeholder={t('search_friends')}
             placeholderTextColor={COLORS.gray400}
             value={searchQuery}
             onChangeText={(v) => {
@@ -520,14 +507,14 @@ export default function FriendsScreen() {
           {searching && <ActivityIndicator size="small" color={COLORS.primary} />}
         </View>
 
-        {/* 🔥 QR Code Actions */}
+        {/* QR Code Actions */}
         <View style={[styles.qrActionsCard, { backgroundColor: colors.card }]}>
           <TouchableOpacity style={styles.qrActionBtn} onPress={generateMyQRCode}>
             <View style={[styles.qrActionIcon, { backgroundColor: COLORS.primary + '18' }]}>
               <Ionicons name="qr-code" size={24} color={COLORS.primary} />
             </View>
-            <Text style={[styles.qrActionText, { color: colors.text }]}>Mon QR Code</Text>
-            <Text style={[styles.qrActionSub, { color: colors.textSecondary }]}>Partager mon contact</Text>
+            <Text style={[styles.qrActionText, { color: colors.text }]}>{t('my_qr_code')}</Text>
+            <Text style={[styles.qrActionSub, { color: colors.textSecondary }]}>{t('share_contact')}</Text>
           </TouchableOpacity>
           
           <View style={styles.qrDivider} />
@@ -536,8 +523,8 @@ export default function FriendsScreen() {
             <View style={[styles.qrActionIcon, { backgroundColor: COLORS.success + '18' }]}>
               <Ionicons name="scan" size={24} color={COLORS.success} />
             </View>
-            <Text style={[styles.qrActionText, { color: colors.text }]}>Scanner</Text>
-            <Text style={[styles.qrActionSub, { color: colors.textSecondary }]}>Ajouter par QR code</Text>
+            <Text style={[styles.qrActionText, { color: colors.text }]}>{t('scan_qr_code')}</Text>
+            <Text style={[styles.qrActionSub, { color: colors.textSecondary }]}>{t('add_by_qr')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -545,21 +532,21 @@ export default function FriendsScreen() {
         {showAddFriend && (
           <View style={[styles.addFriendCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.addFriendTitle, { color: colors.text }]}>
-              <Ionicons name="person-add" size={16} color={COLORS.primary} /> Ajouter un ami
+              <Ionicons name="person-add" size={16} color={COLORS.primary} /> {t('add_friend')}
             </Text>
 
             {searchResults.length > 0 && !searching && (
               <View style={styles.searchResults}>
-                <Text style={[styles.resultTitle, { color: colors.textSecondary }]}>Résultats</Text>
+                <Text style={[styles.resultTitle, { color: colors.textSecondary }]}>{t('results')}</Text>
                 {searchResults.map((user) =>
                   renderUserCard(
                     user,
                     user.isBlocked ? (
-                      <View style={styles.badgeGray}><Text style={styles.badgeTextGray}>Bloqué</Text></View>
+                      <View style={styles.badgeGray}><Text style={styles.badgeTextGray}>{t('block')}</Text></View>
                     ) : user.isFriend ? (
-                      <View style={styles.badgeGreen}><Text style={styles.badgeText}>Ami</Text></View>
+                      <View style={styles.badgeGreen}><Text style={styles.badgeText}>{t('friends')}</Text></View>
                     ) : user.hasPendingRequest ? (
-                      <View style={styles.badgeGray}><Text style={styles.badgeTextGray}>Envoyée</Text></View>
+                      <View style={styles.badgeGray}><Text style={styles.badgeTextGray}>{t('send_request')}</Text></View>
                     ) : (
                       <TouchableOpacity style={styles.addBtn} onPress={() => sendRequest(user.id)}>
                         <Ionicons name="person-add" size={16} color={COLORS.white} />
@@ -572,12 +559,12 @@ export default function FriendsScreen() {
 
             {suggestions.length > 0 && !searchQuery && (
               <View style={styles.suggestions}>
-                <Text style={[styles.resultTitle, { color: colors.textSecondary }]}>Suggestions</Text>
+                <Text style={[styles.resultTitle, { color: colors.textSecondary }]}>{t('suggestions')}</Text>
                 {suggestions.slice(0, 5).map((user) =>
                   renderUserCard(
                     user,
                     user.hasPendingRequest ? (
-                      <View style={styles.badgeGray}><Text style={styles.badgeTextGray}>Envoyée</Text></View>
+                      <View style={styles.badgeGray}><Text style={styles.badgeTextGray}>{t('send_request')}</Text></View>
                     ) : (
                       <TouchableOpacity style={styles.addBtn} onPress={() => sendRequest(user.id)}>
                         <Ionicons name="person-add" size={16} color={COLORS.white} />
@@ -589,7 +576,7 @@ export default function FriendsScreen() {
             )}
 
             {searchQuery.length >= 2 && searchResults.length === 0 && !searching && (
-              <Text style={styles.noResult}>Aucun résultat</Text>
+              <Text style={styles.noResult}>{t('no_result')}</Text>
             )}
           </View>
         )}
@@ -598,10 +585,10 @@ export default function FriendsScreen() {
         {showBlockedUsers && (
           <View style={[styles.blockedCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.blockedTitle, { color: colors.text }]}>
-              <Ionicons name="ban" size={16} color={COLORS.error} /> Utilisateurs bloqués
+              <Ionicons name="ban" size={16} color={COLORS.error} /> {t('blocked_users')}
             </Text>
             {blockedUsers.length === 0 ? (
-              <Text style={[styles.blockedEmpty, { color: colors.textSecondary }]}>Aucun utilisateur bloqué</Text>
+              <Text style={[styles.blockedEmpty, { color: colors.textSecondary }]}>{t('no_result')}</Text>
             ) : (
               blockedUsers.map((blocked) => {
                 const friend = blocked.friend || {};
@@ -624,7 +611,7 @@ export default function FriendsScreen() {
                       style={styles.unblockBtn}
                       onPress={() => unblockUser(friend.id, friend.firstName)}
                     >
-                      <Text style={styles.unblockBtnText}>Débloquer</Text>
+                      <Text style={styles.unblockBtnText}>{t('unblock')}</Text>
                     </TouchableOpacity>
                   </View>
                 );
@@ -639,7 +626,7 @@ export default function FriendsScreen() {
             <View style={styles.onlineHeader}>
               <View style={styles.onlineLiveDot} />
               <Text style={[styles.onlineTitle, { color: colors.text }]}>
-                En ligne ({onlineFriends.length})
+                {t('online')} ({onlineFriends.length})
               </Text>
             </View>
             <FlatList
@@ -658,7 +645,7 @@ export default function FriendsScreen() {
           <TouchableOpacity style={styles.friendsHeader} onPress={() => setShowFriendsList(!showFriendsList)}>
             <Ionicons name="people" size={20} color={COLORS.primary} />
             <Text style={[styles.friendsTitle, { color: colors.text }]}>
-              Mes amis ({friends.length})
+              {t('my_friends')} ({friends.length})
             </Text>
             <Ionicons
               name={showFriendsList ? 'chevron-up' : 'chevron-down'}
@@ -672,12 +659,12 @@ export default function FriendsScreen() {
               {friends.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Ionicons name="people-outline" size={48} color={COLORS.gray400} />
-                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aucun ami</Text>
+                  <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('no_friends')}</Text>
                   <TouchableOpacity
                     style={styles.emptyBtn}
                     onPress={() => setShowAddFriend(true)}
                   >
-                    <Text style={styles.emptyBtnText}>Ajouter des amis</Text>
+                    <Text style={styles.emptyBtnText}>{t('add_friend')}</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -696,7 +683,7 @@ export default function FriendsScreen() {
             >
               <Ionicons name="notifications" size={20} color={COLORS.warning} />
               <Text style={[styles.requestsTitle, { color: colors.text }]}>
-                Demandes reçues ({requests.length})
+                {t('friend_requests')} ({requests.length})
               </Text>
               <Ionicons
                 name={showRequestsList ? 'chevron-up' : 'chevron-down'}
@@ -741,9 +728,7 @@ export default function FriendsScreen() {
         )}
       </ScrollView>
 
-      {/* ============================================================
-          🔥 MODAL QR CODE - PARTAGER MON CONTACT
-      ============================================================ */}
+      {/* MODAL QR CODE */}
       <Modal
         visible={showQRCodeModal}
         transparent={true}
@@ -753,7 +738,7 @@ export default function FriendsScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Mon QR Code</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{t('my_qr_code')}</Text>
               <TouchableOpacity onPress={() => setShowQRCodeModal(false)}>
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
@@ -776,17 +761,17 @@ export default function FriendsScreen() {
             </View>
 
             <Text style={[styles.qrCodeHint, { color: colors.textSecondary }]}>
-              Scannez ce code pour m'ajouter comme ami
+              {t('scan_hint')}
             </Text>
 
             <View style={styles.qrModalActions}>
               <TouchableOpacity style={[styles.qrModalBtn, styles.qrModalBtnOutline]} onPress={copyQRCode}>
                 <Ionicons name="copy-outline" size={20} color={COLORS.primary} />
-                <Text style={[styles.qrModalBtnText, { color: COLORS.primary }]}>Copier</Text>
+                <Text style={[styles.qrModalBtnText, { color: COLORS.primary }]}>{t('copy')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.qrModalBtn, styles.qrModalBtnPrimary]} onPress={shareQRCode}>
                 <Ionicons name="share-outline" size={20} color={COLORS.white} />
-                <Text style={[styles.qrModalBtnText, { color: COLORS.white }]}>Partager</Text>
+                <Text style={[styles.qrModalBtnText, { color: COLORS.white }]}>{t('share')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -794,15 +779,13 @@ export default function FriendsScreen() {
               style={styles.closeModalBtn} 
               onPress={() => setShowQRCodeModal(false)}
             >
-              <Text style={styles.closeModalBtnText}>Fermer</Text>
+              <Text style={styles.closeModalBtnText}>{t('cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* ============================================================
-          🔥 MODAL SCANNER QR CODE
-      ============================================================ */}
+      {/* MODAL SCANNER QR CODE */}
       <Modal
         visible={showQRScannerModal}
         transparent={true}
@@ -814,7 +797,7 @@ export default function FriendsScreen() {
             <TouchableOpacity onPress={closeQRScanner}>
               <Ionicons name="close" size={28} color={COLORS.white} />
             </TouchableOpacity>
-            <Text style={styles.scannerTitle}>Scanner un QR Code</Text>
+            <Text style={styles.scannerTitle}>{t('scan_qr_code')}</Text>
             <View style={{ width: 28 }} />
           </View>
 
@@ -832,7 +815,7 @@ export default function FriendsScreen() {
               <View style={styles.scannerPermissionView}>
                 <Ionicons name="camera-outline" size={64} color={COLORS.gray400} />
                 <Text style={styles.scannerPermissionText}>
-                  Permission caméra requise
+                  {t('scan_hint')}
                 </Text>
                 <TouchableOpacity 
                   style={styles.scannerPermissionBtn}
@@ -854,7 +837,7 @@ export default function FriendsScreen() {
           </View>
 
           <Text style={styles.scannerHint}>
-            Placez le QR code dans le cadre
+            {t('scan_hint')}
           </Text>
         </View>
       </Modal>
@@ -863,12 +846,10 @@ export default function FriendsScreen() {
 }
 
 // ============================================================
-// STYLES
+// STYLES - INCHANGÉS
 // ============================================================
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
-  // ── HEADER ──
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -894,10 +875,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   headerBadgeText: { color: COLORS.white, fontSize: 9, fontWeight: 'bold' },
-
   content: { flex: 1, padding: 12 },
-
-  // ── QR ACTIONS CARD ──
   qrActionsCard: {
     flexDirection: 'row',
     borderRadius: 12,
@@ -909,11 +887,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  qrActionBtn: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
+  qrActionBtn: { flex: 1, alignItems: 'center', paddingVertical: 8 },
   qrActionIcon: {
     width: 48,
     height: 48,
@@ -922,21 +896,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 4,
   },
-  qrActionText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  qrActionSub: {
-    fontSize: 10,
-    marginTop: 2,
-  },
-  qrDivider: {
-    width: 1,
-    backgroundColor: COLORS.gray200,
-    marginHorizontal: 8,
-  },
-
-  // ── SEARCH ──
+  qrActionText: { fontSize: 13, fontWeight: '600' },
+  qrActionSub: { fontSize: 10, marginTop: 2 },
+  qrDivider: { width: 1, backgroundColor: COLORS.gray200, marginHorizontal: 8 },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -951,8 +913,6 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   searchInput: { flex: 1, paddingVertical: 10, fontSize: 15 },
-
-  // ── ADD FRIEND ──
   addFriendCard: {
     borderRadius: 12,
     padding: 12,
@@ -968,8 +928,6 @@ const styles = StyleSheet.create({
   resultTitle: { fontSize: 12, fontWeight: '600', marginBottom: 8 },
   suggestions: { marginTop: 12 },
   noResult: { textAlign: 'center', color: COLORS.gray400, marginTop: 12 },
-
-  // ── BLOCKED USERS ──
   blockedCard: {
     borderRadius: 12,
     padding: 12,
@@ -1008,8 +966,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   unblockBtnText: { color: COLORS.white, fontSize: 12, fontWeight: '500' },
-
-  // ── ONLINE FRIENDS ──
   onlineSection: {
     backgroundColor: COLORS.successLight,
     borderRadius: 12,
@@ -1047,8 +1003,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.white,
   },
   onlineFriendNameText: { fontSize: 11, marginTop: 4, textAlign: 'center' },
-
-  // ── FRIENDS LIST ──
   friendsCard: {
     borderRadius: 12,
     padding: 12,
@@ -1066,7 +1020,6 @@ const styles = StyleSheet.create({
   },
   friendsTitle: { flex: 1, fontSize: 15, fontWeight: '600' },
   friendsList: { marginTop: 8 },
-
   friendItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1101,8 +1054,6 @@ const styles = StyleSheet.create({
   friendStatus: { fontSize: 12, marginTop: 2 },
   friendActions: { flexDirection: 'row', gap: 4 },
   friendActionBtn: { padding: 6 },
-
-  // ── REQUESTS ──
   requestsCard: {
     borderRadius: 12,
     padding: 12,
@@ -1156,8 +1107,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // ── USER ROW ──
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1176,7 +1125,6 @@ const styles = StyleSheet.create({
   avatarText: { color: COLORS.white, fontWeight: 'bold', fontSize: 14 },
   userName: { fontSize: 14, fontWeight: '500' },
   userEmail: { fontSize: 12, color: COLORS.gray400, marginTop: 2 },
-
   addBtn: {
     width: 32,
     height: 32,
@@ -1185,7 +1133,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
   badgeGreen: {
     backgroundColor: COLORS.successLight,
     borderRadius: 20,
@@ -1200,7 +1147,6 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: COLORS.success, fontSize: 11, fontWeight: '500' },
   badgeTextGray: { color: COLORS.gray500, fontSize: 11, fontWeight: '500' },
-
   emptyState: { alignItems: 'center', paddingVertical: 24 },
   emptyText: { fontSize: 15, marginTop: 8 },
   emptyBtn: {
@@ -1211,8 +1157,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   emptyBtnText: { color: COLORS.white, fontWeight: '500', fontSize: 13 },
-
-  // ── MODAL QR CODE ──
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -1235,36 +1179,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  qrCodeContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-  },
-  qrCodeImage: {
-    width: 240,
-    height: 240,
-    borderRadius: 12,
-  },
-  qrCodePlaceholder: {
-    width: 240,
-    height: 240,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qrCodeHint: {
-    textAlign: 'center',
-    fontSize: 13,
-    marginTop: 8,
-  },
-  qrModalActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
+  modalTitle: { fontSize: 18, fontWeight: 'bold' },
+  qrCodeContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 16 },
+  qrCodeImage: { width: 240, height: 240, borderRadius: 12 },
+  qrCodePlaceholder: { width: 240, height: 240, alignItems: 'center', justifyContent: 'center' },
+  qrCodeHint: { textAlign: 'center', fontSize: 13, marginTop: 8 },
+  qrModalActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
   qrModalBtn: {
     flex: 1,
     flexDirection: 'row',
@@ -1274,34 +1194,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
   },
-  qrModalBtnPrimary: {
-    backgroundColor: COLORS.primary,
-  },
+  qrModalBtnPrimary: { backgroundColor: COLORS.primary },
   qrModalBtnOutline: {
     backgroundColor: 'transparent',
     borderWidth: 1.5,
     borderColor: COLORS.primary,
   },
-  qrModalBtnText: {
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  closeModalBtn: {
-    marginTop: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  closeModalBtnText: {
-    color: COLORS.gray500,
-    fontWeight: '500',
-    fontSize: 14,
-  },
-
-  // ── MODAL SCANNER ──
-  scannerContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
+  qrModalBtnText: { fontWeight: '600', fontSize: 14 },
+  closeModalBtn: { marginTop: 12, paddingVertical: 10, alignItems: 'center' },
+  closeModalBtnText: { color: COLORS.gray500, fontWeight: '500', fontSize: 14 },
+  scannerContainer: { flex: 1, backgroundColor: '#000' },
   scannerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1310,15 +1212,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
-  scannerTitle: {
-    color: COLORS.white,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  scannerWrapper: {
-    flex: 1,
-    position: 'relative',
-  },
+  scannerTitle: { color: COLORS.white, fontSize: 18, fontWeight: 'bold' },
+  scannerWrapper: { flex: 1, position: 'relative' },
   scannerPermissionView: {
     flex: 1,
     alignItems: 'center',

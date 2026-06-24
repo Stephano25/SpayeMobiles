@@ -1,9 +1,12 @@
+import React, { useState, useEffect } from 'react';
 import { storage } from '../utils/storage';
 
-// Dictionnaire des traductions
+// Dictionnaire complet des traductions
 const TRANSLATIONS = {
   fr: {
+    // ============================================================
     // Général
+    // ============================================================
     'app_name': 'SPaye',
     'loading': 'Chargement...',
     'error': 'Erreur',
@@ -21,8 +24,13 @@ const TRANSLATIONS = {
     'messages': 'Messages',
     'home': 'Accueil',
     'scan': 'Scanner',
-    
+    'not_specified': 'Non renseigné',
+    'balance': 'Solde disponible',
+    'search': 'Rechercher',
+
+    // ============================================================
     // Connexion
+    // ============================================================
     'login': 'Se connecter',
     'register': 'S\'inscrire',
     'email': 'Email',
@@ -34,9 +42,12 @@ const TRANSLATIONS = {
     'first_name': 'Prénom',
     'last_name': 'Nom',
     'phone': 'Téléphone',
-    
-    // Portefeuille
-    'balance': 'Solde disponible',
+    'continue_with_google': 'Continuer avec Google',
+    'or': 'ou',
+
+    // ============================================================
+    // Portefeuille - 🔥 CORRIGÉ AVEC TOUTES LES TRADUCTIONS
+    // ============================================================
     'send': 'Envoyer',
     'receive': 'Recevoir',
     'mobile_money': 'Mobile Money',
@@ -44,8 +55,25 @@ const TRANSLATIONS = {
     'recent_activity': 'Activité récente',
     'view_all': 'Voir tout',
     'no_transactions': 'Aucune transaction',
-    
+    'send_money': 'Envoyer de l\'argent',
+    'receive_money': 'Recevoir de l\'argent',
+    'amount': 'Montant',
+    'fee': 'Frais',
+    'total': 'Total',
+    'transfer': 'Transfert',
+    'insufficient_balance': 'Solde insuffisant',
+    'confirm_transfer': 'Confirmer le transfert',
+    'transfer_success': 'Transfert réussi !',
+    'new_transfer': 'Nouveau transfert',
+    'phone_number': 'Numéro de téléphone',
+    'minimum_amount': 'Montant minimum',
+    'maximum_amount': 'Montant maximum',
+    'operator': 'Opérateur',
+    'select_operator': 'Choisissez votre opérateur',
+
+    // ============================================================
     // Amis
+    // ============================================================
     'my_friends': 'Mes Amis',
     'add_friend': 'Ajouter un ami',
     'friend_requests': 'Demandes reçues',
@@ -61,8 +89,13 @@ const TRANSLATIONS = {
     'block': 'Bloquer',
     'unblock': 'Débloquer',
     'remove': 'Supprimer',
-    
+    'suggestions': 'Suggestions',
+    'results': 'Résultats',
+    'no_result': 'Aucun résultat',
+
+    // ============================================================
     // QR Code
+    // ============================================================
     'my_qr_code': 'Mon QR Code',
     'scan_qr_code': 'Scanner un QR Code',
     'share_contact': 'Partager mon contact',
@@ -70,8 +103,10 @@ const TRANSLATIONS = {
     'scan_hint': 'Placez le QR code dans le cadre',
     'copy': 'Copier',
     'share': 'Partager',
-    
+
+    // ============================================================
     // Paramètres
+    // ============================================================
     'general': 'Général',
     'security': 'Sécurité',
     'privacy': 'Confidentialité',
@@ -90,15 +125,19 @@ const TRANSLATIONS = {
     'french': 'Français',
     'english': 'English',
     'malagasy': 'Malagasy',
-    
+
+    // ============================================================
     // Sécurité
+    // ============================================================
     'current_password': 'Mot de passe actuel',
     'new_password': 'Nouveau mot de passe',
     'change_password': 'Changer le mot de passe',
     'two_factor_auth': 'Authentification 2FA',
     'login_alerts': 'Alertes de connexion',
-    
-    // Privacy
+
+    // ============================================================
+    // Confidentialité
+    // ============================================================
     'show_last_seen': 'Afficher la dernière connexion',
     'show_online_status': 'Afficher le statut en ligne',
     'allow_friend_requests': 'Autoriser les demandes d\'amis',
@@ -106,15 +145,19 @@ const TRANSLATIONS = {
     'public': 'Public',
     'private': 'Privé',
     'friends_only': 'Amis uniquement',
-    
+
+    // ============================================================
     // Notifications
+    // ============================================================
     'email_notifications': 'Notifications par email',
     'push_notifications': 'Notifications push',
     'sms_notifications': 'Notifications par SMS',
     'friend_request_notifications': 'Demandes d\'amis',
     'message_notifications': 'Nouveaux messages',
-    
+
+    // ============================================================
     // Chat
+    // ============================================================
     'type_message': 'Écrire un message...',
     'no_conversations': 'Aucune conversation',
     'start_chat': 'Démarrer une discussion',
@@ -123,24 +166,44 @@ const TRANSLATIONS = {
     'emoji': 'Emojis',
     'call': 'Appel',
     'video_call': 'Appel vidéo',
-    
-    // Mobile Money
-    'select_operator': 'Choisissez votre opérateur',
-    'operator': 'Opérateur',
-    'amount': 'Montant',
-    'fee': 'Frais',
-    'total': 'Total',
+    'typing': 'En train d\'écrire...',
+
+    // ============================================================
+    // Transactions - 🔥 CORRIGÉ
+    // ============================================================
+    'transaction_history': 'Historique des transactions',
+    'transaction_details': 'Détails de la transaction',
+    'sender': 'Expéditeur',
+    'receiver': 'Destinataire',
+    'date': 'Date',
+    'status': 'Statut',
+    'completed': 'Réussi',
+    'pending': 'En attente',
+    'failed': 'Échoué',
+    'cancelled': 'Annulé',
+    'deposit': 'Dépôt',
+    'withdrawal': 'Retrait',
+    'payment': 'Paiement',
     'transfer': 'Transfert',
-    'insufficient_balance': 'Solde insuffisant',
-    'confirm_transfer': 'Confirmer le transfert',
-    'transfer_success': 'Transfert réussi !',
-    'new_transfer': 'Nouveau transfert',
-    'phone_number': 'Numéro de téléphone',
-    'minimum_amount': 'Montant minimum',
-    'maximum_amount': 'Montant maximum',
+    'mobile_money': 'Mobile Money',
+    'receive': 'Réception',
+    'send': 'Envoi',
+
+    // ============================================================
+    // Messages d'erreur
+    // ============================================================
+    'error_loading': 'Erreur de chargement',
+    'error_connection': 'Erreur de connexion',
+    'error_save': 'Erreur lors de la sauvegarde',
+    'error_delete': 'Erreur lors de la suppression',
+    'success_save': 'Enregistré avec succès',
+    'success_delete': 'Supprimé avec succès',
+    'confirm_delete': 'Voulez-vous vraiment supprimer ?',
   },
   en: {
+    // ============================================================
     // General
+    // ============================================================
     'app_name': 'SPaye',
     'loading': 'Loading...',
     'error': 'Error',
@@ -158,8 +221,13 @@ const TRANSLATIONS = {
     'messages': 'Messages',
     'home': 'Home',
     'scan': 'Scan',
-    
+    'not_specified': 'Not specified',
+    'balance': 'Available balance',
+    'search': 'Search',
+
+    // ============================================================
     // Login
+    // ============================================================
     'login': 'Login',
     'register': 'Register',
     'email': 'Email',
@@ -171,9 +239,12 @@ const TRANSLATIONS = {
     'first_name': 'First name',
     'last_name': 'Last name',
     'phone': 'Phone',
-    
+    'continue_with_google': 'Continue with Google',
+    'or': 'or',
+
+    // ============================================================
     // Wallet
-    'balance': 'Available balance',
+    // ============================================================
     'send': 'Send',
     'receive': 'Receive',
     'mobile_money': 'Mobile Money',
@@ -181,8 +252,25 @@ const TRANSLATIONS = {
     'recent_activity': 'Recent activity',
     'view_all': 'View all',
     'no_transactions': 'No transactions',
-    
+    'send_money': 'Send money',
+    'receive_money': 'Receive money',
+    'amount': 'Amount',
+    'fee': 'Fee',
+    'total': 'Total',
+    'transfer': 'Transfer',
+    'insufficient_balance': 'Insufficient balance',
+    'confirm_transfer': 'Confirm transfer',
+    'transfer_success': 'Transfer successful!',
+    'new_transfer': 'New transfer',
+    'phone_number': 'Phone number',
+    'minimum_amount': 'Minimum amount',
+    'maximum_amount': 'Maximum amount',
+    'operator': 'Operator',
+    'select_operator': 'Select your operator',
+
+    // ============================================================
     // Friends
+    // ============================================================
     'my_friends': 'My Friends',
     'add_friend': 'Add friend',
     'friend_requests': 'Friend requests',
@@ -198,8 +286,13 @@ const TRANSLATIONS = {
     'block': 'Block',
     'unblock': 'Unblock',
     'remove': 'Remove',
-    
+    'suggestions': 'Suggestions',
+    'results': 'Results',
+    'no_result': 'No result',
+
+    // ============================================================
     // QR Code
+    // ============================================================
     'my_qr_code': 'My QR Code',
     'scan_qr_code': 'Scan QR Code',
     'share_contact': 'Share my contact',
@@ -207,8 +300,10 @@ const TRANSLATIONS = {
     'scan_hint': 'Place the QR code in the frame',
     'copy': 'Copy',
     'share': 'Share',
-    
+
+    // ============================================================
     // Settings
+    // ============================================================
     'general': 'General',
     'security': 'Security',
     'privacy': 'Privacy',
@@ -227,15 +322,19 @@ const TRANSLATIONS = {
     'french': 'French',
     'english': 'English',
     'malagasy': 'Malagasy',
-    
+
+    // ============================================================
     // Security
+    // ============================================================
     'current_password': 'Current password',
     'new_password': 'New password',
     'change_password': 'Change password',
     'two_factor_auth': '2FA',
     'login_alerts': 'Login alerts',
-    
+
+    // ============================================================
     // Privacy
+    // ============================================================
     'show_last_seen': 'Show last seen',
     'show_online_status': 'Show online status',
     'allow_friend_requests': 'Allow friend requests',
@@ -243,15 +342,19 @@ const TRANSLATIONS = {
     'public': 'Public',
     'private': 'Private',
     'friends_only': 'Friends only',
-    
+
+    // ============================================================
     // Notifications
+    // ============================================================
     'email_notifications': 'Email notifications',
     'push_notifications': 'Push notifications',
     'sms_notifications': 'SMS notifications',
     'friend_request_notifications': 'Friend requests',
     'message_notifications': 'New messages',
-    
+
+    // ============================================================
     // Chat
+    // ============================================================
     'type_message': 'Type a message...',
     'no_conversations': 'No conversations',
     'start_chat': 'Start a conversation',
@@ -260,24 +363,44 @@ const TRANSLATIONS = {
     'emoji': 'Emojis',
     'call': 'Call',
     'video_call': 'Video call',
-    
-    // Mobile Money
-    'select_operator': 'Select your operator',
-    'operator': 'Operator',
-    'amount': 'Amount',
-    'fee': 'Fee',
-    'total': 'Total',
+    'typing': 'Typing...',
+
+    // ============================================================
+    // Transactions
+    // ============================================================
+    'transaction_history': 'Transaction history',
+    'transaction_details': 'Transaction details',
+    'sender': 'Sender',
+    'receiver': 'Receiver',
+    'date': 'Date',
+    'status': 'Status',
+    'completed': 'Completed',
+    'pending': 'Pending',
+    'failed': 'Failed',
+    'cancelled': 'Cancelled',
+    'deposit': 'Deposit',
+    'withdrawal': 'Withdrawal',
+    'payment': 'Payment',
     'transfer': 'Transfer',
-    'insufficient_balance': 'Insufficient balance',
-    'confirm_transfer': 'Confirm transfer',
-    'transfer_success': 'Transfer successful!',
-    'new_transfer': 'New transfer',
-    'phone_number': 'Phone number',
-    'minimum_amount': 'Minimum amount',
-    'maximum_amount': 'Maximum amount',
+    'mobile_money': 'Mobile Money',
+    'receive': 'Receive',
+    'send': 'Send',
+
+    // ============================================================
+    // Error messages
+    // ============================================================
+    'error_loading': 'Error loading',
+    'error_connection': 'Connection error',
+    'error_save': 'Error saving',
+    'error_delete': 'Error deleting',
+    'success_save': 'Saved successfully',
+    'success_delete': 'Deleted successfully',
+    'confirm_delete': 'Are you sure you want to delete?',
   },
   mg: {
+    // ============================================================
     // Général
+    // ============================================================
     'app_name': 'SPaye',
     'loading': 'Fandrasana...',
     'error': 'Diso',
@@ -295,8 +418,13 @@ const TRANSLATIONS = {
     'messages': 'Hafatra',
     'home': 'Fandraisana',
     'scan': 'Scanner',
-    
+    'not_specified': 'Tsy voalaza',
+    'balance': 'Volana misy',
+    'search': 'Tadiavo',
+
+    // ============================================================
     // Connexion
+    // ============================================================
     'login': 'Hiditra',
     'register': 'Hisoratra',
     'email': 'Mailaka',
@@ -308,9 +436,12 @@ const TRANSLATIONS = {
     'first_name': 'Anarana',
     'last_name': 'Fanampiny',
     'phone': 'Telefaonina',
-    
+    'continue_with_google': 'Tohizo amin\'ny Google',
+    'or': 'na',
+
+    // ============================================================
     // Portefeuille
-    'balance': 'Volana misy',
+    // ============================================================
     'send': 'Handefa',
     'receive': 'Handray',
     'mobile_money': 'Volan\'ny finday',
@@ -318,8 +449,25 @@ const TRANSLATIONS = {
     'recent_activity': 'Asa farany',
     'view_all': 'Jereo daholo',
     'no_transactions': 'Tsy misy fifanakalozana',
-    
+    'send_money': 'Handefa vola',
+    'receive_money': 'Handray vola',
+    'amount': 'Volana',
+    'fee': 'Saram-pandraharahana',
+    'total': 'Tontaliny',
+    'transfer': 'Famindrana',
+    'insufficient_balance': 'Tsy ampy ny volana',
+    'confirm_transfer': 'Hamafy ny famindrana',
+    'transfer_success': 'Vita soa ny famindrana!',
+    'new_transfer': 'Famindrana vaovao',
+    'phone_number': 'Laharan-telefaonina',
+    'minimum_amount': 'Volana farany',
+    'maximum_amount': 'Volana indrindra',
+    'operator': 'Mpandraharaha',
+    'select_operator': 'Misafidia mpandraharaha',
+
+    // ============================================================
     // Amis
+    // ============================================================
     'my_friends': 'Namako',
     'add_friend': 'Hanampy namana',
     'friend_requests': 'Fangatahana namana',
@@ -335,8 +483,13 @@ const TRANSLATIONS = {
     'block': 'Hasakana',
     'unblock': 'Hesorina ny sakana',
     'remove': 'Hofafana',
-    
+    'suggestions': 'Soso-kevitra',
+    'results': 'Valiny',
+    'no_result': 'Tsy misy valiny',
+
+    // ============================================================
     // QR Code
+    // ============================================================
     'my_qr_code': 'Ny QR Code-ko',
     'scan_qr_code': 'Scan QR Code',
     'share_contact': 'Hizara ny fifandraisako',
@@ -344,8 +497,10 @@ const TRANSLATIONS = {
     'scan_hint': 'Apetraho ao anaty refy ny QR code',
     'copy': 'Adika',
     'share': 'Hizara',
-    
+
+    // ============================================================
     // Paramètres
+    // ============================================================
     'general': 'Ankapobeny',
     'security': 'Fiarovana',
     'privacy': 'Tsiambaratelo',
@@ -364,15 +519,19 @@ const TRANSLATIONS = {
     'french': 'Frantsay',
     'english': 'Anglisy',
     'malagasy': 'Malagasy',
-    
+
+    // ============================================================
     // Sécurité
+    // ============================================================
     'current_password': 'Tenimiafina ankehitriny',
     'new_password': 'Tenimiafina vaovao',
     'change_password': 'Hanova tenimiafina',
     'two_factor_auth': 'Fanamarinana roa',
     'login_alerts': 'Fampandremana fidirana',
-    
-    // Privacy
+
+    // ============================================================
+    // Confidentialité
+    // ============================================================
     'show_last_seen': 'Aseho ny fidirana farany',
     'show_online_status': 'Aseho ny satan\'ny aterineto',
     'allow_friend_requests': 'Avela ny fangatahana namana',
@@ -380,15 +539,19 @@ const TRANSLATIONS = {
     'public': 'Ho an\'ny rehetra',
     'private': 'Mangingina',
     'friends_only': 'Namana ihany',
-    
+
+    // ============================================================
     // Notifications
+    // ============================================================
     'email_notifications': 'Fampahafantarana amin\'ny mailaka',
     'push_notifications': 'Fampahafantarana push',
     'sms_notifications': 'Fampahafantarana amin\'ny SMS',
     'friend_request_notifications': 'Fangatahana namana',
     'message_notifications': 'Hafatra vaovao',
-    
+
+    // ============================================================
     // Chat
+    // ============================================================
     'type_message': 'Hanoratra hafatra...',
     'no_conversations': 'Tsy misy resaka',
     'start_chat': 'Hanomboka resaka',
@@ -397,27 +560,46 @@ const TRANSLATIONS = {
     'emoji': 'Emoji',
     'call': 'Antso',
     'video_call': 'Antso an-tsary',
-    
-    // Mobile Money
-    'select_operator': 'Misafidia mpandraharaha',
-    'operator': 'Mpandraharaha',
-    'amount': 'Volana',
-    'fee': 'Saram-pandraharahana',
-    'total': 'Tontaliny',
+    'typing': 'Mamoratra hafatra...',
+
+    // ============================================================
+    // Transactions
+    // ============================================================
+    'transaction_history': 'Tantaran\'ny fifanakalozana',
+    'transaction_details': 'Antony ny fifanakalozana',
+    'sender': 'Mpandefa',
+    'receiver': 'Mpandray',
+    'date': 'Daty',
+    'status': 'Toerana',
+    'completed': 'Vita',
+    'pending': 'Miandry',
+    'failed': 'Tsy vita',
+    'cancelled': 'Nofoanana',
+    'deposit': 'Fametrahana',
+    'withdrawal': 'Fandrobana',
+    'payment': 'Fandoavana',
     'transfer': 'Famindrana',
-    'insufficient_balance': 'Tsy ampy ny volana',
-    'confirm_transfer': 'Hamafy ny famindrana',
-    'transfer_success': 'Vita soa ny famindrana!',
-    'new_transfer': 'Famindrana vaovao',
-    'phone_number': 'Laharan-telefaonina',
-    'minimum_amount': 'Volana farany',
-    'maximum_amount': 'Volana indrindra',
+    'mobile_money': 'Volan\'ny finday',
+    'receive': 'Fandraisana',
+    'send': 'Fandefasana',
+
+    // ============================================================
+    // Messages d'erreur
+    // ============================================================
+    'error_loading': 'Diso ny fampidirana',
+    'error_connection': 'Diso ny fifandraisana',
+    'error_save': 'Diso ny fitehirizana',
+    'error_delete': 'Diso ny famafana',
+    'success_save': 'Voatahiry soa',
+    'success_delete': 'Vofafana soa',
+    'confirm_delete': 'Tena hofafanao ve izany?',
   }
 };
 
 export class TranslationService {
   private static instance: TranslationService;
   private currentLanguage: string = 'fr';
+  private listeners: ((lang: string) => void)[] = [];
 
   private constructor() {
     this.loadLanguage();
@@ -449,26 +631,45 @@ export class TranslationService {
     if (TRANSLATIONS[lang as keyof typeof TRANSLATIONS]) {
       this.currentLanguage = lang;
       await storage.setItem('app_language', lang);
+      this.listeners.forEach(listener => listener(lang));
     }
   }
 
   translate(key: string): string {
     const lang = this.currentLanguage as keyof typeof TRANSLATIONS;
     const translations = TRANSLATIONS[lang];
-    return translations?.[key as keyof typeof translations] || key;
+    const result = translations?.[key as keyof typeof translations];
+    return result || key;
   }
 
   t(key: string): string {
     return this.translate(key);
   }
+
+  addListener(listener: (lang: string) => void) {
+    this.listeners.push(listener);
+  }
+
+  removeListener(listener: (lang: string) => void) {
+    this.listeners = this.listeners.filter(l => l !== listener);
+  }
 }
 
-// Hook personnalisé pour utiliser la traduction
 export const useTranslation = () => {
   const service = TranslationService.getInstance();
+  const [language, setLanguageState] = useState<string>(service.getLanguage());
+
+  useEffect(() => {
+    const listener = (lang: string) => {
+      setLanguageState(lang);
+    };
+    service.addListener(listener);
+    return () => service.removeListener(listener);
+  }, [service]);
+
   return {
     t: (key: string) => service.translate(key),
-    language: service.getLanguage(),
+    language,
     setLanguage: (lang: string) => service.setLanguage(lang),
   };
 };
