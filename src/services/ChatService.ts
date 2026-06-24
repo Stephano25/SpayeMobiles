@@ -1,3 +1,4 @@
+// src/services/ChatService.ts
 import api from './api';
 import { Conversation, Message } from '../types';
 import { getSocketUrl } from '../config';
@@ -5,10 +6,12 @@ import { io, Socket } from 'socket.io-client';
 
 let socket: Socket | null = null;
 let socketUrl: string | null = null;
-let messageCallbacks: ((msg: Message) => void)[] = [];
-let typingCallbacks: ((data: { userId: string; isTyping: boolean }) => void)[] = [];
-let onlineStatusCallbacks: ((data: { userId: string; isOnline: boolean }) => void)[] = [];
-let callCallbacks: ((data: any) => void)[] = [];
+
+const messageCallbacks = new Set<(msg: Message) => void>();
+const typingCallbacks = new Set<(data: { userId: string; isTyping: boolean }) => void>();
+const onlineStatusCallbacks = new Set<(data: { userId: string; isOnline: boolean }) => void>();
+const callCallbacks = new Set<(data: any) => void>();
+const errorCallbacks = new Set<(error: any) => void>();
 
 export const ChatService = {
   connect: async (token: string): Promise<Socket> => {
@@ -17,55 +20,125 @@ export const ChatService = {
     }
 
     if (!socket) {
+      console.log('🔌 Connexion au socket...', socketUrl);
+      
       socket = io(socketUrl, {
         auth: { token },
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         reconnection: true,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: 10,
         reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
       });
 
       socket.on('connect', () => {
-        console.log('✅ Socket connecté');
+        console.log('✅ Socket connecté avec succès');
       });
 
-      socket.on('disconnect', () => {
-        console.log('❌ Socket déconnecté');
+      socket.on('disconnect', (reason: string) => {
+        console.log('❌ Socket déconnecté:', reason);
+        if (reason === 'io server disconnect') {
+          setTimeout(() => {
+            if (socket) {
+              socket.connect();
+            }
+          }, 1000);
+        }
       });
 
-      socket.on('connect_error', (error) => {
-        console.error('❌ Erreur de connexion socket:', error);
+      socket.on('connect_error', (error: Error) => {
+        console.error('❌ Erreur de connexion socket:', error.message);
+        errorCallbacks.forEach((callback) => callback(error));
       });
 
-      // Écouter les nouveaux messages
+      socket.on('reconnect', (attemptNumber: number) => {
+        console.log(`🔄 Socket reconnecté après ${attemptNumber} tentatives`);
+      });
+
+      socket.on('reconnect_error', (error: Error) => {
+        console.error('❌ Erreur de reconnexion:', error.message);
+      });
+
       socket.on('newMessage', (msg: Message) => {
-        messageCallbacks.forEach((callback) => callback(msg));
+        console.log('📩 Nouveau message reçu:', msg.id);
+        messageCallbacks.forEach((callback) => {
+          try {
+            callback(msg);
+          } catch (error) {
+            console.error('Erreur dans callback newMessage:', error);
+          }
+        });
       });
 
-      // Écouter le typing
       socket.on('userTyping', (data: { userId: string; isTyping: boolean }) => {
-        typingCallbacks.forEach((callback) => callback(data));
+        typingCallbacks.forEach((callback) => {
+          try {
+            callback(data);
+          } catch (error) {
+            console.error('Erreur dans callback userTyping:', error);
+          }
+        });
       });
 
-      // Écouter les changements de statut en ligne
       socket.on('userOnline', (data: { userId: string; isOnline: boolean }) => {
-        onlineStatusCallbacks.forEach((callback) => callback(data));
+        onlineStatusCallbacks.forEach((callback) => {
+          try {
+            callback(data);
+          } catch (error) {
+            console.error('Erreur dans callback userOnline:', error);
+          }
+        });
       });
 
-      // Écouter les appels entrants
       socket.on('incomingCall', (data: any) => {
-        callCallbacks.forEach((callback) => callback(data));
+        console.log('📞 Appel entrant:', data);
+        callCallbacks.forEach((callback) => {
+          try {
+            callback({ ...data, from: data.callerId || data.from });
+          } catch (error) {
+            console.error('Erreur dans callback incomingCall:', error);
+          }
+        });
       });
 
-      // Écouter les réponses d'appel
       socket.on('callAnswered', (data: any) => {
-        callCallbacks.forEach((callback) => callback(data));
+        console.log('📞 Appel répond:', data);
+        callCallbacks.forEach((callback) => {
+          try {
+            callback({ ...data, accepted: true });
+          } catch (error) {
+            console.error('Erreur dans callback callAnswered:', error);
+          }
+        });
       });
 
-      // Écouter les erreurs
-      socket.on('error', (data: any) => {
-        console.error('❌ Erreur socket:', data);
+      socket.on('callRejected', (data: any) => {
+        console.log('📞 Appel rejeté:', data);
+        callCallbacks.forEach((callback) => {
+          try {
+            callback({ ...data, accepted: false });
+          } catch (error) {
+            console.error('Erreur dans callback callRejected:', error);
+          }
+        });
       });
+
+      socket.on('error', (data: any) => {
+        console.error('❌ Erreur socket (serveur):', data);
+        errorCallbacks.forEach((callback) => {
+          try {
+            callback(data);
+          } catch (error) {
+            console.error('Erreur dans callback error:', error);
+          }
+        });
+      });
+    }
+
+    if (!socket.connected) {
+      console.log('🔄 Tentative de reconnexion...');
+      socket.connect();
     }
 
     return socket;
@@ -75,28 +148,38 @@ export const ChatService = {
     if (socket) {
       socket.disconnect();
       socket = null;
-      messageCallbacks = [];
-      typingCallbacks = [];
-      onlineStatusCallbacks = [];
-      callCallbacks = [];
     }
   },
 
   getSocket: (): Socket | null => socket,
 
+  isConnected: (): boolean => {
+    return socket?.connected || false;
+  },
+
   getConversations: async (): Promise<Conversation[]> => {
-    const res = await api.get('/chat/conversations');
-    return res.data;
+    try {
+      const res = await api.get('/chat/conversations');
+      return res.data;
+    } catch (error) {
+      console.error('Erreur getConversations:', error);
+      return [];
+    }
   },
 
   getMessages: async (otherUserId: string, page = 1, limit = 20): Promise<Message[]> => {
-    const res = await api.get(`/chat/messages/${otherUserId}`, {
-      params: { page, limit },
-    });
-    return res.data;
+    try {
+      const res = await api.get(`/chat/messages/${otherUserId}`, {
+        params: { page, limit },
+      });
+      return res.data;
+    } catch (error) {
+      console.error('Erreur getMessages:', error);
+      return [];
+    }
   },
 
-  sendMessage: (data: {
+  sendMessage: async (data: {
     receiverId: string;
     type: string;
     content?: string;
@@ -106,81 +189,158 @@ export const ChatService = {
     fileSize?: number;
     moneyTransfer?: { amount: number };
   }) => {
-    if (socket?.connected) {
-      socket.emit('sendMessage', data);
-    } else {
-      console.warn('Socket non connecté, envoi via HTTP');
-      return api.post('/chat/send', data);
+    try {
+      // 1. D'abord envoyer via HTTP (plus fiable)
+      console.log('📤 Envoi message via HTTP:', data);
+      const response = await api.post('/chat/send', data);
+      
+      // 2. Puis via socket si connecté (pour la réactivité)
+      if (socket?.connected) {
+        console.log('📤 Envoi message via socket (supplémentaire):', data);
+        socket.emit('sendMessage', data);
+      } else {
+        console.warn('⚠️ Socket non connecté, message envoyé via HTTP uniquement');
+      }
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('❌ Erreur envoi message HTTP:', error);
+      
+      // Si l'API échoue mais que le socket est connecté, essayer via socket
+      if (socket?.connected) {
+        console.log('📤 Tentative d\'envoi via socket uniquement');
+        socket.emit('sendMessage', data);
+        return { success: true, socketOnly: true };
+      }
+      
+      throw error;
     }
   },
 
   markAsRead: async (senderId: string) => {
-    const res = await api.post(`/chat/read/${senderId}`);
-    return res.data;
+    try {
+      const res = await api.post(`/chat/read/${senderId}`);
+      return res.data;
+    } catch (error) {
+      console.error('Erreur markAsRead:', error);
+      return null;
+    }
   },
 
   updateMessage: async (messageId: string, content: string) => {
-    const res = await api.put(`/chat/message/${messageId}`, { content });
-    return res.data;
+    try {
+      const res = await api.put(`/chat/message/${messageId}`, { content });
+      return res.data;
+    } catch (error) {
+      console.error('Erreur updateMessage:', error);
+      throw error;
+    }
   },
 
   deleteMessage: async (messageId: string) => {
-    const res = await api.delete(`/chat/message/${messageId}`);
-    return res.data;
+    try {
+      const res = await api.delete(`/chat/message/${messageId}`);
+      return res.data;
+    } catch (error) {
+      console.error('Erreur deleteMessage:', error);
+      throw error;
+    }
   },
 
   uploadFile: async (file: { uri: string; name: string; type: string }) => {
-    const formData = new FormData();
-    formData.append('file', file as any);
-    const res = await api.post('/chat/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return res.data;
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as any);
+      
+      const res = await api.post('/chat/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
+      });
+      return res.data;
+    } catch (error) {
+      console.error('Erreur uploadFile:', error);
+      throw error;
+    }
   },
 
   startCall: (receiverId: string, type: 'audio' | 'video') => {
     if (socket?.connected) {
+      console.log('📞 Début d\'appel:', { receiverId, type });
       socket.emit('startCall', { receiverId, type });
+    } else {
+      console.warn('⚠️ Socket non connecté, impossible de démarrer un appel');
     }
   },
 
   answerCall: (callerId: string, accepted: boolean) => {
     if (socket?.connected) {
+      console.log('📞 Réponse à l\'appel:', { callerId, accepted });
       socket.emit('answerCall', { callerId, accepted });
+    } else {
+      console.warn('⚠️ Socket non connecté, impossible de répondre à l\'appel');
     }
   },
 
-  onNewMessage: (callback: (msg: Message) => void) => {
-    messageCallbacks.push(callback);
-    return () => {
-      messageCallbacks = messageCallbacks.filter((cb) => cb !== callback);
-    };
-  },
-
-  onTyping: (callback: (data: { userId: string; isTyping: boolean }) => void) => {
-    typingCallbacks.push(callback);
-    return () => {
-      typingCallbacks = typingCallbacks.filter((cb) => cb !== callback);
-    };
-  },
-
-  onOnlineStatus: (callback: (data: { userId: string; isOnline: boolean }) => void) => {
-    onlineStatusCallbacks.push(callback);
-    return () => {
-      onlineStatusCallbacks = onlineStatusCallbacks.filter((cb) => cb !== callback);
-    };
-  },
-
-  onCall: (callback: (data: any) => void) => {
-    callCallbacks.push(callback);
-    return () => {
-      callCallbacks = callCallbacks.filter((cb) => cb !== callback);
-    };
+  endCall: (receiverId: string) => {
+    if (socket?.connected) {
+      socket.emit('endCall', { receiverId });
+    }
   },
 
   sendTyping: (receiverId: string, isTyping: boolean) => {
     if (socket?.connected) {
       socket.emit('typing', { receiverId, isTyping });
+    }
+  },
+
+  onNewMessage: (callback: (msg: Message) => void): (() => void) => {
+    messageCallbacks.add(callback);
+    return () => {
+      messageCallbacks.delete(callback);
+    };
+  },
+
+  onTyping: (callback: (data: { userId: string; isTyping: boolean }) => void): (() => void) => {
+    typingCallbacks.add(callback);
+    return () => {
+      typingCallbacks.delete(callback);
+    };
+  },
+
+  onOnlineStatus: (callback: (data: { userId: string; isOnline: boolean }) => void): (() => void) => {
+    onlineStatusCallbacks.add(callback);
+    return () => {
+      onlineStatusCallbacks.delete(callback);
+    };
+  },
+
+  onCall: (callback: (data: any) => void): (() => void) => {
+    callCallbacks.add(callback);
+    return () => {
+      callCallbacks.delete(callback);
+    };
+  },
+
+  onError: (callback: (error: any) => void): (() => void) => {
+    errorCallbacks.add(callback);
+    return () => {
+      errorCallbacks.delete(callback);
+    };
+  },
+
+  reset: () => {
+    messageCallbacks.clear();
+    typingCallbacks.clear();
+    onlineStatusCallbacks.clear();
+    callCallbacks.clear();
+    errorCallbacks.clear();
+    if (socket) {
+      socket.disconnect();
+      socket = null;
     }
   },
 };

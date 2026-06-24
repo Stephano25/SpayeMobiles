@@ -1,3 +1,4 @@
+// app/(user)/chat.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -10,27 +11,33 @@ import {
   Platform,
   ActivityIndicator,
   Modal,
-  SafeAreaView,
   StatusBar,
   Dimensions,
   Alert,
   Image,
   ScrollView,
   RefreshControl,
+  Share,
+  Linking,
+  AppState,
+  PermissionsAndroid,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+// Utiliser expo-av pour la vidéo (c'est la seule solution stable)
+import { Audio, Video, ResizeMode } from 'expo-av';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { ChatService } from '../../src/services/ChatService';
 import { FriendService } from '../../src/services/FriendService';
-import { COLORS, formatTime, getInitials, getAvatarColor } from '../../src/config';
+import { COLORS, formatTime, getInitials, getAvatarColor, formatAmount } from '../../src/config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from '../../src/services/TranslationService';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 // Émojis
 const EMOJIS = [
@@ -52,6 +59,178 @@ interface CallData {
   type: 'audio' | 'video';
   fromName?: string;
 }
+
+// Composant pour afficher les médias dans les messages
+const MediaMessage = React.memo(({ item, isOwn, colors, t }: any) => {
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [position, setPosition] = useState(0);
+  const [videoStatus, setVideoStatus] = useState<any>({});
+  const videoRef = useRef<any>(null);
+
+  const getFileType = (url: string, name: string) => {
+    const ext = name?.split('.').pop()?.toLowerCase() || '';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
+    if (['mp4', 'webm', 'ogg', 'mov', 'avi'].includes(ext)) return 'video';
+    if (['mp3', 'wav', 'ogg', 'aac', 'm4a'].includes(ext)) return 'audio';
+    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return 'document';
+    return 'other';
+  };
+
+  const fileType = getFileType(item.fileUrl || '', item.fileName || '');
+  const fileUrl = item.fileUrl?.startsWith('http') ? item.fileUrl : `http://192.168.188.135:3000${item.fileUrl}`;
+
+  // Lecture audio avec expo-av
+  const playAudio = async () => {
+    if (sound) {
+      await sound.stopAsync();
+      await sound.unloadAsync();
+      setSound(null);
+      setIsPlaying(false);
+      return;
+    }
+
+    try {
+      const { sound: newSound, status } = await Audio.Sound.createAsync(
+        { uri: fileUrl },
+        { shouldPlay: true, keepAwake: false }
+      );
+      setSound(newSound);
+      setIsPlaying(true);
+      setDuration(status.durationMillis || 0);
+      
+      newSound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.isLoaded) {
+          setPosition(status.positionMillis || 0);
+          if (status.didJustFinish) {
+            setIsPlaying(false);
+            setPosition(0);
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Erreur lecture audio:', error);
+      Alert.alert('Erreur', 'Impossible de lire le fichier audio');
+    }
+  };
+
+  // Nettoyer le son
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.unloadAsync();
+      }
+    };
+  }, [sound]);
+
+  const formatDuration = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Rendu image
+  if (fileType === 'image') {
+    return (
+      <TouchableOpacity
+        onPress={() => {
+          Alert.alert('Image', 'Voir en plein écran', [
+            { text: t('cancel'), style: 'cancel' },
+            { text: 'Ouvrir', onPress: () => Linking.openURL(fileUrl) },
+          ]);
+        }}
+        style={styles.mediaContainer}
+      >
+        <Image source={{ uri: fileUrl }} style={styles.imageMessage} resizeMode="cover" />
+        <View style={styles.mediaOverlay}>
+          <TouchableOpacity onPress={() => Linking.openURL(fileUrl)} style={styles.mediaActionBtn}>
+            <Ionicons name="download-outline" size={20} color={COLORS.white} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => Share.share({ url: fileUrl })} style={styles.mediaActionBtn}>
+            <Ionicons name="share-outline" size={20} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  // Rendu vidéo avec expo-av
+  if (fileType === 'video') {
+    return (
+      <View style={styles.mediaContainer}>
+        <Video
+          ref={videoRef}
+          source={{ uri: fileUrl }}
+          style={styles.videoMessage}
+          resizeMode={ResizeMode.CONTAIN}
+          shouldPlay={false}
+          isLooping={false}
+          useNativeControls={true}
+          onPlaybackStatusUpdate={(status: any) => setVideoStatus(status)}
+        />
+        <View style={styles.mediaOverlay}>
+          <TouchableOpacity onPress={() => Linking.openURL(fileUrl)} style={styles.mediaActionBtn}>
+            <Ionicons name="download-outline" size={20} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Rendu audio avec expo-av
+  if (fileType === 'audio') {
+    return (
+      <View style={[styles.audioContainer, { backgroundColor: isOwn ? 'rgba(255,255,255,0.15)' : COLORS.gray100 }]}>
+        <TouchableOpacity onPress={playAudio} style={styles.audioPlayBtn}>
+          <Ionicons 
+            name={isPlaying ? 'pause' : 'play'} 
+            size={24} 
+            color={isOwn ? COLORS.white : COLORS.primary} 
+          />
+        </TouchableOpacity>
+        <View style={styles.audioProgress}>
+          <View style={[styles.audioProgressBar, { 
+            width: position > 0 && duration > 0 ? `${(position / duration) * 100}%` : '0%',
+            backgroundColor: isOwn ? COLORS.white : COLORS.primary 
+          }]} />
+        </View>
+        <Text style={[styles.audioDuration, { color: isOwn ? COLORS.white : COLORS.gray500 }]}>
+          {duration > 0 ? formatDuration(duration) : '0:00'}
+        </Text>
+        <Text style={[styles.audioName, { color: isOwn ? 'rgba(255,255,255,0.7)' : COLORS.gray500 }]}>
+          {item.fileName || 'Audio'}
+        </Text>
+      </View>
+    );
+  }
+
+  // Rendu document
+  if (fileType === 'document') {
+    return (
+      <TouchableOpacity
+        onPress={() => Linking.openURL(fileUrl)}
+        style={[styles.documentContainer, { backgroundColor: isOwn ? 'rgba(255,255,255,0.15)' : COLORS.gray100 }]}
+      >
+        <View style={styles.documentIcon}>
+          <Ionicons name="document-text-outline" size={32} color={isOwn ? COLORS.white : COLORS.primary} />
+        </View>
+        <View style={styles.documentInfo}>
+          <Text style={[styles.documentName, { color: isOwn ? COLORS.white : colors.text }]}>
+            {item.fileName || 'Document'}
+          </Text>
+          <Text style={[styles.documentSize, { color: isOwn ? 'rgba(255,255,255,0.6)' : COLORS.gray500 }]}>
+            {item.fileSize ? `${(item.fileSize / 1024).toFixed(1)} KB` : ''}
+          </Text>
+        </View>
+        <Ionicons name="download-outline" size={20} color={isOwn ? COLORS.white : COLORS.primary} />
+      </TouchableOpacity>
+    );
+  }
+
+  return null;
+});
 
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
@@ -86,8 +265,14 @@ export default function ChatScreen() {
   const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'ringing' | 'connected' | 'ended'>('idle');
 
   const flatListRef = useRef<FlatList>(null);
-  const typingTimeoutRef = useRef<any>(null);
-  const recordingIntervalRef = useRef<any>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const videoRef = useRef<any>(null);
+  const unsubscribeNewMessage = useRef<(() => void) | null>(null);
+  const unsubscribeTyping = useRef<(() => void) | null>(null);
+  const unsubscribeOnline = useRef<(() => void) | null>(null);
+  const unsubscribeCall = useRef<(() => void) | null>(null);
+  const unsubscribeError = useRef<(() => void) | null>(null);
 
   // ============================================================
   // INITIALISATION
@@ -97,20 +282,47 @@ export default function ChatScreen() {
     setCurrentUserId(userData?.id || '');
     
     const initChat = async () => {
-      const token = getToken();
-      if (token) {
-        await ChatService.connect(token);
+      try {
+        const token = getToken();
+        if (token) {
+          await ChatService.connect(token);
+          console.log('✅ ChatService connecté');
+        } else {
+          console.warn('⚠️ Pas de token disponible');
+        }
+        await loadAllData();
+        setupSocketListeners();
+      } catch (error) {
+        console.error('❌ Erreur d\'initialisation:', error);
+        showError(t('error_loading'));
+      } finally {
+        setLoading(false);
       }
-      await loadAllData();
-      setupSocketListeners();
-      setLoading(false);
     };
+    
     initChat();
 
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        const token = getToken();
+        if (token && !ChatService.isConnected()) {
+          ChatService.connect(token).catch(console.error);
+        }
+      }
+    });
+
     return () => {
-      ChatService.disconnect();
+      subscription.remove();
+      if (unsubscribeNewMessage.current) unsubscribeNewMessage.current();
+      if (unsubscribeTyping.current) unsubscribeTyping.current();
+      if (unsubscribeOnline.current) unsubscribeOnline.current();
+      if (unsubscribeCall.current) unsubscribeCall.current();
+      if (unsubscribeError.current) unsubscribeError.current();
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
       }
     };
   }, []);
@@ -130,19 +342,27 @@ export default function ChatScreen() {
   // CHARGEMENT DES DONNÉES
   // ============================================================
   const loadAllData = async () => {
-    await Promise.all([
-      loadConversations(),
-      loadAllFriends(),
-      loadOnlineFriends(),
-    ]);
+    try {
+      await Promise.all([
+        loadConversations(),
+        loadAllFriends(),
+        loadOnlineFriends(),
+      ]);
+    } catch (error) {
+      console.error('Erreur loadAllData:', error);
+    }
   };
 
   const loadConversations = async () => {
     try {
       const convs = await ChatService.getConversations();
-      setConversations(convs.sort((a, b) =>
-        new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime()
-      ));
+      if (convs && convs.length > 0) {
+        setConversations(convs.sort((a, b) =>
+          new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime()
+        ));
+      } else {
+        setConversations([]);
+      }
     } catch (error) {
       console.error('Erreur chargement conversations:', error);
     }
@@ -151,7 +371,7 @@ export default function ChatScreen() {
   const loadAllFriends = async () => {
     try {
       const friends = await FriendService.getFriends();
-      const accepted = friends.filter(f => f.status === 'accepted');
+      const accepted = friends.filter((f: any) => f.status === 'accepted');
       setAllFriends(accepted);
     } catch (error) {
       console.error('Erreur chargement amis:', error);
@@ -161,8 +381,8 @@ export default function ChatScreen() {
   const loadOnlineFriends = async () => {
     try {
       const friends = await FriendService.getFriends();
-      const accepted = friends.filter(f => f.status === 'accepted');
-      setOnlineFriends(accepted.filter(f => f.friend?.isOnline === true));
+      const accepted = friends.filter((f: any) => f.status === 'accepted');
+      setOnlineFriends(accepted.filter((f: any) => f.friend?.isOnline === true));
     } catch (error) {
       console.error('Erreur chargement amis en ligne:', error);
     }
@@ -172,17 +392,24 @@ export default function ChatScreen() {
   // SOCKET LISTENERS
   // ============================================================
   const setupSocketListeners = () => {
-    ChatService.onNewMessage((msg) => {
+    if (unsubscribeNewMessage.current) unsubscribeNewMessage.current();
+    if (unsubscribeTyping.current) unsubscribeTyping.current();
+    if (unsubscribeOnline.current) unsubscribeOnline.current();
+    if (unsubscribeCall.current) unsubscribeCall.current();
+    if (unsubscribeError.current) unsubscribeError.current();
+
+    unsubscribeNewMessage.current = ChatService.onNewMessage((msg) => {
+      console.log('📩 Nouveau message reçu dans ChatScreen:', msg);
       handleNewMessage(msg);
     });
 
-    ChatService.onTyping((data) => {
+    unsubscribeTyping.current = ChatService.onTyping((data) => {
       if (data && selectedContact && data.userId === selectedContact.userId) {
         setIsTyping(data.isTyping);
       }
     });
 
-    ChatService.onOnlineStatus((data) => {
+    unsubscribeOnline.current = ChatService.onOnlineStatus((data) => {
       if (!data) return;
       setConversations((prevConversations) =>
         prevConversations.map((c) =>
@@ -192,9 +419,10 @@ export default function ChatScreen() {
       loadOnlineFriends();
     });
 
-    ChatService.onCall((data) => {
+    unsubscribeCall.current = ChatService.onCall((data) => {
+      console.log('📞 Événement d\'appel reçu:', data);
       if (data.from) {
-        const friend = allFriends.find(f => f.friend?.id === data.from);
+        const friend = allFriends.find((f: any) => f.friend?.id === data.from);
         setIncomingCall({
           from: data.from,
           type: data.type || 'audio',
@@ -209,8 +437,14 @@ export default function ChatScreen() {
           setCallStatus('ended');
           showInfo(t('error'));
           setIsCalling(false);
+          setIncomingCall(null);
         }
       }
+    });
+
+    unsubscribeError.current = ChatService.onError((error) => {
+      console.error('❌ Erreur socket:', error);
+      showError(error?.message || 'Erreur de connexion');
     });
   };
 
@@ -219,7 +453,11 @@ export default function ChatScreen() {
   // ============================================================
   const handleNewMessage = (message: any) => {
     if (selectedContact && message.senderId === selectedContact.userId) {
-      setMessages((prevMessages) => [...prevMessages, message]);
+      setMessages((prevMessages) => {
+        const exists = prevMessages.some(m => m.id === message.id);
+        if (exists) return prevMessages;
+        return [...prevMessages, message];
+      });
       scrollToBottom();
       ChatService.markAsRead(selectedContact.userId);
     }
@@ -256,9 +494,11 @@ export default function ChatScreen() {
     setMessages([]);
     try {
       const msgs = await ChatService.getMessages(conv.userId);
-      setMessages(msgs.sort((a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      ));
+      if (msgs && msgs.length > 0) {
+        setMessages(msgs.sort((a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        ));
+      }
       scrollToBottom();
       await ChatService.markAsRead(conv.userId);
       setConversations((prevConversations) =>
@@ -267,6 +507,7 @@ export default function ChatScreen() {
         )
       );
     } catch (error) {
+      console.error('Erreur selectConversation:', error);
       showError(t('error_loading'));
     }
   };
@@ -277,7 +518,7 @@ export default function ChatScreen() {
       selectConversation(existing);
     } else {
       try {
-        const friend = allFriends.find(f => f.friend?.id === friendId)?.friend;
+        const friend = allFriends.find((f: any) => f.friend?.id === friendId)?.friend;
         if (friend) {
           const newConv = {
             userId: friend.id,
@@ -295,6 +536,7 @@ export default function ChatScreen() {
           showError(t('error'));
         }
       } catch (error) {
+        console.error('Erreur startChat:', error);
         showError(t('error'));
       }
     }
@@ -303,7 +545,7 @@ export default function ChatScreen() {
   // ============================================================
   // ENVOI DE MESSAGES
   // ============================================================
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!newMessage.trim() || !selectedContact || isSending) return;
 
     setIsSending(true);
@@ -323,14 +565,20 @@ export default function ChatScreen() {
     setNewMessage('');
     scrollToBottom();
 
-    ChatService.sendMessage({
-      receiverId: selectedContact.userId,
-      type: 'text',
-      content: tempMsg.content,
-    });
-
-    ChatService.sendTyping(selectedContact.userId, false);
-    setTimeout(() => setIsSending(false), 500);
+    try {
+      await ChatService.sendMessage({
+        receiverId: selectedContact.userId,
+        type: 'text',
+        content: tempMsg.content,
+      });
+      ChatService.sendTyping(selectedContact.userId, false);
+    } catch (error) {
+      console.error('Erreur envoi message:', error);
+      showError('Erreur lors de l\'envoi du message');
+      setMessages((prev) => prev.filter(msg => msg.id !== tempId));
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const sendEmoji = (emoji: string) => {
@@ -362,28 +610,71 @@ export default function ChatScreen() {
   // ============================================================
   // MESSAGES VOCAUX
   // ============================================================
-  const startVoiceRecording = () => {
+  const requestMicrophonePermission = async (): Promise<boolean> => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          {
+            title: 'Permission microphone',
+            message: 'SPaye a besoin d\'accéder à votre microphone pour les messages vocaux.',
+            buttonNeutral: 'Demander plus tard',
+            buttonNegative: 'Annuler',
+            buttonPositive: 'OK',
+          }
+        );
+        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      } else {
+        const { status } = await Audio.requestPermissionsAsync();
+        return status === 'granted';
+      }
+    } catch (error) {
+      console.error('Erreur permission microphone:', error);
+      return false;
+    }
+  };
+
+  const startVoiceRecording = async () => {
     if (!selectedContact) return;
     
     if (!isRecording) {
-      setIsRecording(true);
-      setRecordingTime(0);
-      showInfo(t('voice_recording'));
-      
-      recordingIntervalRef.current = setInterval(() => {
-        setRecordingTime((prevTime) => prevTime + 1);
-      }, 1000);
+      try {
+        const hasPermission = await requestMicrophonePermission();
+        if (!hasPermission) {
+          showError('Permission microphone requise');
+          return;
+        }
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        setIsRecording(true);
+        setRecordingTime(0);
+        showInfo('🎤 Enregistrement vocal...');
+        
+        recordingIntervalRef.current = setInterval(() => {
+          setRecordingTime((prev) => prev + 1);
+        }, 1000);
+      } catch (error) {
+        console.error('Erreur enregistrement:', error);
+        showError('Erreur accès microphone');
+        setIsRecording(false);
+      }
     } else {
       setIsRecording(false);
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
+        recordingIntervalRef.current = null;
       }
       
+      const audioId = 'temp-audio-' + Date.now();
       const tempMsg = {
-        id: 'temp-audio-' + Date.now(),
+        id: audioId,
         senderId: currentUserId,
         receiverId: selectedContact.userId,
-        type: 'file',
+        type: 'audio',
         content: `🎤 Message vocal (${recordingTime}s)`,
         fileUrl: 'https://example.com/audio.mp3',
         fileName: `audio_${Date.now()}.mp3`,
@@ -396,16 +687,22 @@ export default function ChatScreen() {
       setMessages((prevMessages) => [...prevMessages, tempMsg]);
       scrollToBottom();
       
-      ChatService.sendMessage({
-        receiverId: selectedContact.userId,
-        type: 'file',
-        content: `🎤 Message vocal (${recordingTime}s)`,
-        fileUrl: 'https://example.com/audio.mp3',
-        fileName: `audio_${Date.now()}.mp3`,
-        fileSize: recordingTime * 16,
-      });
+      try {
+        await ChatService.sendMessage({
+          receiverId: selectedContact.userId,
+          type: 'audio',
+          content: `🎤 Message vocal (${recordingTime}s)`,
+          fileUrl: 'https://example.com/audio.mp3',
+          fileName: `audio_${Date.now()}.mp3`,
+          fileSize: recordingTime * 16,
+        });
+        showSuccess('Message vocal envoyé');
+      } catch (error) {
+        console.error('Erreur envoi message vocal:', error);
+        showError('Erreur lors de l\'envoi du message vocal');
+        setMessages((prev) => prev.filter(msg => msg.id !== audioId));
+      }
       
-      showSuccess(t('success'));
       setRecordingTime(0);
     }
   };
@@ -418,8 +715,8 @@ export default function ChatScreen() {
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
-        allowsEditing: true,
+        mediaTypes: ImagePicker.MediaType.All,
+        allowsEditing: false,
         quality: 0.8,
       });
 
@@ -438,14 +735,20 @@ export default function ChatScreen() {
         }
 
         setIsSending(true);
+        
+        const mimeType = file.type || '';
+        let type: 'image' | 'video' | 'audio' | 'file' = 'file';
+        if (mimeType.startsWith('image/')) type = 'image';
+        else if (mimeType.startsWith('video/')) type = 'video';
+        else if (mimeType.startsWith('audio/')) type = 'audio';
+
         const uploadResult = await ChatService.uploadFile(file);
-        const type = file.type?.startsWith('image/') ? 'image' : 'file';
 
         const tempMsg = {
           id: 'temp-file-' + Date.now(),
           senderId: currentUserId,
           receiverId: selectedContact.userId,
-          type: type as any,
+          type: type,
           fileUrl: uploadResult.url,
           fileName: uploadResult.fileName || file.name,
           fileSize: uploadResult.fileSize || file.size || 0,
@@ -457,19 +760,20 @@ export default function ChatScreen() {
         setMessages((prevMessages) => [...prevMessages, tempMsg]);
         scrollToBottom();
 
-        ChatService.sendMessage({
+        await ChatService.sendMessage({
           receiverId: selectedContact.userId,
-          type: type as any,
+          type: type,
           fileUrl: uploadResult.url,
           fileName: uploadResult.fileName || file.name,
           fileSize: uploadResult.fileSize || file.size || 0,
         });
 
         setIsSending(false);
-        showSuccess(t('success'));
+        showSuccess('Fichier envoyé');
       }
     } catch (error) {
-      showError(t('error'));
+      console.error('Erreur upload:', error);
+      showError('Erreur lors de l\'upload');
       setIsSending(false);
     }
   };
@@ -492,12 +796,14 @@ export default function ChatScreen() {
     ChatService.startCall(selectedContact.userId, type);
     showInfo(`${type === 'audio' ? t('call') : t('video_call')}...`);
 
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       if (callStatus === 'calling') {
         setCallStatus('connected');
         showInfo(`${type === 'audio' ? t('call') : t('video_call')} ${t('success')}`);
       }
     }, 3000);
+
+    return () => clearTimeout(timeoutId);
   };
 
   const acceptCall = () => {
@@ -522,7 +828,10 @@ export default function ChatScreen() {
     setCallStatus('ended');
     setIsCalling(false);
     setIncomingCall(null);
-    showInfo(t('error'));
+    if (selectedContact) {
+      ChatService.endCall(selectedContact.userId);
+    }
+    showInfo('Appel terminé');
   };
 
   // ============================================================
@@ -558,6 +867,7 @@ export default function ChatScreen() {
               }
               loadOnlineFriends();
             } catch (error) {
+              console.error('Erreur block:', error);
               showError(t('error'));
             }
           },
@@ -577,7 +887,9 @@ export default function ChatScreen() {
   const onTyping = () => {
     if (!selectedContact) return;
     ChatService.sendTyping(selectedContact.userId, true);
-    clearTimeout(typingTimeoutRef.current);
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
     typingTimeoutRef.current = setTimeout(() => {
       if (selectedContact) {
         ChatService.sendTyping(selectedContact.userId, false);
@@ -585,11 +897,11 @@ export default function ChatScreen() {
     }, 1000);
   };
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  };
+  }, []);
 
   const goBackToList = () => {
     setShowConversationsList(true);
@@ -631,58 +943,29 @@ export default function ChatScreen() {
             { backgroundColor: isOwn ? COLORS.primary : colors.card },
           ]}
         >
-          {item.type === 'image' ? (
-            <TouchableOpacity
-              onPress={() => {
-                Alert.alert('Image', 'Voulez-vous ouvrir cette image ?', [
-                  { text: t('cancel'), style: 'cancel' },
-                  { text: 'Ouvrir', onPress: () => {} },
-                ]);
-              }}
-              style={styles.imageMessage}
-            >
-              <Image source={{ uri: item.fileUrl }} style={styles.messageImage} resizeMode="cover" />
-              <View style={styles.imageOverlay}>
-                <Ionicons name="download-outline" size={20} color={COLORS.white} />
-              </View>
-            </TouchableOpacity>
-          ) : item.type === 'file' ? (
-            <TouchableOpacity
-              onPress={() => {
-                Alert.alert(t('upload_file'), `${t('confirm_delete')} ${item.fileName || 'le fichier'} ?`, [
-                  { text: t('cancel'), style: 'cancel' },
-                  { text: 'Télécharger', onPress: () => {} },
-                ]);
-              }}
-              style={[styles.fileMessage, { backgroundColor: isOwn ? 'rgba(255,255,255,0.2)' : COLORS.gray100 }]}
-            >
-              <Ionicons
-                name={item.content?.includes('🎤') ? 'mic-outline' : 'document-outline'}
-                size={24}
-                color={isOwn ? COLORS.white : COLORS.primary}
-              />
-              <View style={styles.fileInfo}>
-                <Text style={[styles.fileName, { color: isOwn ? COLORS.white : colors.text }]}>
-                  {item.fileName || t('upload_file')}
-                </Text>
-                <Text style={[styles.fileSize, { color: isOwn ? 'rgba(255,255,255,0.7)' : COLORS.gray500 }]}>
-                  {item.fileSize ? `${(item.fileSize / 1024).toFixed(1)} KB` : ''}
-                </Text>
-              </View>
-              <Ionicons name="download-outline" size={20} color={isOwn ? COLORS.white : COLORS.primary} />
-            </TouchableOpacity>
-          ) : item.type === 'money' ? (
-            <View style={styles.moneyMessage}>
-              <Ionicons name="cash-outline" size={20} color={isOwn ? COLORS.white : COLORS.success} />
-              <Text style={[styles.moneyText, { color: isOwn ? COLORS.white : COLORS.success }]}>
-                💰 {item.moneyTransfer?.amount || 0} Ar
-              </Text>
-            </View>
-          ) : (
+          {(item.type === 'image' || item.type === 'video' || item.type === 'audio' || item.type === 'file') && (
+            <MediaMessage item={item} isOwn={isOwn} colors={colors} t={t} />
+          )}
+
+          {item.type === 'text' && (
             <Text style={[styles.messageText, { color: isOwn ? COLORS.white : colors.text }]}>
               {content}
             </Text>
           )}
+
+          {item.type === 'emoji' && (
+            <Text style={styles.bigEmoji}>{item.emoji}</Text>
+          )}
+
+          {item.type === 'money' && (
+            <View style={styles.moneyMessage}>
+              <Ionicons name="cash-outline" size={20} color={isOwn ? COLORS.white : COLORS.success} />
+              <Text style={[styles.moneyText, { color: isOwn ? COLORS.white : COLORS.success }]}>
+                💰 {formatAmount(item.moneyTransfer?.amount || 0)} Ar
+              </Text>
+            </View>
+          )}
+
           <Text style={[styles.time, { color: isOwn ? 'rgba(255,255,255,0.7)' : COLORS.gray500 }]}>
             {formatTime(item.createdAt)}
           </Text>
@@ -1072,14 +1355,13 @@ export default function ChatScreen() {
 }
 
 // ============================================================
-// STYLES - INCHANGÉS
+// STYLES
 // ============================================================
 const styles = StyleSheet.create({
   container: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   chatLayout: { flex: 1, flexDirection: 'row' },
 
-  // ── CONVERSATIONS PANEL ──
   conversationsPanel: {
     width: 320,
     borderRightWidth: 0.5,
@@ -1192,7 +1474,6 @@ const styles = StyleSheet.create({
   },
   unreadText: { color: COLORS.white, fontSize: 11, fontWeight: 'bold' },
 
-  // ── CHAT AREA ──
   chatArea: { flex: 1, flexDirection: 'column' },
   chatHeader: {
     flexDirection: 'row',
@@ -1249,33 +1530,70 @@ const styles = StyleSheet.create({
   bubbleRight: { borderBottomRightRadius: 4 },
   bubbleLeft: { borderBottomLeftRadius: 4 },
   messageText: { fontSize: 14 },
+  bigEmoji: { fontSize: 40, textAlign: 'center' },
   time: { fontSize: 10, marginTop: 4, opacity: 0.65, alignSelf: 'flex-end' },
-  imageMessage: { borderRadius: 12, overflow: 'hidden', position: 'relative' },
-  messageImage: { width: 200, height: 150, borderRadius: 12 },
-  imageOverlay: {
+
+  mediaContainer: { borderRadius: 12, overflow: 'hidden', position: 'relative' },
+  imageMessage: { width: 200, height: 150, borderRadius: 12 },
+  videoMessage: { width: 200, height: 150, borderRadius: 12 },
+  mediaOverlay: {
     position: 'absolute',
     top: 8,
     right: 8,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  mediaActionBtn: {
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 20,
     padding: 6,
   },
-  fileMessage: {
+  audioContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 8,
-    paddingHorizontal: 12,
     borderRadius: 12,
     gap: 8,
-    minWidth: 160,
+    minWidth: 200,
   },
-  fileInfo: { flex: 1 },
-  fileName: { fontSize: 13, fontWeight: '500' },
-  fileSize: { fontSize: 11, marginTop: 2 },
+  audioPlayBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(99,102,241,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  audioProgress: {
+    flex: 1,
+    height: 4,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  audioProgressBar: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  audioDuration: { fontSize: 12, minWidth: 40 },
+  audioName: { fontSize: 10, opacity: 0.7, maxWidth: 80 },
+
+  documentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    gap: 12,
+    minWidth: 180,
+  },
+  documentIcon: { width: 40, height: 40, borderRadius: 8, backgroundColor: 'rgba(99,102,241,0.1)', alignItems: 'center', justifyContent: 'center' },
+  documentInfo: { flex: 1 },
+  documentName: { fontSize: 13, fontWeight: '500' },
+  documentSize: { fontSize: 11 },
+
   moneyMessage: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   moneyText: { fontSize: 14, fontWeight: '600' },
 
-  // ── MESSAGE INPUT AREA ──
   messageInputArea: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1305,7 +1623,6 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: { opacity: 0.45 },
 
-  // ── EMOJI PICKER ──
   emojiPicker: {
     position: 'absolute',
     bottom: 80,
@@ -1334,7 +1651,6 @@ const styles = StyleSheet.create({
   },
   emojiCloseText: { color: COLORS.white, fontWeight: '500', fontSize: 13 },
 
-  // ── ONLINE FRIENDS PANEL ──
   onlineFriendsPanel: {
     width: 220,
     borderLeftWidth: 0.5,
@@ -1385,7 +1701,6 @@ const styles = StyleSheet.create({
   },
   onlineFriendNameText: { fontSize: 13, fontWeight: '500' },
 
-  // ── EMPTY STATE ──
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
   emptyText: { fontSize: 15, marginTop: 12 },
   emptyBtn: {
@@ -1397,7 +1712,6 @@ const styles = StyleSheet.create({
   },
   emptyBtnText: { color: COLORS.white, fontWeight: '600', fontSize: 14 },
 
-  // ── CALL MODAL ──
   callModal: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.8)',
