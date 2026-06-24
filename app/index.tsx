@@ -93,7 +93,6 @@ export default function UserHome() {
 
   return (
     <SafeScreen backgroundColor={colors.background} withTabBar={true}>
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <View style={styles.headerTop}>
           <View>
@@ -113,12 +112,11 @@ export default function UserHome() {
         </View>
 
         <View style={styles.balanceBox}>
-          <Text style={styles.balanceLabel}>Solde disponible</Text>
+          <Text style={styles.balanceLabel}>{t('balance')}</Text>
           <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
         </View>
       </View>
 
-      {/* Actions rapides - 4 par ligne */}
       <View style={styles.actionsGrid}>
         {quickActions.slice(0, 4).map((a) => (
           <TouchableOpacity
@@ -134,7 +132,6 @@ export default function UserHome() {
         ))}
       </View>
 
-      {/* Actions rapides - suite (4 par ligne) */}
       <View style={styles.actionsGrid}>
         {quickActions.slice(4, 8).map((a) => (
           <TouchableOpacity
@@ -150,19 +147,18 @@ export default function UserHome() {
         ))}
       </View>
 
-      {/* Transactions récentes */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Transactions récentes
+            {t('recent_activity')}
           </Text>
           <TouchableOpacity onPress={() => router.push('/(user)/transactions')}>
-            <Text style={styles.seeAll}>Voir tout</Text>
+            <Text style={styles.seeAll}>{t('view_all')}</Text>
           </TouchableOpacity>
         </View>
 
         {recentTx.length === 0 ? (
-          <Text style={styles.empty}>Aucune transaction</Text>
+          <Text style={styles.empty}>{t('no_transactions')}</Text>
         ) : (
           recentTx.map((tx) => {
             const isCredit = tx.type === 'deposit' || tx.type === 'receive';

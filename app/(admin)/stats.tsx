@@ -7,24 +7,39 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/context/ThemeContext';
 import { AdminService } from '../../src/services/AdminService';
 import { COLORS, formatAmount } from '../../src/config';
 import { router } from 'expo-router';
+import { useTranslation } from '../../src/services/TranslationService';
+
+function StatRow({ label, value, color, icon }: { label: string; value: string | number; color: string; icon: string }) {
+  return (
+    <View style={styles.statRow}>
+      <View style={[styles.statIcon, { backgroundColor: color + '18' }]}>
+        <Ionicons name={icon as any} size={18} color={color} />
+      </View>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statValue, { color }]}>{value}</Text>
+    </View>
+  );
+}
 
 export default function AdminStatsScreen() {
   const { colors } = useTheme();
+  const { t } = useTranslation();
   const [stats, setStats] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    load();
-  }, []);
-
   const load = async () => {
-    const data = await AdminService.getDashboardStats();
-    setStats(data);
+    try {
+      const data = await AdminService.getDashboardStats();
+      setStats(data);
+    } catch {}
   };
+
+  useEffect(() => { load(); }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -32,32 +47,31 @@ export default function AdminStatsScreen() {
     setRefreshing(false);
   };
 
-  if (!stats) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center' }}>
-        <Text>Chargement...</Text>
-      </View>
-    );
-  }
-
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
     >
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>←</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Statistiques</Text>
+        <Text style={styles.headerTitle}>{t('statistics')}</Text>
         <View style={{ width: 40 }} />
       </View>
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        <Text style={styles.kpi}>Total utilisateurs : {stats.totalUsers}</Text>
-        <Text style={styles.kpi}>Utilisateurs actifs : {stats.activeUsers}</Text>
-        <Text style={styles.kpi}>Transactions : {stats.totalTransactions}</Text>
-        <Text style={styles.kpi}>Volume total : {formatAmount(stats.totalVolume)} Ar</Text>
-      </View>
+
+      {!stats ? (
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>{t('loading')}</Text>
+        </View>
+      ) : (
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <StatRow label={t('total_users')} value={stats.totalUsers} color={COLORS.primary} icon="people" />
+          <StatRow label={t('active_users')} value={stats.activeUsers} color={COLORS.success} icon="checkmark-circle" />
+          <StatRow label={t('total_transactions')} value={stats.totalTransactions} color={COLORS.warning} icon="swap-horizontal" />
+          <StatRow label={t('total_volume')} value={`${formatAmount(stats.totalVolume)} Ar`} color={COLORS.secondary} icon="wallet" />
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -72,8 +86,20 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     paddingHorizontal: 20,
   },
-  backText: { fontSize: 24, color: COLORS.white },
+  backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
-  card: { margin: 20, padding: 20, borderRadius: 16 },
-  kpi: { fontSize: 16, marginVertical: 8 },
+  card: { margin: 20, padding: 4, borderRadius: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: COLORS.gray100,
+    gap: 12,
+  },
+  statIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  statLabel: { flex: 1, fontSize: 14, color: COLORS.gray500, fontWeight: '500' },
+  statValue: { fontSize: 16, fontWeight: '700' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 80 },
+  loadingText: { fontSize: 16 },
 });

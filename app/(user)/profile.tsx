@@ -65,7 +65,6 @@ export default function ProfileScreen() {
 
   return (
     <SafeScreen backgroundColor={colors.background}>
-      {/* Header */}
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.white} />
@@ -76,14 +75,12 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Avatar */}
       <View style={styles.avatarContainer}>
         <Text style={styles.avatarText}>
           {getInitials(user?.firstName || '', user?.lastName || '')}
         </Text>
       </View>
 
-      {/* Carte profil */}
       <View style={[styles.card, { backgroundColor: colors.card }]}>
         {editMode ? (
           <>
@@ -164,7 +161,6 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      {/* Bouton déconnexion */}
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={20} color={COLORS.white} />
         <Text style={styles.logoutText}>{t('logout')}</Text>

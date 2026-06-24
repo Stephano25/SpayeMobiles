@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { storage } from '../utils/storage';
 import { COLORS } from '../config';
-import { TranslationService } from '../services/TranslationService';
+import { TranslationService, languageEvents } from '../services/TranslationService';
 
 type ThemeType = 'light' | 'dark' | 'system';
 
@@ -15,11 +15,11 @@ const lightTheme = {
 };
 
 const darkTheme = {
-  background: COLORS.gray900,
-  card: COLORS.gray800,
+  background: '#0d0d1a',
+  card: '#1a1a2e',
   text: COLORS.white,
   textSecondary: COLORS.gray400,
-  border: COLORS.gray700,
+  border: '#2d2d44',
 };
 
 interface ThemeContextType {
@@ -27,74 +27,67 @@ interface ThemeContextType {
   isDark: boolean;
   colors: typeof lightTheme;
   setTheme: (t: ThemeType) => Promise<void>;
-  changeLanguage: (lang: string) => Promise<void>;
   currentLanguage: string;
+  changeLanguage: (lang: string) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const useTheme = () => {
-  const context = useContext(ThemeContext);
-  if (!context) throw new Error('useTheme must be used within ThemeProvider');
-  return context;
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
+  return ctx;
 };
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const system = useColorScheme();
   const [theme, setThemeState] = useState<ThemeType>('light');
   const [isDark, setIsDark] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState<string>('fr');
+  const [currentLanguage, setCurrentLanguage] = useState('fr');
 
-  const translationService = TranslationService.getInstance();
+  const service = TranslationService.getInstance();
 
   useEffect(() => {
     load();
-    loadLanguage();
+    service.init().then(() => {
+      setCurrentLanguage(service.getLanguage());
+    });
+    const unsub = languageEvents.subscribe((lang) => {
+      setCurrentLanguage(lang);
+    });
+    return unsub;
   }, []);
 
   useEffect(() => {
-    if (theme === 'system') {
-      setIsDark(system === 'dark');
-    }
+    if (theme === 'system') setIsDark(system === 'dark');
   }, [system, theme]);
 
   const load = async () => {
     const saved = await storage.getItem<ThemeType>('theme');
     const t = saved || 'light';
     setThemeState(t);
-    if (t === 'system') setIsDark(system === 'dark');
-    else setIsDark(t === 'dark');
-  };
-
-  const loadLanguage = async () => {
-    const lang = await translationService.getLanguage();
-    setCurrentLanguage(lang);
+    setIsDark(t === 'system' ? system === 'dark' : t === 'dark');
   };
 
   const setTheme = async (newTheme: ThemeType) => {
     await storage.setItem('theme', newTheme);
     setThemeState(newTheme);
-    if (newTheme === 'system') setIsDark(system === 'dark');
-    else setIsDark(newTheme === 'dark');
+    setIsDark(newTheme === 'system' ? system === 'dark' : newTheme === 'dark');
   };
 
-  // 🔥 Fonction pour changer la langue
   const changeLanguage = async (lang: string) => {
-    await translationService.setLanguage(lang);
-    setCurrentLanguage(lang);
+    await service.setLanguage(lang);
   };
-
-  const colors = isDark ? darkTheme : lightTheme;
 
   return (
-    <ThemeContext.Provider 
-      value={{ 
-        theme, 
-        isDark, 
-        colors, 
-        setTheme, 
+    <ThemeContext.Provider
+      value={{
+        theme,
+        isDark,
+        colors: isDark ? darkTheme : lightTheme,
+        setTheme,
+        currentLanguage,
         changeLanguage,
-        currentLanguage 
       }}
     >
       {children}

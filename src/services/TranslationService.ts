@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { storage } from '../utils/storage';
 
-// Dictionnaire complet des traductions
+// ============================================================
+// DICTIONNAIRE COMPLET - TOUTES LES TRADUCTIONS
+// ============================================================
 const TRANSLATIONS = {
   fr: {
-    // ============================================================
     // Général
-    // ============================================================
     'app_name': 'SPaye',
     'loading': 'Chargement...',
     'error': 'Erreur',
@@ -27,10 +27,25 @@ const TRANSLATIONS = {
     'not_specified': 'Non renseigné',
     'balance': 'Solde disponible',
     'search': 'Rechercher',
+    'dashboard': 'Tableau de bord',
+    'overview': 'Vue d\'ensemble',
+    'users': 'Utilisateurs',
+    'total_users': 'Total utilisateurs',
+    'active_users': 'Utilisateurs actifs',
+    'total_transactions': 'Total transactions',
+    'total_volume': 'Volume total',
+    'statistics': 'Statistiques',
+    'maintenance_mode': 'Mode maintenance',
+    'admin_profile': 'Profil Administrateur',
+    'super_admin': 'Super Administrateur',
+    'admin': 'Administrateur',
+    'user': 'Utilisateur',
+    'role': 'Rôle',
+    'active': 'Actif',
+    'inactive': 'Inactif',
+    'friends_label': 'Amis',
 
-    // ============================================================
     // Connexion
-    // ============================================================
     'login': 'Se connecter',
     'register': 'S\'inscrire',
     'email': 'Email',
@@ -45,9 +60,7 @@ const TRANSLATIONS = {
     'continue_with_google': 'Continuer avec Google',
     'or': 'ou',
 
-    // ============================================================
-    // Portefeuille - 🔥 CORRIGÉ AVEC TOUTES LES TRADUCTIONS
-    // ============================================================
+    // Portefeuille
     'send': 'Envoyer',
     'receive': 'Recevoir',
     'mobile_money': 'Mobile Money',
@@ -71,9 +84,7 @@ const TRANSLATIONS = {
     'operator': 'Opérateur',
     'select_operator': 'Choisissez votre opérateur',
 
-    // ============================================================
     // Amis
-    // ============================================================
     'my_friends': 'Mes Amis',
     'add_friend': 'Ajouter un ami',
     'friend_requests': 'Demandes reçues',
@@ -93,9 +104,7 @@ const TRANSLATIONS = {
     'results': 'Résultats',
     'no_result': 'Aucun résultat',
 
-    // ============================================================
     // QR Code
-    // ============================================================
     'my_qr_code': 'Mon QR Code',
     'scan_qr_code': 'Scanner un QR Code',
     'share_contact': 'Partager mon contact',
@@ -104,9 +113,7 @@ const TRANSLATIONS = {
     'copy': 'Copier',
     'share': 'Partager',
 
-    // ============================================================
     // Paramètres
-    // ============================================================
     'general': 'Général',
     'security': 'Sécurité',
     'privacy': 'Confidentialité',
@@ -126,18 +133,14 @@ const TRANSLATIONS = {
     'english': 'English',
     'malagasy': 'Malagasy',
 
-    // ============================================================
     // Sécurité
-    // ============================================================
     'current_password': 'Mot de passe actuel',
     'new_password': 'Nouveau mot de passe',
     'change_password': 'Changer le mot de passe',
     'two_factor_auth': 'Authentification 2FA',
     'login_alerts': 'Alertes de connexion',
 
-    // ============================================================
     // Confidentialité
-    // ============================================================
     'show_last_seen': 'Afficher la dernière connexion',
     'show_online_status': 'Afficher le statut en ligne',
     'allow_friend_requests': 'Autoriser les demandes d\'amis',
@@ -146,18 +149,14 @@ const TRANSLATIONS = {
     'private': 'Privé',
     'friends_only': 'Amis uniquement',
 
-    // ============================================================
     // Notifications
-    // ============================================================
     'email_notifications': 'Notifications par email',
     'push_notifications': 'Notifications push',
     'sms_notifications': 'Notifications par SMS',
     'friend_request_notifications': 'Demandes d\'amis',
     'message_notifications': 'Nouveaux messages',
 
-    // ============================================================
     // Chat
-    // ============================================================
     'type_message': 'Écrire un message...',
     'no_conversations': 'Aucune conversation',
     'start_chat': 'Démarrer une discussion',
@@ -168,9 +167,7 @@ const TRANSLATIONS = {
     'video_call': 'Appel vidéo',
     'typing': 'En train d\'écrire...',
 
-    // ============================================================
-    // Transactions - 🔥 CORRIGÉ
-    // ============================================================
+    // Transactions
     'transaction_history': 'Historique des transactions',
     'transaction_details': 'Détails de la transaction',
     'sender': 'Expéditeur',
@@ -184,14 +181,8 @@ const TRANSLATIONS = {
     'deposit': 'Dépôt',
     'withdrawal': 'Retrait',
     'payment': 'Paiement',
-    'transfer': 'Transfert',
-    'mobile_money': 'Mobile Money',
-    'receive': 'Réception',
-    'send': 'Envoi',
 
-    // ============================================================
     // Messages d'erreur
-    // ============================================================
     'error_loading': 'Erreur de chargement',
     'error_connection': 'Erreur de connexion',
     'error_save': 'Erreur lors de la sauvegarde',
@@ -201,9 +192,6 @@ const TRANSLATIONS = {
     'confirm_delete': 'Voulez-vous vraiment supprimer ?',
   },
   en: {
-    // ============================================================
-    // General
-    // ============================================================
     'app_name': 'SPaye',
     'loading': 'Loading...',
     'error': 'Error',
@@ -224,10 +212,23 @@ const TRANSLATIONS = {
     'not_specified': 'Not specified',
     'balance': 'Available balance',
     'search': 'Search',
-
-    // ============================================================
-    // Login
-    // ============================================================
+    'dashboard': 'Dashboard',
+    'overview': 'Platform overview',
+    'users': 'Users',
+    'total_users': 'Total users',
+    'active_users': 'Active users',
+    'total_transactions': 'Total transactions',
+    'total_volume': 'Total volume',
+    'statistics': 'Statistics',
+    'maintenance_mode': 'Maintenance mode',
+    'admin_profile': 'Admin Profile',
+    'super_admin': 'Super Administrator',
+    'admin': 'Administrator',
+    'user': 'User',
+    'role': 'Role',
+    'active': 'Active',
+    'inactive': 'Inactive',
+    'friends_label': 'Friends',
     'login': 'Login',
     'register': 'Register',
     'email': 'Email',
@@ -241,10 +242,6 @@ const TRANSLATIONS = {
     'phone': 'Phone',
     'continue_with_google': 'Continue with Google',
     'or': 'or',
-
-    // ============================================================
-    // Wallet
-    // ============================================================
     'send': 'Send',
     'receive': 'Receive',
     'mobile_money': 'Mobile Money',
@@ -267,10 +264,6 @@ const TRANSLATIONS = {
     'maximum_amount': 'Maximum amount',
     'operator': 'Operator',
     'select_operator': 'Select your operator',
-
-    // ============================================================
-    // Friends
-    // ============================================================
     'my_friends': 'My Friends',
     'add_friend': 'Add friend',
     'friend_requests': 'Friend requests',
@@ -289,10 +282,6 @@ const TRANSLATIONS = {
     'suggestions': 'Suggestions',
     'results': 'Results',
     'no_result': 'No result',
-
-    // ============================================================
-    // QR Code
-    // ============================================================
     'my_qr_code': 'My QR Code',
     'scan_qr_code': 'Scan QR Code',
     'share_contact': 'Share my contact',
@@ -300,10 +289,6 @@ const TRANSLATIONS = {
     'scan_hint': 'Place the QR code in the frame',
     'copy': 'Copy',
     'share': 'Share',
-
-    // ============================================================
-    // Settings
-    // ============================================================
     'general': 'General',
     'security': 'Security',
     'privacy': 'Privacy',
@@ -322,19 +307,11 @@ const TRANSLATIONS = {
     'french': 'French',
     'english': 'English',
     'malagasy': 'Malagasy',
-
-    // ============================================================
-    // Security
-    // ============================================================
     'current_password': 'Current password',
     'new_password': 'New password',
     'change_password': 'Change password',
-    'two_factor_auth': '2FA',
+    'two_factor_auth': '2FA Authentication',
     'login_alerts': 'Login alerts',
-
-    // ============================================================
-    // Privacy
-    // ============================================================
     'show_last_seen': 'Show last seen',
     'show_online_status': 'Show online status',
     'allow_friend_requests': 'Allow friend requests',
@@ -342,19 +319,11 @@ const TRANSLATIONS = {
     'public': 'Public',
     'private': 'Private',
     'friends_only': 'Friends only',
-
-    // ============================================================
-    // Notifications
-    // ============================================================
     'email_notifications': 'Email notifications',
     'push_notifications': 'Push notifications',
     'sms_notifications': 'SMS notifications',
     'friend_request_notifications': 'Friend requests',
     'message_notifications': 'New messages',
-
-    // ============================================================
-    // Chat
-    // ============================================================
     'type_message': 'Type a message...',
     'no_conversations': 'No conversations',
     'start_chat': 'Start a conversation',
@@ -364,10 +333,6 @@ const TRANSLATIONS = {
     'call': 'Call',
     'video_call': 'Video call',
     'typing': 'Typing...',
-
-    // ============================================================
-    // Transactions
-    // ============================================================
     'transaction_history': 'Transaction history',
     'transaction_details': 'Transaction details',
     'sender': 'Sender',
@@ -381,14 +346,6 @@ const TRANSLATIONS = {
     'deposit': 'Deposit',
     'withdrawal': 'Withdrawal',
     'payment': 'Payment',
-    'transfer': 'Transfer',
-    'mobile_money': 'Mobile Money',
-    'receive': 'Receive',
-    'send': 'Send',
-
-    // ============================================================
-    // Error messages
-    // ============================================================
     'error_loading': 'Error loading',
     'error_connection': 'Connection error',
     'error_save': 'Error saving',
@@ -398,9 +355,6 @@ const TRANSLATIONS = {
     'confirm_delete': 'Are you sure you want to delete?',
   },
   mg: {
-    // ============================================================
-    // Général
-    // ============================================================
     'app_name': 'SPaye',
     'loading': 'Fandrasana...',
     'error': 'Diso',
@@ -421,10 +375,23 @@ const TRANSLATIONS = {
     'not_specified': 'Tsy voalaza',
     'balance': 'Volana misy',
     'search': 'Tadiavo',
-
-    // ============================================================
-    // Connexion
-    // ============================================================
+    'dashboard': 'Tabilao',
+    'overview': 'Fijery ankapobeny',
+    'users': 'Mpampiasa',
+    'total_users': 'Mpampiasa rehetra',
+    'active_users': 'Mpampiasa mavitrika',
+    'total_transactions': 'Fifanakalozana rehetra',
+    'total_volume': 'Vola rehetra',
+    'statistics': 'Statistika',
+    'maintenance_mode': 'Fomba fikojakojana',
+    'admin_profile': 'Momoko Mpitantana',
+    'super_admin': 'Mpitantana Ambony',
+    'admin': 'Mpitantana',
+    'user': 'Mpampiasa',
+    'role': 'Anjara',
+    'active': 'Mavitrika',
+    'inactive': 'Tsy mavitrika',
+    'friends_label': 'Namana',
     'login': 'Hiditra',
     'register': 'Hisoratra',
     'email': 'Mailaka',
@@ -438,10 +405,6 @@ const TRANSLATIONS = {
     'phone': 'Telefaonina',
     'continue_with_google': 'Tohizo amin\'ny Google',
     'or': 'na',
-
-    // ============================================================
-    // Portefeuille
-    // ============================================================
     'send': 'Handefa',
     'receive': 'Handray',
     'mobile_money': 'Volan\'ny finday',
@@ -464,10 +427,6 @@ const TRANSLATIONS = {
     'maximum_amount': 'Volana indrindra',
     'operator': 'Mpandraharaha',
     'select_operator': 'Misafidia mpandraharaha',
-
-    // ============================================================
-    // Amis
-    // ============================================================
     'my_friends': 'Namako',
     'add_friend': 'Hanampy namana',
     'friend_requests': 'Fangatahana namana',
@@ -486,10 +445,6 @@ const TRANSLATIONS = {
     'suggestions': 'Soso-kevitra',
     'results': 'Valiny',
     'no_result': 'Tsy misy valiny',
-
-    // ============================================================
-    // QR Code
-    // ============================================================
     'my_qr_code': 'Ny QR Code-ko',
     'scan_qr_code': 'Scan QR Code',
     'share_contact': 'Hizara ny fifandraisako',
@@ -497,10 +452,6 @@ const TRANSLATIONS = {
     'scan_hint': 'Apetraho ao anaty refy ny QR code',
     'copy': 'Adika',
     'share': 'Hizara',
-
-    // ============================================================
-    // Paramètres
-    // ============================================================
     'general': 'Ankapobeny',
     'security': 'Fiarovana',
     'privacy': 'Tsiambaratelo',
@@ -519,19 +470,11 @@ const TRANSLATIONS = {
     'french': 'Frantsay',
     'english': 'Anglisy',
     'malagasy': 'Malagasy',
-
-    // ============================================================
-    // Sécurité
-    // ============================================================
     'current_password': 'Tenimiafina ankehitriny',
     'new_password': 'Tenimiafina vaovao',
     'change_password': 'Hanova tenimiafina',
     'two_factor_auth': 'Fanamarinana roa',
     'login_alerts': 'Fampandremana fidirana',
-
-    // ============================================================
-    // Confidentialité
-    // ============================================================
     'show_last_seen': 'Aseho ny fidirana farany',
     'show_online_status': 'Aseho ny satan\'ny aterineto',
     'allow_friend_requests': 'Avela ny fangatahana namana',
@@ -539,19 +482,11 @@ const TRANSLATIONS = {
     'public': 'Ho an\'ny rehetra',
     'private': 'Mangingina',
     'friends_only': 'Namana ihany',
-
-    // ============================================================
-    // Notifications
-    // ============================================================
     'email_notifications': 'Fampahafantarana amin\'ny mailaka',
     'push_notifications': 'Fampahafantarana push',
     'sms_notifications': 'Fampahafantarana amin\'ny SMS',
     'friend_request_notifications': 'Fangatahana namana',
     'message_notifications': 'Hafatra vaovao',
-
-    // ============================================================
-    // Chat
-    // ============================================================
     'type_message': 'Hanoratra hafatra...',
     'no_conversations': 'Tsy misy resaka',
     'start_chat': 'Hanomboka resaka',
@@ -561,10 +496,6 @@ const TRANSLATIONS = {
     'call': 'Antso',
     'video_call': 'Antso an-tsary',
     'typing': 'Mamoratra hafatra...',
-
-    // ============================================================
-    // Transactions
-    // ============================================================
     'transaction_history': 'Tantaran\'ny fifanakalozana',
     'transaction_details': 'Antony ny fifanakalozana',
     'sender': 'Mpandefa',
@@ -578,14 +509,6 @@ const TRANSLATIONS = {
     'deposit': 'Fametrahana',
     'withdrawal': 'Fandrobana',
     'payment': 'Fandoavana',
-    'transfer': 'Famindrana',
-    'mobile_money': 'Volan\'ny finday',
-    'receive': 'Fandraisana',
-    'send': 'Fandefasana',
-
-    // ============================================================
-    // Messages d'erreur
-    // ============================================================
     'error_loading': 'Diso ny fampidirana',
     'error_connection': 'Diso ny fifandraisana',
     'error_save': 'Diso ny fitehirizana',
@@ -596,14 +519,31 @@ const TRANSLATIONS = {
   }
 };
 
+// ============================================================
+// GLOBAL EVENT EMITTER
+// ============================================================
+type LanguageListener = (lang: string) => void;
+const _listeners = new Set<LanguageListener>();
+
+export const languageEvents = {
+  subscribe: (fn: LanguageListener) => {
+    _listeners.add(fn);
+    return () => _listeners.delete(fn);
+  },
+  emit: (lang: string) => {
+    _listeners.forEach(fn => fn(lang));
+  },
+};
+
+// ============================================================
+// TRANSLATION SERVICE (Singleton)
+// ============================================================
 export class TranslationService {
   private static instance: TranslationService;
   private currentLanguage: string = 'fr';
-  private listeners: ((lang: string) => void)[] = [];
+  private initialized = false;
 
-  private constructor() {
-    this.loadLanguage();
-  }
+  private constructor() {}
 
   static getInstance(): TranslationService {
     if (!TranslationService.instance) {
@@ -612,15 +552,15 @@ export class TranslationService {
     return TranslationService.instance;
   }
 
-  private async loadLanguage() {
+  async init() {
+    if (this.initialized) return;
     try {
-      const savedLang = await storage.getItem<string>('app_language');
-      if (savedLang && TRANSLATIONS[savedLang as keyof typeof TRANSLATIONS]) {
-        this.currentLanguage = savedLang;
+      const saved = await storage.getItem<string>('app_language');
+      if (saved && TRANSLATIONS[saved as keyof typeof TRANSLATIONS]) {
+        this.currentLanguage = saved;
       }
-    } catch (error) {
-      console.error('Erreur chargement langue:', error);
-    }
+    } catch {}
+    this.initialized = true;
   }
 
   getLanguage(): string {
@@ -628,48 +568,41 @@ export class TranslationService {
   }
 
   async setLanguage(lang: string) {
-    if (TRANSLATIONS[lang as keyof typeof TRANSLATIONS]) {
-      this.currentLanguage = lang;
-      await storage.setItem('app_language', lang);
-      this.listeners.forEach(listener => listener(lang));
-    }
+    if (!TRANSLATIONS[lang as keyof typeof TRANSLATIONS]) return;
+    this.currentLanguage = lang;
+    await storage.setItem('app_language', lang);
+    languageEvents.emit(lang);
   }
 
   translate(key: string): string {
-    const lang = this.currentLanguage as keyof typeof TRANSLATIONS;
-    const translations = TRANSLATIONS[lang];
-    const result = translations?.[key as keyof typeof translations];
-    return result || key;
+    const dict = TRANSLATIONS[this.currentLanguage as keyof typeof TRANSLATIONS];
+    return (dict as any)?.[key] ?? key;
   }
 
   t(key: string): string {
     return this.translate(key);
   }
-
-  addListener(listener: (lang: string) => void) {
-    this.listeners.push(listener);
-  }
-
-  removeListener(listener: (lang: string) => void) {
-    this.listeners = this.listeners.filter(l => l !== listener);
-  }
 }
 
+// ============================================================
+// HOOK - useTranslation
+// ============================================================
 export const useTranslation = () => {
   const service = TranslationService.getInstance();
   const [language, setLanguageState] = useState<string>(service.getLanguage());
 
   useEffect(() => {
-    const listener = (lang: string) => {
+    const unsub = languageEvents.subscribe((lang) => {
       setLanguageState(lang);
-    };
-    service.addListener(listener);
-    return () => service.removeListener(listener);
+    });
+    return unsub;
+  }, []);
+
+  const setLanguage = useCallback(async (lang: string) => {
+    await service.setLanguage(lang);
   }, [service]);
 
-  return {
-    t: (key: string) => service.translate(key),
-    language,
-    setLanguage: (lang: string) => service.setLanguage(lang),
-  };
+  const t = useCallback((key: string) => service.translate(key), [language, service]);
+
+  return { t, language, setLanguage };
 };
