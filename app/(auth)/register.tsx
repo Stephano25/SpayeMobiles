@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,10 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { COLORS, RADIUS, SHADOW } from '../../src/config';
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { AuthService } from '../../src/services/AuthService';
@@ -35,7 +35,7 @@ export default function RegisterScreen() {
   const { register } = useAuth();
   const { showError, showSuccess } = useNotification();
   const { t } = useTranslation();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const navigation = useNavigation();
 
   const handleRegister = async () => {
     if (!firstName || !lastName || !email || !password) {
@@ -77,7 +77,7 @@ export default function RegisterScreen() {
           await AuthService.handleGoogleCallback(token);
           const user = await AuthService.getUser();
           const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-          router.replace(isAdmin ? '/(admin)' : '/(user)');
+          navigation.navigate(isAdmin ? 'AdminHome' as never : 'UserHome' as never);
           showSuccess(t('success'));
         } else {
           showError(t('error'));
@@ -105,7 +105,6 @@ export default function RegisterScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <ScrollView
-          ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -226,7 +225,7 @@ export default function RegisterScreen() {
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => router.push('/(auth)/login')} disabled={loading || googleLoading}>
+            <TouchableOpacity onPress={() => navigation.navigate('Login' as never)} disabled={loading || googleLoading}>
               <Text style={styles.link}>{t('have_account')}</Text>
             </TouchableOpacity>
 

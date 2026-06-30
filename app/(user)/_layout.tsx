@@ -1,9 +1,24 @@
-import { Stack } from 'expo-router';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from '../../src/services/TranslationService';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, StatusBar, Platform } from 'react-native';
 import { COLORS } from '../../src/config';
+
+// Import des écrans
+import UserHome from './UserHome';
+import WalletScreen from './wallet';
+import TransactionsScreen from './transactions';
+import ProfileScreen from './profile';
+import SendMoneyScreen from './send-money';
+import ReceiveMoneyScreen from './receive-money';
+import MobileMoneyScreen from './mobile-money';
+import ScanPayScreen from './scan-pay';
+import ChatScreen from './chat';
+import FriendsScreen from './friends';
+import UserSettingsScreen from './settings';
+
+const Stack = createNativeStackNavigator();
 
 export default function UserLayout() {
   const { t } = useTranslation();
@@ -16,7 +31,7 @@ export default function UserLayout() {
         barStyle="light-content"
         backgroundColor={COLORS.primary}
       />
-      <Stack
+      <Stack.Navigator
         screenOptions={{
           headerShown: false,
           animation: 'slide_from_right',
@@ -27,18 +42,18 @@ export default function UserLayout() {
           },
         }}
       >
-        <Stack.Screen name="index" />
-        <Stack.Screen name="wallet" />
-        <Stack.Screen name="transactions" />
-        <Stack.Screen name="profile" />
-        <Stack.Screen name="send-money" />
-        <Stack.Screen name="receive-money" />
-        <Stack.Screen name="mobile-money" />
-        <Stack.Screen name="scan-pay" />
-        <Stack.Screen name="chat" />
-        <Stack.Screen name="friends" />
-        <Stack.Screen name="settings" />
-      </Stack>
+        <Stack.Screen name="UserHome" component={UserHome} />
+        <Stack.Screen name="Wallet" component={WalletScreen} />
+        <Stack.Screen name="Transactions" component={TransactionsScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="SendMoney" component={SendMoneyScreen} />
+        <Stack.Screen name="ReceiveMoney" component={ReceiveMoneyScreen} />
+        <Stack.Screen name="MobileMoney" component={MobileMoneyScreen} />
+        <Stack.Screen name="ScanPay" component={ScanPayScreen} />
+        <Stack.Screen name="Chat" component={ChatScreen} />
+        <Stack.Screen name="Friends" component={FriendsScreen} />
+        <Stack.Screen name="Settings" component={UserSettingsScreen} />
+      </Stack.Navigator>
     </View>
   );
 }

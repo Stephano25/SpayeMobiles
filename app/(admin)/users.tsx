@@ -8,15 +8,16 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { AdminService } from '../../src/services/AdminService';
 import { COLORS, formatAmount, getInitials } from '../../src/config';
-import { router } from 'expo-router';
 
 export default function AdminUsersScreen() {
   const { colors } = useTheme();
   const { showSuccess, showError } = useNotification();
+  const navigation = useNavigation();
   const [users, setUsers] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -67,7 +68,7 @@ export default function AdminUsersScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Utilisateurs</Text>

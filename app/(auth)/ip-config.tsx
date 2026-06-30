@@ -11,8 +11,8 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { setBackendIp, getStoredIp, getApiUrl, detectBackendIP, COLORS, SHADOW } from '../../src/config';
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function IPConfigScreen() {
@@ -22,6 +22,7 @@ export default function IPConfigScreen() {
   const [currentApiUrl, setCurrentApiUrl] = useState('');
   const [detectedIp, setDetectedIp] = useState<string | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const navigation = useNavigation();
 
   useEffect(() => {
     loadSavedIP();
@@ -50,7 +51,7 @@ export default function IPConfigScreen() {
         Alert.alert(
           '✅ Connexion automatique',
           `IP ${detected} détectée et configurée automatiquement !`,
-          [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+          [{ text: 'OK', onPress: () => navigation.navigate('Login' as never) }]
         );
       }
     } catch (error) {
@@ -108,7 +109,7 @@ export default function IPConfigScreen() {
         Alert.alert(
           'Succès !',
           `IP ${ip.trim()} configurée avec succès !`,
-          [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+          [{ text: 'OK', onPress: () => navigation.navigate('Login' as never) }]
         );
       }
     } catch (error) {
@@ -145,7 +146,7 @@ export default function IPConfigScreen() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="close" size={28} color={COLORS.white} />
         </TouchableOpacity>
 

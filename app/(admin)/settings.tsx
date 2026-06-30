@@ -8,15 +8,16 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { AdminService } from '../../src/services/AdminService';
 import { COLORS } from '../../src/config';
-import { router } from 'expo-router';
 import { useTranslation } from '../../src/services/TranslationService';
 
 export default function AdminSettingsScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
+  const navigation = useNavigation();
   const [settings, setSettings] = useState<any>({ general: { maintenanceMode: false } });
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export default function AdminSettingsScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('settings')}</Text>

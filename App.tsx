@@ -13,7 +13,7 @@ import { COLORS } from './src/config';
 import LoginScreen from './app/(auth)/login';
 import RegisterScreen from './app/(auth)/register';
 import IPConfigScreen from './app/(auth)/ip-config';
-import UserHome from './app/(user)/index';
+import UserHome from './app/(user)/UserHome';
 import AdminHome from './app/(admin)/index';
 import WalletScreen from './app/(user)/wallet';
 import TransactionsScreen from './app/(user)/transactions';

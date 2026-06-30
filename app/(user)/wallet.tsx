@@ -8,7 +8,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { WalletService } from '../../src/services/WalletService';
@@ -23,6 +23,7 @@ export default function WalletScreen() {
   const { colors } = useTheme();
   const { showError } = useNotification();
   const { t } = useTranslation();
+  const navigation = useNavigation();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -61,10 +62,10 @@ export default function WalletScreen() {
     .reduce((s, t) => s + t.amount, 0);
 
   const actions = [
-    { label: t('send'), icon: 'send', color: COLORS.primary, route: '/(user)/send-money' },
-    { label: t('receive'), icon: 'qr-code', color: COLORS.success, route: '/(user)/receive-money' },
-    { label: t('mobile_money'), icon: 'phone-portrait', color: COLORS.warning, route: '/(user)/mobile-money' },
-    { label: t('scan'), icon: 'scan', color: COLORS.secondary, route: '/(user)/scan-pay' },
+    { label: t('send'), icon: 'send', color: COLORS.primary, route: 'SendMoney' },
+    { label: t('receive'), icon: 'qr-code', color: COLORS.success, route: 'ReceiveMoney' },
+    { label: t('mobile_money'), icon: 'phone-portrait', color: COLORS.warning, route: 'MobileMoney' },
+    { label: t('scan'), icon: 'scan', color: COLORS.secondary, route: 'ScanPay' },
   ];
 
   const getOther = (tx: Transaction): any => {
@@ -83,6 +84,10 @@ export default function WalletScreen() {
       default:
         return 'arrow-up-circle';
     }
+  };
+
+  const navigateTo = (route: string) => {
+    navigation.navigate(route as never);
   };
 
   return (
@@ -118,7 +123,7 @@ export default function WalletScreen() {
             <TouchableOpacity
               key={a.label}
               style={styles.actionBtn}
-              onPress={() => router.push(a.route as any)}
+              onPress={() => navigateTo(a.route)}
             >
               <View style={[styles.actionIcon, { backgroundColor: a.color + '18' }]}>
                 <Ionicons name={a.icon as any} size={22} color={a.color} />
@@ -130,7 +135,7 @@ export default function WalletScreen() {
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('recent_activity')}</Text>
-          <TouchableOpacity onPress={() => router.push('/(user)/transactions')}>
+          <TouchableOpacity onPress={() => navigateTo('Transactions')}>
             <Text style={styles.seeAll}>{t('view_all')}</Text>
           </TouchableOpacity>
         </View>

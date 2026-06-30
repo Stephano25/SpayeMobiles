@@ -8,10 +8,10 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { AdminService } from '../../src/services/AdminService';
 import { COLORS, formatAmount } from '../../src/config';
-import { router } from 'expo-router';
 import { useTranslation } from '../../src/services/TranslationService';
 
 function StatRow({ label, value, color, icon }: { label: string; value: string | number; color: string; icon: string }) {
@@ -29,6 +29,7 @@ function StatRow({ label, value, color, icon }: { label: string; value: string |
 export default function AdminStatsScreen() {
   const { colors } = useTheme();
   const { t } = useTranslation();
+  const navigation = useNavigation();
   const [stats, setStats] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -53,7 +54,7 @@ export default function AdminStatsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
     >
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('statistics')}</Text>

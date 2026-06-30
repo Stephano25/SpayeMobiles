@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { FriendService } from '../../src/services/FriendService';
@@ -24,6 +24,7 @@ const PRESETS = [1000, 5000, 10000, 20000, 50000, 100000];
 export default function SendMoneyScreen() {
   const { colors } = useTheme();
   const { showError, showSuccess } = useNotification();
+  const navigation = useNavigation();
 
   const [balance, setBalance] = useState(0);
   const [friends, setFriends] = useState<any[]>([]);
@@ -66,7 +67,7 @@ export default function SendMoneyScreen() {
         description || undefined
       );
       setStep('success');
-      setTimeout(() => router.replace('/(user)/wallet'), 1800);
+      setTimeout(() => navigation.navigate('Wallet'), 1800);
     } catch (e: any) {
       showError(e?.response?.data?.message || "Erreur lors de l'envoi");
       setStep('form');
@@ -149,7 +150,7 @@ export default function SendMoneyScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>

@@ -9,7 +9,7 @@ import {
   Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
@@ -21,6 +21,7 @@ const PRESETS = [1000, 5000, 10000, 20000, 50000, 100000];
 export default function ReceiveMoneyScreen() {
   const { colors } = useTheme();
   const { showSuccess, showError } = useNotification();
+  const navigation = useNavigation();
   const [qrCode, setQrCode] = useState<any>(null);
   const [amount, setAmount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -85,7 +86,7 @@ export default function ReceiveMoneyScreen() {
       contentContainerStyle={{ padding: 16, paddingTop: 60 }}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>

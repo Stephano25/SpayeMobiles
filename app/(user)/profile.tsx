@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
@@ -24,6 +24,7 @@ export default function ProfileScreen() {
   const { user, updateProfile, logout } = useAuth();
   const { showSuccess, showError } = useNotification();
   const { t } = useTranslation();
+  const navigation = useNavigation();
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<Partial<User>>({
     firstName: user?.firstName || '',
@@ -66,7 +67,7 @@ export default function ProfileScreen() {
   return (
     <SafeScreen backgroundColor={colors.background}>
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('profile')}</Text>

@@ -8,15 +8,16 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { COLORS, getInitials } from '../../src/config';
-import { router } from 'expo-router';
 import { User } from '../../src/types';
 
 export default function AdminProfileScreen() {
   const { colors } = useTheme();
   const { user, updateProfile, logout } = useAuth();
+  const navigation = useNavigation();
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<Partial<User>>({
     firstName: user?.firstName || '',
@@ -42,7 +43,7 @@ export default function AdminProfileScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backText}>←</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Profil Administrateur</Text>

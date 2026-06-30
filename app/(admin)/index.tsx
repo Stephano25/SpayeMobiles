@@ -10,7 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { AdminService } from '../../src/services/AdminService';
 import { COLORS, formatAmount } from '../../src/config';
@@ -29,6 +29,7 @@ function AnimatedStatCard({ label, value, icon, colors: cardColors, route, delay
 }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(24)).current;
+  const navigation = useNavigation();
 
   useEffect(() => {
     Animated.parallel([
@@ -49,7 +50,7 @@ function AnimatedStatCard({ label, value, icon, colors: cardColors, route, delay
 
   return (
     <Animated.View style={{ opacity, transform: [{ translateY }], width: '47%' }}>
-      <TouchableOpacity onPress={() => router.push(route as any)} activeOpacity={0.85}>
+      <TouchableOpacity onPress={() => navigation.navigate(route as never)} activeOpacity={0.85}>
         <LinearGradient
           colors={cardColors}
           start={{ x: 0, y: 0 }}
@@ -73,6 +74,7 @@ function AnimatedStatCard({ label, value, icon, colors: cardColors, route, delay
 export default function AdminDashboard() {
   const { colors, isDark } = useTheme();
   const { t } = useTranslation();
+  const navigation = useNavigation();
   const [stats, setStats] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const headerOpacity = useRef(new Animated.Value(0)).current;
@@ -105,28 +107,28 @@ export default function AdminDashboard() {
       value: stats?.totalUsers ?? '—',
       icon: 'people',
       colors: ['#6366f1', '#8b5cf6'] as [string, string],
-      route: '/(admin)/users',
+      route: 'AdminUsers',
     },
     {
       label: t('total_transactions'),
       value: stats?.totalTransactions ?? '—',
       icon: 'swap-horizontal',
       colors: ['#10b981', '#059669'] as [string, string],
-      route: '/(admin)/transactions',
+      route: 'AdminTransactions',
     },
     {
       label: t('total_volume'),
       value: stats ? `${formatAmount(stats.totalVolume)} Ar` : '—',
       icon: 'wallet',
       colors: ['#f59e0b', '#d97706'] as [string, string],
-      route: '/(admin)/stats',
+      route: 'AdminStats',
     },
     {
       label: t('settings'),
       value: '',
       icon: 'settings',
       colors: ['#3b82f6', '#2563eb'] as [string, string],
-      route: '/(admin)/settings',
+      route: 'AdminSettings',
     },
   ];
 
@@ -212,7 +214,7 @@ export default function AdminDashboard() {
           ))}
           <TouchableOpacity
             style={[styles.viewAllBtn, { backgroundColor: colors.card }]}
-            onPress={() => router.push('/(admin)/transactions')}
+            onPress={() => navigation.navigate('AdminTransactions')}
           >
             <Text style={styles.viewAllText}>{t('view_all')}</Text>
             <Ionicons name="arrow-forward" size={16} color={COLORS.primary} />

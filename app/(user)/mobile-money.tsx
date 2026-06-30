@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { WalletService } from '../../src/services/WalletService';
@@ -30,6 +30,7 @@ const FEE_PERCENT = 0.5;
 export default function MobileMoneyScreen() {
   const { colors } = useTheme();
   const { showError, showSuccess } = useNotification();
+  const navigation = useNavigation();
   const [balance, setBalance] = useState(0);
   const [operator, setOperator] = useState<typeof OPERATORS[number] | null>(null);
   const [phone, setPhone] = useState('');
@@ -95,7 +96,7 @@ export default function MobileMoneyScreen() {
               setStep('success');
               showSuccess(`Transfert de ${formatAmount(numAmount)} Ar vers ${operator.name} réussi !`);
               setTimeout(() => {
-                router.replace('/(user)/wallet');
+                navigation.navigate('Wallet');
               }, 2000);
             } catch (e: any) {
               showError(e?.response?.data?.message || 'Erreur lors du transfert');
@@ -114,7 +115,7 @@ export default function MobileMoneyScreen() {
       setPhone('');
       setAmount('');
     } else {
-      router.back();
+      navigation.goBack();
     }
   };
 

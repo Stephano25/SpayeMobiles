@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { TransactionService } from '../../src/services/TransactionService';
@@ -20,6 +20,7 @@ import { COLORS, RADIUS, SPACING, FONT, SHADOW, formatAmount } from '../../src/c
 export default function ScanPayScreen() {
   const { colors } = useTheme();
   const { showError, showSuccess } = useNotification();
+  const navigation = useNavigation();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState<any>(null);
   const [amount, setAmount] = useState('');
@@ -75,7 +76,7 @@ export default function ScanPayScreen() {
               setStep('success');
               showSuccess(`Paiement de ${formatAmount(numAmount)} Ar effectué !`);
               setTimeout(() => {
-                router.replace('/(user)/wallet');
+                navigation.navigate('Wallet');
               }, 2000);
             } catch (e: any) {
               showError(e?.response?.data?.message || 'Erreur lors du paiement');
@@ -204,7 +205,7 @@ export default function ScanPayScreen() {
         >
           <Text style={styles.primaryBtnText}>Autoriser la caméra</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={{ marginTop: SPACING.lg }} onPress={() => router.back()}>
+        <TouchableOpacity style={{ marginTop: SPACING.lg }} onPress={() => navigation.goBack()}>
           <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Retour</Text>
         </TouchableOpacity>
       </View>
@@ -220,7 +221,7 @@ export default function ScanPayScreen() {
         onBarcodeScanned={handleScan}
       />
       <View style={styles.overlay}>
-        <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.closeBtn} onPress={() => navigation.goBack()}>
           <Ionicons name="close" size={26} color={COLORS.white} />
         </TouchableOpacity>
         <View style={styles.frame} />
