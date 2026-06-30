@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,10 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { COLORS, RADIUS, SHADOW } from '../../src/config';
-import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { AuthService } from '../../src/services/AuthService';
@@ -30,7 +30,7 @@ export default function LoginScreen() {
   const { login } = useAuth();
   const { showError } = useNotification();
   const { t } = useTranslation();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const navigation = useNavigation();
 
   const handleLogin = async () => {
     if (!email.trim()) {
@@ -83,7 +83,7 @@ export default function LoginScreen() {
           await AuthService.handleGoogleCallback(token);
           const user = await AuthService.getUser();
           const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-          router.replace(isAdmin ? '/(admin)' : '/(user)');
+          navigation.navigate(isAdmin ? 'AdminHome' as never : 'UserHome' as never);
         } else {
           showError(t('error'));
         }
@@ -112,7 +112,6 @@ export default function LoginScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <ScrollView
-          ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -196,7 +195,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push('/(auth)/register')}
+              onPress={() => navigation.navigate('Register' as never)}
               style={styles.registerLink}
               disabled={loading || googleLoading}
             >
@@ -206,7 +205,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push('/(auth)/ip-config')}
+              onPress={() => navigation.navigate('IPConfig' as never)}
               style={styles.configLink}
             >
               <Ionicons name="settings-outline" size={16} color="rgba(255,255,255,0.6)" />

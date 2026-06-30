@@ -1,5 +1,5 @@
 // ============================================================
-// METRO CONFIG - SPaye Mobile (CommonJS pour Windows)
+// METRO CONFIG - SPaye Mobile
 // ============================================================
 
 const { getDefaultConfig } = require('expo/metro-config');
@@ -7,23 +7,10 @@ const { getDefaultConfig } = require('expo/metro-config');
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
-// Ajouter les extensions supportées
-config.resolver.sourceExts = [
-  ...config.resolver.sourceExts,
-  'cjs',
-  'mjs',
-];
-
-// Configurer le transformer
-config.transformer = {
-  ...config.transformer,
-  babelTransformerPath: require.resolve('react-native-svg-transformer'),
+// Désactiver les fonctionnalités problématiques
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // Permettre l'importation de fichiers .android.js, .ios.js, etc.
+  return context.resolveRequest(context, moduleName, platform);
 };
-
-// Configurer le resolver
-config.resolver.assetExts = config.resolver.assetExts.filter(
-  (ext) => ext !== 'svg'
-);
-config.resolver.sourceExts.push('svg');
 
 module.exports = config;

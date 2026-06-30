@@ -16,31 +16,19 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.spaye.mobile",
-      "infoPlist": {
-        "NSCameraUsageDescription": "SPaye a besoin d'accéder à la caméra pour scanner les QR codes.",
-        "NSPhotoLibraryUsageDescription": "SPaye a besoin d'accéder à votre galerie pour partager des images.",
-        "NSMicrophoneUsageDescription": "SPaye a besoin d'accéder au microphone pour les messages vocaux."
-      }
+      "bundleIdentifier": "com.spaye.mobile"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/image02.png",
         "backgroundColor": "#6366f1"
       },
-      "package": "com.spaye.mobile",
-      "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
-      ]
+      "package": "com.spaye.mobile"
     },
     "web": {
       "favicon": "./assets/image02.png"
     },
     "plugins": [
-      "expo-router",
       [
         "expo-camera",
         {
@@ -52,12 +40,7 @@
         {
           "photosPermission": "SPaye a besoin d'accéder à votre galerie pour partager des images."
         }
-      ],
-      "expo-sharing"
-    ],
-    "scheme": "spaye",
-    "experiments": {
-      "tsconfigPaths": true
-    }
+      ]
+    ]
   }
 }

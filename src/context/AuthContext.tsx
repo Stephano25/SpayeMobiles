@@ -1,9 +1,9 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import { useNavigation } from '@react-navigation/native';
 import { storage } from '../utils/storage';
 import api from '../services/api';
 import { AuthService } from '../services/AuthService';
 import { User } from '../types';
-import { router } from 'expo-router';
 
 interface AuthContextType {
   user: User | null;
@@ -27,6 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigation = useNavigation();
 
   useEffect(() => {
     loadUser();
@@ -55,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(access_token);
       setUser(userData);
       const isAdmin = userData.role === 'admin' || userData.role === 'super_admin';
-      router.replace(isAdmin ? '/(admin)' : '/(user)');
+      navigation.navigate(isAdmin ? 'AdminHome' as never : 'UserHome' as never);
     } catch (error) {
       throw error;
     }
@@ -68,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await AuthService.saveSession(access_token, userData);
       setToken(access_token);
       setUser(userData);
-      router.replace('/(user)');
+      navigation.navigate('UserHome' as never);
     } catch (error) {
       throw error;
     }
@@ -78,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await AuthService.logout();
     setUser(null);
     setToken(null);
-    router.replace('/(auth)/login');
+    navigation.navigate('Login' as never);
   };
 
   const updateProfile = async (data: Partial<User>) => {
