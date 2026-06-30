@@ -20,7 +20,6 @@ export const SafeScreen: React.FC<SafeScreenProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   
-  // 🔥 Sans tab bar, padding bottom réduit
   const safeBottomPadding = insets.bottom > 0 ? insets.bottom + 20 : 20;
   const topPadding = insets.top > 0 ? insets.top : (Platform.OS === 'ios' ? 44 : 30);
 

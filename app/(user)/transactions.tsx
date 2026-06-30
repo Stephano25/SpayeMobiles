@@ -58,21 +58,13 @@ export default function TransactionsScreen() {
     return creditTypes.includes(type) ? '+' : '-';
   };
 
-  const getTransactionLabel = (type: string): string => {
-    return translateTransactionType(type);
-  };
-
-  const getStatusLabel = (status: string): string => {
-    return translateTransactionStatus(status);
-  };
-
-  const renderItem = ({ item }: { item: any }) => {
+  const renderItem = useCallback(({ item }: { item: any }) => {
     const isCredit = getTransactionSign(item.type) === '+';
     return (
       <View style={[styles.item, { backgroundColor: colors.card }]}>
         <View style={styles.left}>
           <Text style={[styles.desc, { color: colors.text }]}>
-            {getTransactionLabel(item.type)}
+            {translateTransactionType(item.type)}
           </Text>
           <Text style={styles.date}>{formatDateTime(item.createdAt)}</Text>
           {item.status && (
@@ -80,7 +72,7 @@ export default function TransactionsScreen() {
               styles.status,
               item.status === 'completed' ? styles.statusCompleted : styles.statusPending
             ]}>
-              {getStatusLabel(item.status)}
+              {translateTransactionStatus(item.status)}
             </Text>
           )}
         </View>
@@ -92,7 +84,11 @@ export default function TransactionsScreen() {
         </Text>
       </View>
     );
-  };
+  }, [colors]);
+
+  const keyExtractor = useCallback((item: any) => {
+    return item.id || item._id || Math.random().toString();
+  }, []);
 
   if (loading) {
     return (
@@ -112,20 +108,34 @@ export default function TransactionsScreen() {
         <Text style={styles.headerTitle}>{t('transaction_history')}</Text>
         <View style={{ width: 40 }} />
       </View>
+      
       <FlatList
         data={transactions}
-        keyExtractor={(item) => item.id || item._id || Math.random().toString()}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
-        }
+        keyExtractor={keyExtractor}
         renderItem={renderItem}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
+        contentContainerStyle={[
+          styles.listContent,
+          transactions.length === 0 && styles.emptyContent
+        ]}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        removeClippedSubviews={true}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="receipt-outline" size={48} color={COLORS.gray400} />
             <Text style={styles.empty}>{t('no_transactions')}</Text>
           </View>
         }
-        contentContainerStyle={transactions.length === 0 ? styles.emptyContent : undefined}
       />
     </SafeScreen>
   );
@@ -142,12 +152,20 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
+  listContent: {
+    padding: 16,
+    paddingBottom: 30,
+    flexGrow: 1,
+  },
+  emptyContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   item: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    marginHorizontal: 20,
     marginBottom: 8,
     borderRadius: 12,
     shadowColor: '#000',
@@ -163,7 +181,16 @@ const styles = StyleSheet.create({
   statusCompleted: { color: COLORS.success },
   statusPending: { color: COLORS.warning },
   amount: { fontSize: 16, fontWeight: 'bold' },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 },
-  empty: { textAlign: 'center', marginTop: 16, color: COLORS.gray500, fontSize: 16 },
-  emptyContent: { flexGrow: 1 },
+  emptyContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    paddingTop: 60 
+  },
+  empty: { 
+    textAlign: 'center', 
+    marginTop: 16, 
+    color: COLORS.gray500, 
+    fontSize: 16 
+  },
 });

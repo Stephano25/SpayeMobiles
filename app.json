@@ -55,6 +55,9 @@
       ],
       "expo-sharing"
     ],
-    "scheme": "spaye"
+    "scheme": "spaye",
+    "experiments": {
+      "tsconfigPaths": true
+    }
   }
 }

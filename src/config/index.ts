@@ -9,9 +9,6 @@ import { storage } from '../utils/storage';
 let cachedApiUrl: string | null = null;
 let cachedSocketUrl: string | null = null;
 
-/**
- * 🔥 Détecte automatiquement l'IP du backend sur le réseau local
- */
 export const detectBackendIP = async (): Promise<string | null> => {
   try {
     const savedIp = await storage.getItem<string>('backend_ip');
@@ -20,7 +17,6 @@ export const detectBackendIP = async (): Promise<string | null> => {
       return savedIp;
     }
 
-    // 🔥 Liste des IP à tester - PRIORISER L'IP DU RÉSEAU LOCAL
     const ipsToTest = [
       '192.168.188.135',
       '192.168.188.1',
@@ -78,9 +74,6 @@ export const detectBackendIP = async (): Promise<string | null> => {
   }
 };
 
-/**
- * 🔥 Récupère l'URL de l'API avec détection automatique
- */
 export const getApiUrl = async (): Promise<string> => {
   if (cachedApiUrl) return cachedApiUrl;
 
@@ -262,10 +255,6 @@ export const getAvatarColor = (name: string): string => {
   }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 };
-
-// =====================================================
-// EXPORT PAR DÉFAUT
-// =====================================================
 
 export default {
   getApiUrl,
