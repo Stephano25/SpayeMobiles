@@ -1,3 +1,7 @@
+// ============================================================
+// TYPES - SPaye Mobile
+// ============================================================
+
 export interface User {
   id: string;
   email: string;
@@ -39,7 +43,16 @@ export interface Friend {
 }
 
 export interface Wallet {
+  id?: string;
+  userId?: string;
   balance: number;
+  currency?: string;
+  qrCode?: string;
+  dailyLimit?: number;
+  monthlyLimit?: number;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type TransactionType = 'deposit' | 'withdrawal' | 'transfer' | 'payment' | 'mobile_money' | 'receive' | 'send';

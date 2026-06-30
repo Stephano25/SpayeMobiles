@@ -38,7 +38,7 @@ export default function WalletScreen() {
     } catch (e) {
       showError(t('error'));
     }
-  }, []);
+  }, [showError, t]);
 
   useFocusEffect(
     useCallback(() => {

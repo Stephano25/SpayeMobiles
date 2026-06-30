@@ -4,9 +4,8 @@ import { storage } from '../utils/storage';
 // ============================================================
 // DICTIONNAIRE COMPLET
 // ============================================================
-const TRANSLATIONS = {
+const TRANSLATIONS: Record<string, Record<string, string>> = {
   fr: {
-    // Général
     'app_name': 'SPaye',
     'loading': 'Chargement...',
     'error': 'Erreur',
@@ -44,8 +43,6 @@ const TRANSLATIONS = {
     'active': 'Actif',
     'inactive': 'Inactif',
     'friends_label': 'Amis',
-
-    // Connexion
     'login': 'Se connecter',
     'register': 'S\'inscrire',
     'email': 'Email',
@@ -59,8 +56,6 @@ const TRANSLATIONS = {
     'phone': 'Téléphone',
     'continue_with_google': 'Continuer avec Google',
     'or': 'ou',
-
-    // Portefeuille
     'send': 'Envoyer',
     'receive': 'Recevoir',
     'mobile_money': 'Mobile Money',
@@ -83,8 +78,6 @@ const TRANSLATIONS = {
     'maximum_amount': 'Montant maximum',
     'operator': 'Opérateur',
     'select_operator': 'Choisissez votre opérateur',
-
-    // Amis
     'my_friends': 'Mes Amis',
     'add_friend': 'Ajouter un ami',
     'friend_requests': 'Demandes reçues',
@@ -103,8 +96,6 @@ const TRANSLATIONS = {
     'suggestions': 'Suggestions',
     'results': 'Résultats',
     'no_result': 'Aucun résultat',
-
-    // QR Code
     'my_qr_code': 'Mon QR Code',
     'scan_qr_code': 'Scanner un QR Code',
     'share_contact': 'Partager mon contact',
@@ -112,8 +103,6 @@ const TRANSLATIONS = {
     'scan_hint': 'Placez le QR code dans le cadre',
     'copy': 'Copier',
     'share': 'Partager',
-
-    // Paramètres
     'general': 'Général',
     'security': 'Sécurité',
     'privacy': 'Confidentialité',
@@ -132,15 +121,11 @@ const TRANSLATIONS = {
     'french': 'Français',
     'english': 'English',
     'malagasy': 'Malagasy',
-
-    // Sécurité
     'current_password': 'Mot de passe actuel',
     'new_password': 'Nouveau mot de passe',
     'change_password': 'Changer le mot de passe',
     'two_factor_auth': 'Authentification 2FA',
     'login_alerts': 'Alertes de connexion',
-
-    // Confidentialité
     'show_last_seen': 'Afficher la dernière connexion',
     'show_online_status': 'Afficher le statut en ligne',
     'allow_friend_requests': 'Autoriser les demandes d\'amis',
@@ -148,15 +133,11 @@ const TRANSLATIONS = {
     'public': 'Public',
     'private': 'Privé',
     'friends_only': 'Amis uniquement',
-
-    // Notifications
     'email_notifications': 'Notifications par email',
     'push_notifications': 'Notifications push',
     'sms_notifications': 'Notifications par SMS',
     'friend_request_notifications': 'Demandes d\'amis',
     'message_notifications': 'Nouveaux messages',
-
-    // Chat
     'type_message': 'Écrire un message...',
     'no_conversations': 'Aucune conversation',
     'start_chat': 'Démarrer une discussion',
@@ -166,8 +147,6 @@ const TRANSLATIONS = {
     'call': 'Appel',
     'video_call': 'Appel vidéo',
     'typing': 'En train d\'écrire...',
-
-    // Transactions
     'transaction_history': 'Historique des transactions',
     'transaction_details': 'Détails de la transaction',
     'sender': 'Expéditeur',
@@ -181,8 +160,6 @@ const TRANSLATIONS = {
     'deposit': 'Dépôt',
     'withdrawal': 'Retrait',
     'payment': 'Paiement',
-
-    // Messages d'erreur
     'error_loading': 'Erreur de chargement',
     'error_connection': 'Erreur de connexion',
     'error_save': 'Erreur lors de la sauvegarde',
@@ -559,7 +536,9 @@ export class TranslationService {
       if (saved && TRANSLATIONS[saved as keyof typeof TRANSLATIONS]) {
         this.currentLanguage = saved;
       }
-    } catch {}
+    } catch (error) {
+      // Ignorer l'erreur et continuer avec la langue par défaut
+    }
     this.initialized = true;
   }
 

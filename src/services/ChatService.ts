@@ -332,6 +332,28 @@ export const ChatService = {
     };
   },
 
+  // Ajoutez ces méthodes à ChatService si elles manquent :
+
+  removeReaction: async (messageId: string) => {
+    try {
+      const res = await api.delete(`/chat/message/${messageId}/react`);
+      return res.data;
+    } catch (error) {
+      console.error('Erreur removeReaction:', error);
+      throw error;
+    }
+  },
+
+  reactToMessage: async (messageId: string, emoji: string) => {
+    try {
+      const res = await api.post(`/chat/message/${messageId}/react`, { emoji });
+      return res.data;
+    } catch (error) {
+      console.error('Erreur reactToMessage:', error);
+      throw error;
+    }
+  },
+
   reset: () => {
     messageCallbacks.clear();
     typingCallbacks.clear();

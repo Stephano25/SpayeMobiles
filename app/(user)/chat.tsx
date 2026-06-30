@@ -1,45 +1,86 @@
 // app/(user)/chat.tsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+// ─────────────────────────────────────────────────────────────
+//  SPaye · Chat Screen — design calqué sur l'Angular, mobile-first
+//  Compatible avec le backend NestJS existant (même endpoints/events)
+// ─────────────────────────────────────────────────────────────
+import React, {
+  useState, useEffect, useRef, useCallback, useMemo,
+} from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Modal,
-  StatusBar,
-  Dimensions,
-  Alert,
-  Image,
-  ScrollView,
-  RefreshControl,
-  Share,
-  Linking,
-  AppState,
-  PermissionsAndroid,
+  View, Text, TextInput, TouchableOpacity, FlatList,
+  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
+  Modal, StatusBar, Dimensions, Alert, Image, ScrollView,
+  RefreshControl, Share, Linking, AppState, PermissionsAndroid,
+  Pressable, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-// Utiliser expo-av pour la vidéo (c'est la seule solution stable)
 import { Audio, Video, ResizeMode } from 'expo-av';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useAuth } from '../../src/context/AuthContext';
-import { useTheme } from '../../src/context/ThemeContext';
-import { useNotification } from '../../src/context/NotificationContext';
-import { ChatService } from '../../src/services/ChatService';
-import { FriendService } from '../../src/services/FriendService';
+import { useAuth }          from '../../src/context/AuthContext';
+import { useTheme }         from '../../src/context/ThemeContext';
+import { useNotification }  from '../../src/context/NotificationContext';
+import { ChatService }      from '../../src/services/ChatService';
+import { FriendService }    from '../../src/services/FriendService';
 import { COLORS, formatTime, getInitials, getAvatarColor, formatAmount } from '../../src/config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTranslation } from '../../src/services/TranslationService';
+import { useTranslation }   from '../../src/services/TranslationService';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
-// Émojis
+// ─── Design tokens (calqués sur le CSS Angular) ───────────────
+const T = {
+  bg:        '#0f0f14',
+  surface:   '#16161e',
+  surface2:  '#1e1e2a',
+  border:    'rgba(255,255,255,0.07)',
+  text:      '#e2e8f0',
+  text2:     '#cbd5e1',
+  text3:     '#94a3b8',
+  text4:     '#64748b',
+  primary:   '#6366f1',
+  primaryLt: 'rgba(99,102,241,0.15)',
+  violet:    '#a78bfa',
+  success:   '#10b981',
+  error:     '#ef4444',
+  warning:   '#f59e0b',
+  white:     '#ffffff',
+  avatarColors: [
+    '#7c3aed','#6d28d9','#4f46e5','#0891b2',
+    '#0d9488','#059669','#d97706','#dc2626','#db2777','#9333ea',
+  ],
+};
+
+// ─── Helpers ──────────────────────────────────────────────────
+const avatarColor = (name = '') => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return T.avatarColors[Math.abs(h) % T.avatarColors.length];
+};
+
+const fmtSize = (b?: number) => {
+  if (!b) return '';
+  if (b < 1024) return `${b} B`;
+  if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / 1048576).toFixed(1)} MB`;
+};
+
+const getExt = (name = '') => name.split('.').pop()?.toLowerCase() || '';
+const FILE_EXTS = {
+  image: ['jpg','jpeg','png','gif','webp','svg'],
+  video: ['mp4','webm','ogg','mov','avi'],
+  audio: ['mp3','wav','ogg','aac','m4a'],
+};
+const fileKind = (url = '', name = '') => {
+  const ext = getExt(name) || getExt(url);
+  if (FILE_EXTS.image.includes(ext)) return 'image';
+  if (FILE_EXTS.video.includes(ext)) return 'video';
+  if (FILE_EXTS.audio.includes(ext)) return 'audio';
+  return 'document';
+};
+
+// ─── Quick emojis (comme Angular) ─────────────────────────────
+const QUICK_REACTIONS = ['👍','❤️','😆','😮','😢','🙏'];
 const EMOJIS = [
   '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰',
   '😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🤩','🥳','😏',
@@ -49,1043 +90,809 @@ const EMOJIS = [
   '🥴','🤢','🤮','🤧','😷','🤒','🤕','🤑','🤠','😈','👿','👹','👺','💀','👻','👽',
   '🤖','💩','😺','😸','😹','😻','😼','😽','🙀','😿','😾','🙈','🙉','🙊','💋','💌',
   '💘','💝','💖','💗','💓','💞','💕','💟','❣️','💔','❤️','🧡','💛','💚','💙','💜',
-  '🤎','🖤','🤍','💯','💢','💥','💫','💦','💨','🕳️','💣','💬','👁️','🗣️','👤','👥',
-  '👣','🧠','🩸','🩻','💪','🦵','🦶','👂','🦻','👃','👀','🧬','🦷','👅','👄','💋'
+  '🤎','🖤','🤍','💯','💢','💥','💫','💦','💨','💣','💬','👁️','🗣️','👤','👥',
 ];
 
-// Types
-interface CallData {
-  from: string;
-  type: 'audio' | 'video';
-  fromName?: string;
-}
+// ─── Types ─────────────────────────────────────────────────────
+interface CallData { from: string; type: 'audio'|'video'; fromName?: string; }
 
-// Composant pour afficher les médias dans les messages
-const MediaMessage = React.memo(({ item, isOwn, colors, t }: any) => {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [position, setPosition] = useState(0);
-  const [videoStatus, setVideoStatus] = useState<any>({});
-  const videoRef = useRef<any>(null);
-
-  const getFileType = (url: string, name: string) => {
-    const ext = name?.split('.').pop()?.toLowerCase() || '';
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image';
-    if (['mp4', 'webm', 'ogg', 'mov', 'avi'].includes(ext)) return 'video';
-    if (['mp3', 'wav', 'ogg', 'aac', 'm4a'].includes(ext)) return 'audio';
-    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return 'document';
-    return 'other';
-  };
-
-  const fileType = getFileType(item.fileUrl || '', item.fileName || '');
-  const fileUrl = item.fileUrl?.startsWith('http') ? item.fileUrl : `http://192.168.188.135:3000${item.fileUrl}`;
-
-  // Lecture audio avec expo-av
-  const playAudio = async () => {
-    if (sound) {
-      await sound.stopAsync();
-      await sound.unloadAsync();
-      setSound(null);
-      setIsPlaying(false);
-      return;
-    }
-
-    try {
-      const { sound: newSound, status } = await Audio.Sound.createAsync(
-        { uri: fileUrl },
-        { shouldPlay: true, keepAwake: false }
-      );
-      setSound(newSound);
-      setIsPlaying(true);
-      setDuration(status.durationMillis || 0);
-      
-      newSound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.isLoaded) {
-          setPosition(status.positionMillis || 0);
-          if (status.didJustFinish) {
-            setIsPlaying(false);
-            setPosition(0);
-          }
-        }
-      });
-    } catch (error) {
-      console.error('Erreur lecture audio:', error);
-      Alert.alert('Erreur', 'Impossible de lire le fichier audio');
-    }
-  };
-
-  // Nettoyer le son
-  useEffect(() => {
-    return () => {
-      if (sound) {
-        sound.unloadAsync();
-      }
-    };
-  }, [sound]);
-
-  const formatDuration = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // Rendu image
-  if (fileType === 'image') {
-    return (
-      <TouchableOpacity
-        onPress={() => {
-          Alert.alert('Image', 'Voir en plein écran', [
-            { text: t('cancel'), style: 'cancel' },
-            { text: 'Ouvrir', onPress: () => Linking.openURL(fileUrl) },
-          ]);
-        }}
-        style={styles.mediaContainer}
-      >
-        <Image source={{ uri: fileUrl }} style={styles.imageMessage} resizeMode="cover" />
-        <View style={styles.mediaOverlay}>
-          <TouchableOpacity onPress={() => Linking.openURL(fileUrl)} style={styles.mediaActionBtn}>
-            <Ionicons name="download-outline" size={20} color={COLORS.white} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => Share.share({ url: fileUrl })} style={styles.mediaActionBtn}>
-            <Ionicons name="share-outline" size={20} color={COLORS.white} />
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    );
-  }
-
-  // Rendu vidéo avec expo-av
-  if (fileType === 'video') {
-    return (
-      <View style={styles.mediaContainer}>
-        <Video
-          ref={videoRef}
-          source={{ uri: fileUrl }}
-          style={styles.videoMessage}
-          resizeMode={ResizeMode.CONTAIN}
-          shouldPlay={false}
-          isLooping={false}
-          useNativeControls={true}
-          onPlaybackStatusUpdate={(status: any) => setVideoStatus(status)}
-        />
-        <View style={styles.mediaOverlay}>
-          <TouchableOpacity onPress={() => Linking.openURL(fileUrl)} style={styles.mediaActionBtn}>
-            <Ionicons name="download-outline" size={20} color={COLORS.white} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // Rendu audio avec expo-av
-  if (fileType === 'audio') {
-    return (
-      <View style={[styles.audioContainer, { backgroundColor: isOwn ? 'rgba(255,255,255,0.15)' : COLORS.gray100 }]}>
-        <TouchableOpacity onPress={playAudio} style={styles.audioPlayBtn}>
-          <Ionicons 
-            name={isPlaying ? 'pause' : 'play'} 
-            size={24} 
-            color={isOwn ? COLORS.white : COLORS.primary} 
-          />
-        </TouchableOpacity>
-        <View style={styles.audioProgress}>
-          <View style={[styles.audioProgressBar, { 
-            width: position > 0 && duration > 0 ? `${(position / duration) * 100}%` : '0%',
-            backgroundColor: isOwn ? COLORS.white : COLORS.primary 
-          }]} />
-        </View>
-        <Text style={[styles.audioDuration, { color: isOwn ? COLORS.white : COLORS.gray500 }]}>
-          {duration > 0 ? formatDuration(duration) : '0:00'}
-        </Text>
-        <Text style={[styles.audioName, { color: isOwn ? 'rgba(255,255,255,0.7)' : COLORS.gray500 }]}>
-          {item.fileName || 'Audio'}
-        </Text>
-      </View>
-    );
-  }
-
-  // Rendu document
-  if (fileType === 'document') {
-    return (
-      <TouchableOpacity
-        onPress={() => Linking.openURL(fileUrl)}
-        style={[styles.documentContainer, { backgroundColor: isOwn ? 'rgba(255,255,255,0.15)' : COLORS.gray100 }]}
-      >
-        <View style={styles.documentIcon}>
-          <Ionicons name="document-text-outline" size={32} color={isOwn ? COLORS.white : COLORS.primary} />
-        </View>
-        <View style={styles.documentInfo}>
-          <Text style={[styles.documentName, { color: isOwn ? COLORS.white : colors.text }]}>
-            {item.fileName || 'Document'}
-          </Text>
-          <Text style={[styles.documentSize, { color: isOwn ? 'rgba(255,255,255,0.6)' : COLORS.gray500 }]}>
-            {item.fileSize ? `${(item.fileSize / 1024).toFixed(1)} KB` : ''}
-          </Text>
-        </View>
-        <Ionicons name="download-outline" size={20} color={isOwn ? COLORS.white : COLORS.primary} />
-      </TouchableOpacity>
-    );
-  }
-
-  return null;
+// ═══════════════════════════════════════════════════════════════
+//  Composant Avatar (comme .av Angular)
+// ═══════════════════════════════════════════════════════════════
+const Avatar = ({ name = '', size = 40, online = false }: { name?: string; size?: number; online?: boolean }) => (
+  <View style={[avStyles.wrap, { width: size, height: size, borderRadius: size / 2, backgroundColor: avatarColor(name) }]}>
+    <Text style={[avStyles.initials, { fontSize: size * 0.36 }]}>{(name.charAt(0) || '').toUpperCase()}</Text>
+    {online && <View style={[avStyles.dot, { width: size * 0.26, height: size * 0.26, borderRadius: size * 0.13 }]} />}
+  </View>
+);
+const avStyles = StyleSheet.create({
+  wrap:     { alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  initials: { color: T.white, fontWeight: '700' },
+  dot:      { position: 'absolute', bottom: 0, right: 0, backgroundColor: T.success, borderWidth: 2, borderColor: T.surface },
 });
 
+// ═══════════════════════════════════════════════════════════════
+//  IconBtn (comme .icon-btn Angular)
+// ═══════════════════════════════════════════════════════════════
+const IconBtn = ({ name, size = 22, color = T.text3, onPress, recording = false, style }: any) => (
+  <TouchableOpacity
+    onPress={onPress}
+    style={[ib.btn, recording && ib.recording, style]}
+    activeOpacity={0.7}
+  >
+    <Ionicons name={name} size={size} color={recording ? '#f87171' : color} />
+  </TouchableOpacity>
+);
+const ib = StyleSheet.create({
+  btn:       { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  recording: { backgroundColor: 'rgba(239,68,68,0.15)' },
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  MediaMessage
+// ═══════════════════════════════════════════════════════════════
+const MediaMessage = React.memo(({ item, isOwn }: { item: any; isOwn: boolean }) => {
+  const [sound, setSound]       = useState<Audio.Sound | null>(null);
+  const [playing, setPlaying]   = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [pos, setPos]           = useState(0);
+
+  const BASE = 'http://192.168.188.135:3000';
+  const url  = item.fileUrl?.startsWith('http') ? item.fileUrl : `${BASE}${item.fileUrl}`;
+  const kind = fileKind(item.fileUrl || '', item.fileName || '');
+
+  useEffect(() => () => { sound?.unloadAsync(); }, [sound]);
+
+  const playAudio = async () => {
+    if (sound) {
+      await sound.stopAsync(); await sound.unloadAsync();
+      setSound(null); setPlaying(false); return;
+    }
+    try {
+      const { sound: s, status } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true });
+      setSound(s); setPlaying(true);
+      setDuration((status as any).durationMillis || 0);
+      s.setOnPlaybackStatusUpdate((st: any) => {
+        if (st.isLoaded) { setPos(st.positionMillis || 0); if (st.didJustFinish) { setPlaying(false); setPos(0); } }
+      });
+    } catch { Alert.alert('Erreur','Impossible de lire l\'audio'); }
+  };
+
+  const fmtMs = (ms: number) => {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2,'0')}`;
+  };
+
+  // ── Image ──
+  if (kind === 'image') return (
+    <TouchableOpacity onPress={() => Linking.openURL(url)} style={mm.mediaWrap}>
+      <Image source={{ uri: url }} style={mm.img} resizeMode="cover" />
+      <View style={mm.dlOverlay}>
+        <TouchableOpacity onPress={() => Share.share({ url })} style={mm.dlBtn}>
+          <Ionicons name="share-outline" size={16} color={T.white} />
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  );
+
+  // ── Video ──
+  if (kind === 'video') return (
+    <View style={mm.mediaWrap}>
+      <Video source={{ uri: url }} style={mm.video} resizeMode={ResizeMode.CONTAIN}
+        useNativeControls isLooping={false} shouldPlay={false} />
+    </View>
+  );
+
+  // ── Audio (like .audio-wrap Angular) ──
+  if (kind === 'audio') return (
+    <View style={[mm.audioWrap, { backgroundColor: isOwn ? 'rgba(255,255,255,0.12)' : T.surface2 }]}>
+      <TouchableOpacity onPress={playAudio} style={mm.audioBtn}>
+        <Ionicons name={playing ? 'pause' : 'play'} size={20} color={isOwn ? T.white : T.violet} />
+      </TouchableOpacity>
+      <View style={mm.audioBar}>
+        <View style={[mm.audioFill, {
+          width: pos > 0 && duration > 0 ? `${(pos / duration) * 100}%` as any : '0%',
+          backgroundColor: isOwn ? T.white : T.primary,
+        }]} />
+      </View>
+      <Text style={[mm.audioDur, { color: isOwn ? 'rgba(255,255,255,0.75)' : T.text4 }]}>
+        {duration > 0 ? fmtMs(duration) : '0:00'}
+      </Text>
+    </View>
+  );
+
+  // ── Document (like .doc-wrap Angular) ──
+  return (
+    <TouchableOpacity onPress={() => Linking.openURL(url)}
+      style={[mm.docWrap, { backgroundColor: isOwn ? 'rgba(255,255,255,0.1)' : T.surface2 }]}>
+      <View style={mm.docIconWrap}>
+        <Ionicons name="document-text-outline" size={26} color={isOwn ? T.white : T.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[mm.docName, { color: isOwn ? T.white : T.text }]} numberOfLines={1}>
+          {item.fileName || 'Document'}
+        </Text>
+        <Text style={[mm.docSize, { color: isOwn ? 'rgba(255,255,255,0.6)' : T.text4 }]}>
+          {fmtSize(item.fileSize)}
+        </Text>
+      </View>
+      <Ionicons name="download-outline" size={18} color={isOwn ? T.white : T.violet} />
+    </TouchableOpacity>
+  );
+});
+
+const mm = StyleSheet.create({
+  mediaWrap:  { borderRadius: 12, overflow: 'hidden', position: 'relative', maxWidth: 220 },
+  img:        { width: 220, height: 160, borderRadius: 12 },
+  video:      { width: 220, height: 150, borderRadius: 12 },
+  dlOverlay:  { position: 'absolute', top: 6, right: 6, flexDirection: 'row', gap: 4 },
+  dlBtn:      { backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 16, padding: 5 },
+  audioWrap:  { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, borderRadius: 12, minWidth: 190 },
+  audioBtn:   { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(99,102,241,0.2)', alignItems: 'center', justifyContent: 'center' },
+  audioBar:   { flex: 1, height: 4, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 2, overflow: 'hidden' },
+  audioFill:  { height: '100%', borderRadius: 2 },
+  audioDur:   { fontSize: 11, minWidth: 36 },
+  docWrap:    { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 10, borderRadius: 12, minWidth: 180 },
+  docIconWrap:{ width: 38, height: 38, borderRadius: 8, backgroundColor: 'rgba(99,102,241,0.15)', alignItems: 'center', justifyContent: 'center' },
+  docName:    { fontSize: 13, fontWeight: '600' },
+  docSize:    { fontSize: 11, marginTop: 2 },
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  MoneyCard (like .money-card Angular)
+// ═══════════════════════════════════════════════════════════════
+const MoneyCard = ({ item, isOwn }: { item: any; isOwn: boolean }) => {
+  const status = item.moneyTransfer?.status || 'pending';
+  const borderColor = status === 'completed' ? 'rgba(16,185,129,0.3)'
+    : status === 'failed'    ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)';
+  const bg = status === 'completed' ? 'rgba(16,185,129,0.07)'
+    : status === 'failed'    ? 'rgba(239,68,68,0.07)' : 'rgba(245,158,11,0.07)';
+  const iconBg = status === 'completed'
+    ? ['#10b981','#059669'] : status === 'failed'
+    ? ['#ef4444','#dc2626'] : ['#6366f1','#8b5cf6'];
+
+  return (
+    <View style={[mc.card, { borderColor, backgroundColor: bg }]}>
+      <View style={[mc.iconWrap, { backgroundColor: iconBg[0] }]}>
+        <Ionicons name={status === 'failed' ? 'alert-circle' : 'cash'} size={20} color={T.white} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[mc.amt, { color: isOwn ? T.white : T.text }]}>
+          {formatAmount(item.moneyTransfer?.amount || 0)} Ar
+        </Text>
+        <Text style={[mc.lbl, {
+          color: status === 'completed' ? T.success : status === 'failed' ? T.error : T.warning,
+        }]}>
+          {status === 'completed' ? '✅ Transfert réussi'
+           : status === 'failed'  ? `❌ ${item.moneyTransfer?.failReason || 'Échec'}`
+                                  : '⏳ En cours…'}
+        </Text>
+      </View>
+    </View>
+  );
+};
+const mc = StyleSheet.create({
+  card:     { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 14, borderWidth: 1, minWidth: 180 },
+  iconWrap: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  amt:      { fontSize: 15, fontWeight: '700' },
+  lbl:      { fontSize: 12, marginTop: 2 },
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  ÉCRAN PRINCIPAL
+// ═══════════════════════════════════════════════════════════════
 export default function ChatScreen() {
-  const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const insets           = useSafeAreaInsets();
   const { user, getToken } = useAuth();
   const { showError, showSuccess, showInfo, showWarning } = useNotification();
-  const { t } = useTranslation();
-  const { userId } = useLocalSearchParams<{ userId: string }>();
+  const { t }            = useTranslation();
+  const { userId }       = useLocalSearchParams<{ userId: string }>();
 
-  // États
-  const [conversations, setConversations] = useState<any[]>([]);
-  const [messages, setMessages] = useState<any[]>([]);
-  const [selectedContact, setSelectedContact] = useState<any>(null);
-  const [currentUserId, setCurrentUserId] = useState('');
-  const [newMessage, setNewMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [onlineFriends, setOnlineFriends] = useState<any[]>([]);
-  const [allFriends, setAllFriends] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [showConversationsList, setShowConversationsList] = useState(true);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  
-  // États pour les appels
-  const [incomingCall, setIncomingCall] = useState<CallData | null>(null);
-  const [isCalling, setIsCalling] = useState(false);
-  const [callType, setCallType] = useState<'audio' | 'video'>('audio');
-  const [callStatus, setCallStatus] = useState<'idle' | 'calling' | 'ringing' | 'connected' | 'ended'>('idle');
+  // ── State ──────────────────────────────────────────────────
+  const [conversations, setConversations]         = useState<any[]>([]);
+  const [messages, setMessages]                   = useState<any[]>([]);
+  const [selectedContact, setSelectedContact]     = useState<any>(null);
+  const [currentUserId, setCurrentUserId]         = useState('');
+  const [newMessage, setNewMessage]               = useState('');
+  const [isTyping, setIsTyping]                   = useState(false);
+  const [onlineFriends, setOnlineFriends]         = useState<any[]>([]);
+  const [allFriends, setAllFriends]               = useState<any[]>([]);
+  const [searchQuery, setSearchQuery]             = useState('');
+  const [showEmojiPicker, setShowEmojiPicker]     = useState(false);
+  const [isSending, setIsSending]                 = useState(false);
+  const [loading, setLoading]                     = useState(true);
+  const [refreshing, setRefreshing]               = useState(false);
+  // Mobile: liste ou chat
+  const [view, setView]                           = useState<'list'|'chat'>('list');
+  const [isRecording, setIsRecording]             = useState(false);
+  const [recordingTime, setRecordingTime]         = useState(0);
+  // Transfert argent
+  const [showTransfer, setShowTransfer]           = useState(false);
+  const [transferAmount, setTransferAmount]       = useState('');
+  const QUICK_AMOUNTS = [500, 1000, 2000, 5000, 10000, 20000];
+  // Actions message (ctx menu)
+  const [activeCtxId, setActiveCtxId]             = useState<string|null>(null);
+  const [editingId, setEditingId]                 = useState<string|null>(null);
+  const [editContent, setEditContent]             = useState('');
+  // Réactions
+  const [reactPickerId, setReactPickerId]         = useState<string|null>(null);
+  // Appels
+  const [incomingCall, setIncomingCall]           = useState<CallData|null>(null);
+  const [callStatus, setCallStatus]               = useState<'idle'|'calling'|'connected'|'ended'>('idle');
+  const [callType, setCallType]                   = useState<'audio'|'video'>('audio');
+  const [isCalling, setIsCalling]                 = useState(false);
 
-  const flatListRef = useRef<FlatList>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const videoRef = useRef<any>(null);
-  const unsubscribeNewMessage = useRef<(() => void) | null>(null);
-  const unsubscribeTyping = useRef<(() => void) | null>(null);
-  const unsubscribeOnline = useRef<(() => void) | null>(null);
-  const unsubscribeCall = useRef<(() => void) | null>(null);
-  const unsubscribeError = useRef<(() => void) | null>(null);
+  const flatListRef       = useRef<FlatList>(null);
+  const typingTimeout     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recordInterval    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const unsubMsg          = useRef<(()=>void)|null>(null);
+  const unsubTyping       = useRef<(()=>void)|null>(null);
+  const unsubOnline       = useRef<(()=>void)|null>(null);
+  const unsubCall         = useRef<(()=>void)|null>(null);
+  const unsubErr          = useRef<(()=>void)|null>(null);
 
-  // ============================================================
-  // INITIALISATION
-  // ============================================================
+  // ── Init ──────────────────────────────────────────────────
   useEffect(() => {
-    const userData = user;
-    setCurrentUserId(userData?.id || '');
-    
-    const initChat = async () => {
+    setCurrentUserId(user?.id || '');
+    const init = async () => {
       try {
         const token = getToken();
-        if (token) {
-          await ChatService.connect(token);
-          console.log('✅ ChatService connecté');
-        } else {
-          console.warn('⚠️ Pas de token disponible');
-        }
-        await loadAllData();
-        setupSocketListeners();
-      } catch (error) {
-        console.error('❌ Erreur d\'initialisation:', error);
-        showError(t('error_loading'));
-      } finally {
-        setLoading(false);
-      }
+        if (token) await ChatService.connect(token);
+        await loadAll();
+        setupSockets();
+      } catch { showError(t('error_loading')); }
+      finally   { setLoading(false); }
     };
-    
-    initChat();
-
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') {
-        const token = getToken();
-        if (token && !ChatService.isConnected()) {
-          ChatService.connect(token).catch(console.error);
-        }
+    init();
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        const tk = getToken();
+        if (tk && !ChatService.isConnected()) ChatService.connect(tk).catch(console.error);
       }
     });
-
     return () => {
-      subscription.remove();
-      if (unsubscribeNewMessage.current) unsubscribeNewMessage.current();
-      if (unsubscribeTyping.current) unsubscribeTyping.current();
-      if (unsubscribeOnline.current) unsubscribeOnline.current();
-      if (unsubscribeCall.current) unsubscribeCall.current();
-      if (unsubscribeError.current) unsubscribeError.current();
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-      }
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
+      sub.remove();
+      unsubMsg.current?.();
+      unsubTyping.current?.();
+      unsubOnline.current?.();
+      unsubCall.current?.();
+      unsubErr.current?.();
+      if (recordInterval.current) clearInterval(recordInterval.current);
+      if (typingTimeout.current)  clearTimeout(typingTimeout.current);
     };
   }, []);
 
   useEffect(() => {
     if (userId && conversations.length > 0) {
-      const existing = conversations.find(c => c.userId === userId);
-      if (existing) {
-        selectConversation(existing);
-      } else {
-        startChat(userId);
-      }
+      const ex = conversations.find(c => c.userId === userId);
+      ex ? selectConv(ex) : startChat(userId);
     }
   }, [userId, conversations]);
 
-  // ============================================================
-  // CHARGEMENT DES DONNÉES
-  // ============================================================
-  const loadAllData = async () => {
-    try {
-      await Promise.all([
-        loadConversations(),
-        loadAllFriends(),
-        loadOnlineFriends(),
-      ]);
-    } catch (error) {
-      console.error('Erreur loadAllData:', error);
-    }
+  // ── Data ──────────────────────────────────────────────────
+  const loadAll = async () => {
+    await Promise.all([loadConvs(), loadFriends(), loadOnline()]);
   };
 
-  const loadConversations = async () => {
+  const loadConvs = async () => {
     try {
-      const convs = await ChatService.getConversations();
-      if (convs && convs.length > 0) {
-        setConversations(convs.sort((a, b) =>
-          new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime()
-        ));
-      } else {
-        setConversations([]);
-      }
-    } catch (error) {
-      console.error('Erreur chargement conversations:', error);
-    }
+      const c = await ChatService.getConversations();
+      setConversations((c || []).sort((a:any,b:any) =>
+        new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime()));
+    } catch {}
   };
 
-  const loadAllFriends = async () => {
+  const loadFriends = async () => {
     try {
-      const friends = await FriendService.getFriends();
-      const accepted = friends.filter((f: any) => f.status === 'accepted');
-      setAllFriends(accepted);
-    } catch (error) {
-      console.error('Erreur chargement amis:', error);
-    }
+      const f = await FriendService.getFriends();
+      setAllFriends(f.filter((x:any) => x.status === 'accepted'));
+    } catch {}
   };
 
-  const loadOnlineFriends = async () => {
+  const loadOnline = async () => {
     try {
-      const friends = await FriendService.getFriends();
-      const accepted = friends.filter((f: any) => f.status === 'accepted');
-      setOnlineFriends(accepted.filter((f: any) => f.friend?.isOnline === true));
-    } catch (error) {
-      console.error('Erreur chargement amis en ligne:', error);
-    }
+      const f = await FriendService.getFriends();
+      setOnlineFriends(
+        f.filter((x:any) => x.status === 'accepted' && x.friend?.isOnline === true));
+    } catch {}
   };
 
-  // ============================================================
-  // SOCKET LISTENERS
-  // ============================================================
-  const setupSocketListeners = () => {
-    if (unsubscribeNewMessage.current) unsubscribeNewMessage.current();
-    if (unsubscribeTyping.current) unsubscribeTyping.current();
-    if (unsubscribeOnline.current) unsubscribeOnline.current();
-    if (unsubscribeCall.current) unsubscribeCall.current();
-    if (unsubscribeError.current) unsubscribeError.current();
+  // ── Sockets ───────────────────────────────────────────────
+  const setupSockets = () => {
+    unsubMsg.current?.(); unsubTyping.current?.();
+    unsubOnline.current?.(); unsubCall.current?.(); unsubErr.current?.();
 
-    unsubscribeNewMessage.current = ChatService.onNewMessage((msg) => {
-      console.log('📩 Nouveau message reçu dans ChatScreen:', msg);
-      handleNewMessage(msg);
-    });
+    unsubMsg.current = ChatService.onNewMessage(msg => handleNewMsg(msg));
 
-    unsubscribeTyping.current = ChatService.onTyping((data) => {
-      if (data && selectedContact && data.userId === selectedContact.userId) {
+    unsubTyping.current = ChatService.onTyping(data => {
+      if (data && selectedContact && data.userId === selectedContact.userId)
         setIsTyping(data.isTyping);
-      }
     });
 
-    unsubscribeOnline.current = ChatService.onOnlineStatus((data) => {
+    unsubOnline.current = ChatService.onOnlineStatus(data => {
       if (!data) return;
-      setConversations((prevConversations) =>
-        prevConversations.map((c) =>
-          c.userId === data.userId ? { ...c, isOnline: data.isOnline } : c
-        )
-      );
-      loadOnlineFriends();
+      setConversations(prev => prev.map(c =>
+        c.userId === data.userId ? { ...c, isOnline: data.isOnline } : c));
+      loadOnline();
     });
 
-    unsubscribeCall.current = ChatService.onCall((data) => {
-      console.log('📞 Événement d\'appel reçu:', data);
+    unsubCall.current = ChatService.onCall(data => {
       if (data.from) {
-        const friend = allFriends.find((f: any) => f.friend?.id === data.from);
-        setIncomingCall({
-          from: data.from,
-          type: data.type || 'audio',
-          fromName: friend?.friend?.firstName || 'Inconnu',
-        });
-        setCallStatus('ringing');
+        const fr = allFriends.find((f:any) => f.friend?.id === data.from);
+        setIncomingCall({ from: data.from, type: data.type || 'audio', fromName: fr?.friend?.firstName || 'Inconnu' });
+        setCallStatus('idle');
       } else if (data.accepted !== undefined) {
-        if (data.accepted) {
-          setCallStatus('connected');
-          showInfo(t('call'));
-        } else {
-          setCallStatus('ended');
-          showInfo(t('error'));
-          setIsCalling(false);
-          setIncomingCall(null);
-        }
+        setCallStatus(data.accepted ? 'connected' : 'ended');
+        if (!data.accepted) { setIsCalling(false); setIncomingCall(null); }
       }
     });
 
-    unsubscribeError.current = ChatService.onError((error) => {
-      console.error('❌ Erreur socket:', error);
-      showError(error?.message || 'Erreur de connexion');
-    });
+    unsubErr.current = ChatService.onError(err => showError(err?.message || 'Erreur socket'));
   };
 
-  // ============================================================
-  // GESTION DES MESSAGES
-  // ============================================================
-  const handleNewMessage = (message: any) => {
-    if (selectedContact && message.senderId === selectedContact.userId) {
-      setMessages((prevMessages) => {
-        const exists = prevMessages.some(m => m.id === message.id);
-        if (exists) return prevMessages;
-        return [...prevMessages, message];
+  // ── Message handlers ──────────────────────────────────────
+  const handleNewMsg = useCallback((msg: any) => {
+    if (selectedContact && msg.senderId === selectedContact.userId) {
+      setMessages(prev => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
       });
-      scrollToBottom();
+      scrollBottom();
       ChatService.markAsRead(selectedContact.userId);
     }
-
-    setConversations((prevConversations) => {
-      const convIndex = prevConversations.findIndex(c => c.userId === message.senderId);
-      if (convIndex !== -1) {
-        const updatedConv = { ...prevConversations[convIndex] };
-        updatedConv.lastMessage = {
-          content: message.content || (message.type === 'emoji' ? message.emoji : '[Média]'),
-          type: message.type,
-          createdAt: message.createdAt
-        };
-        updatedConv.lastMessageTime = message.createdAt;
-        if (selectedContact?.userId !== message.senderId) {
-          updatedConv.unreadCount = (updatedConv.unreadCount || 0) + 1;
-        }
-        const newConvs = [...prevConversations];
-        newConvs[convIndex] = updatedConv;
-        return newConvs.sort((a, b) =>
-          new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime()
-        );
-      }
-      return prevConversations;
+    setConversations(prev => {
+      const idx = prev.findIndex(c => c.userId === msg.senderId);
+      if (idx === -1) return prev;
+      const updated = { ...prev[idx],
+        lastMessage: { content: msg.content || msg.emoji || '[Média]', type: msg.type, createdAt: msg.createdAt },
+        lastMessageTime: msg.createdAt,
+        unreadCount: selectedContact?.userId !== msg.senderId ? (prev[idx].unreadCount || 0) + 1 : 0,
+      };
+      const arr = [...prev]; arr[idx] = updated;
+      return arr.sort((a,b) => new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime());
     });
-  };
+  }, [selectedContact]);
 
-  // ============================================================
-  // SÉLECTION DES CONVERSATIONS
-  // ============================================================
-  const selectConversation = async (conv: any) => {
+  const selectConv = async (conv: any) => {
     setSelectedContact(conv);
-    setShowConversationsList(false);
     setMessages([]);
+    setView('chat');
+    setShowTransfer(false);
+    setActiveCtxId(null);
     try {
       const msgs = await ChatService.getMessages(conv.userId);
-      if (msgs && msgs.length > 0) {
-        setMessages(msgs.sort((a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        ));
-      }
-      scrollToBottom();
+      setMessages((msgs || []).sort((a:any,b:any) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+      scrollBottom();
       await ChatService.markAsRead(conv.userId);
-      setConversations((prevConversations) =>
-        prevConversations.map((c) =>
-          c.userId === conv.userId ? { ...c, unreadCount: 0 } : c
-        )
-      );
-    } catch (error) {
-      console.error('Erreur selectConversation:', error);
-      showError(t('error_loading'));
-    }
+      setConversations(prev => prev.map(c =>
+        c.userId === conv.userId ? { ...c, unreadCount: 0 } : c));
+    } catch { showError(t('error_loading')); }
   };
 
   const startChat = async (friendId: string) => {
-    const existing = conversations.find(c => c.userId === friendId);
-    if (existing) {
-      selectConversation(existing);
-    } else {
-      try {
-        const friend = allFriends.find((f: any) => f.friend?.id === friendId)?.friend;
-        if (friend) {
-          const newConv = {
-            userId: friend.id,
-            firstName: friend.firstName,
-            lastName: friend.lastName,
-            profilePicture: friend.profilePicture,
-            lastMessage: { content: '', type: 'text', createdAt: new Date() },
-            lastMessageTime: new Date().toISOString(),
-            unreadCount: 0,
-            isOnline: friend.isOnline || false,
-          };
-          setConversations((prevConversations) => [newConv, ...prevConversations]);
-          selectConversation(newConv);
-        } else {
-          showError(t('error'));
-        }
-      } catch (error) {
-        console.error('Erreur startChat:', error);
-        showError(t('error'));
-      }
-    }
+    const ex = conversations.find(c => c.userId === friendId);
+    if (ex) { selectConv(ex); return; }
+    const fr = allFriends.find((f:any) => f.friend?.id === friendId)?.friend;
+    if (!fr) { showError(t('error')); return; }
+    const nc = {
+      userId: fr.id, firstName: fr.firstName, lastName: fr.lastName,
+      lastMessage: { content: '', type: 'text', createdAt: new Date() },
+      lastMessageTime: new Date().toISOString(), unreadCount: 0, isOnline: fr.isOnline || false,
+    };
+    setConversations(prev => [nc, ...prev]);
+    selectConv(nc);
   };
 
-  // ============================================================
-  // ENVOI DE MESSAGES
-  // ============================================================
+  // ── Envoyer message texte ──────────────────────────────────
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedContact || isSending) return;
-
     setIsSending(true);
     const tempId = 'temp-' + Date.now();
-    const tempMsg = {
-      id: tempId,
-      senderId: currentUserId,
-      receiverId: selectedContact.userId,
-      type: 'text',
-      content: newMessage.trim(),
-      isRead: false,
-      isDelivered: false,
-      createdAt: new Date().toISOString(),
+    const temp = {
+      id: tempId, senderId: currentUserId, receiverId: selectedContact.userId,
+      type: 'text', content: newMessage.trim(),
+      isRead: false, isDelivered: false, createdAt: new Date().toISOString(),
     };
-
-    setMessages((prevMessages) => [...prevMessages, tempMsg]);
+    setMessages(prev => [...prev, temp]);
+    const txt = newMessage.trim();
     setNewMessage('');
-    scrollToBottom();
-
+    scrollBottom();
     try {
-      await ChatService.sendMessage({
-        receiverId: selectedContact.userId,
-        type: 'text',
-        content: tempMsg.content,
-      });
+      await ChatService.sendMessage({ receiverId: selectedContact.userId, type: 'text', content: txt });
       ChatService.sendTyping(selectedContact.userId, false);
-    } catch (error) {
-      console.error('Erreur envoi message:', error);
-      showError('Erreur lors de l\'envoi du message');
-      setMessages((prev) => prev.filter(msg => msg.id !== tempId));
-    } finally {
-      setIsSending(false);
-    }
+    } catch {
+      showError('Erreur d\'envoi');
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+    } finally { setIsSending(false); }
   };
 
   const sendEmoji = (emoji: string) => {
     if (!selectedContact) return;
-
-    const tempMsg = {
-      id: 'temp-emoji-' + Date.now(),
-      senderId: currentUserId,
-      receiverId: selectedContact.userId,
-      type: 'emoji',
-      emoji: emoji,
-      isRead: false,
-      isDelivered: false,
-      createdAt: new Date().toISOString(),
-    };
-
-    setMessages((prevMessages) => [...prevMessages, tempMsg]);
-    scrollToBottom();
-
-    ChatService.sendMessage({
-      receiverId: selectedContact.userId,
-      type: 'emoji',
-      emoji: emoji,
-    });
-
+    setMessages(prev => [...prev, {
+      id: 'temp-emoji-' + Date.now(), senderId: currentUserId,
+      receiverId: selectedContact.userId, type: 'emoji', emoji,
+      isRead: false, isDelivered: false, createdAt: new Date().toISOString(),
+    }]);
+    scrollBottom();
+    ChatService.sendMessage({ receiverId: selectedContact.userId, type: 'emoji', emoji });
     setShowEmojiPicker(false);
   };
 
-  // ============================================================
-  // MESSAGES VOCAUX
-  // ============================================================
-  const requestMicrophonePermission = async (): Promise<boolean> => {
+  // ── Transfert argent ──────────────────────────────────────
+  const confirmTransfer = async () => {
+    const amount = parseFloat(transferAmount);
+    if (!selectedContact || !amount || amount <= 0) return;
+    const temp = {
+      id: 'temp-money-' + Date.now(), senderId: currentUserId,
+      receiverId: selectedContact.userId, type: 'money',
+      moneyTransfer: { amount, status: 'pending' },
+      isRead: false, isDelivered: false, createdAt: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, temp]);
+    scrollBottom();
+    await ChatService.sendMessage({ receiverId: selectedContact.userId, type: 'money', moneyTransfer: { amount } });
+    setShowTransfer(false);
+    setTransferAmount('');
+  };
+
+  // ── Édition / suppression message ─────────────────────────
+  const startEdit = (msg: any) => {
+    setEditingId(msg.id); setEditContent(msg.content || ''); setActiveCtxId(null);
+  };
+
+  const saveEdit = async () => {
+    if (!editingId || !editContent.trim()) return;
     try {
-      if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-          {
-            title: 'Permission microphone',
-            message: 'SPaye a besoin d\'accéder à votre microphone pour les messages vocaux.',
-            buttonNeutral: 'Demander plus tard',
-            buttonNegative: 'Annuler',
-            buttonPositive: 'OK',
-          }
-        );
-        return granted === PermissionsAndroid.RESULTS.GRANTED;
+      await ChatService.updateMessage(editingId, editContent.trim());
+      setMessages(prev => prev.map(m => m.id === editingId ? { ...m, content: editContent.trim(), isEdited: true } : m));
+    } catch { showError('Erreur modification'); }
+    setEditingId(null);
+  };
+
+  const deleteMsg = async (msg: any) => {
+    Alert.alert('Supprimer', 'Supprimer ce message ?', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Supprimer', style: 'destructive', onPress: async () => {
+        try {
+          await ChatService.deleteMessage(msg.id);
+          setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, isDeleted: true, content: '' } : m));
+        } catch { showError('Erreur suppression'); }
+        setActiveCtxId(null);
+      }},
+    ]);
+  };
+
+  // ── Réactions ─────────────────────────────────────────────
+  const toggleReaction = async (msg: any, emoji: string) => {
+    const mine = msg.reactions?.find((r:any) => r.userId === currentUserId)?.emoji;
+    try {
+      let updated;
+      if (mine === emoji) {
+        updated = await ChatService.removeReaction(msg.id);
       } else {
-        const { status } = await Audio.requestPermissionsAsync();
-        return status === 'granted';
+        updated = await ChatService.reactToMessage(msg.id, emoji);
       }
-    } catch (error) {
-      console.error('Erreur permission microphone:', error);
-      return false;
-    }
+      if (updated) {
+        setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, ...updated } : m));
+      }
+    } catch {}
+    setReactPickerId(null); setActiveCtxId(null);
   };
 
-  const startVoiceRecording = async () => {
+  // ── Appels ────────────────────────────────────────────────
+  const startCall = (type: 'audio'|'video') => {
     if (!selectedContact) return;
-    
-    if (!isRecording) {
-      try {
-        const hasPermission = await requestMicrophonePermission();
-        if (!hasPermission) {
-          showError('Permission microphone requise');
-          return;
-        }
-
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
-
-        setIsRecording(true);
-        setRecordingTime(0);
-        showInfo('🎤 Enregistrement vocal...');
-        
-        recordingIntervalRef.current = setInterval(() => {
-          setRecordingTime((prev) => prev + 1);
-        }, 1000);
-      } catch (error) {
-        console.error('Erreur enregistrement:', error);
-        showError('Erreur accès microphone');
-        setIsRecording(false);
-      }
-    } else {
-      setIsRecording(false);
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-        recordingIntervalRef.current = null;
-      }
-      
-      const audioId = 'temp-audio-' + Date.now();
-      const tempMsg = {
-        id: audioId,
-        senderId: currentUserId,
-        receiverId: selectedContact.userId,
-        type: 'audio',
-        content: `🎤 Message vocal (${recordingTime}s)`,
-        fileUrl: 'https://example.com/audio.mp3',
-        fileName: `audio_${Date.now()}.mp3`,
-        fileSize: recordingTime * 16,
-        isRead: false,
-        isDelivered: false,
-        createdAt: new Date().toISOString(),
-      };
-      
-      setMessages((prevMessages) => [...prevMessages, tempMsg]);
-      scrollToBottom();
-      
-      try {
-        await ChatService.sendMessage({
-          receiverId: selectedContact.userId,
-          type: 'audio',
-          content: `🎤 Message vocal (${recordingTime}s)`,
-          fileUrl: 'https://example.com/audio.mp3',
-          fileName: `audio_${Date.now()}.mp3`,
-          fileSize: recordingTime * 16,
-        });
-        showSuccess('Message vocal envoyé');
-      } catch (error) {
-        console.error('Erreur envoi message vocal:', error);
-        showError('Erreur lors de l\'envoi du message vocal');
-        setMessages((prev) => prev.filter(msg => msg.id !== audioId));
-      }
-      
-      setRecordingTime(0);
-    }
-  };
-
-  // ============================================================
-  // UPLOAD DE FICHIERS
-  // ============================================================
-  const uploadFile = async () => {
-    if (!selectedContact) return;
-
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.All,
-        allowsEditing: false,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0];
-        const file = {
-          uri: asset.uri,
-          name: asset.fileName || 'file.jpg',
-          type: asset.mimeType || 'image/jpeg',
-          size: asset.fileSize || 0,
-        };
-
-        if (file.size > 150 * 1024 * 1024) {
-          showError('Fichier trop volumineux (max 150 Mo)');
-          return;
-        }
-
-        setIsSending(true);
-        
-        const mimeType = file.type || '';
-        let type: 'image' | 'video' | 'audio' | 'file' = 'file';
-        if (mimeType.startsWith('image/')) type = 'image';
-        else if (mimeType.startsWith('video/')) type = 'video';
-        else if (mimeType.startsWith('audio/')) type = 'audio';
-
-        const uploadResult = await ChatService.uploadFile(file);
-
-        const tempMsg = {
-          id: 'temp-file-' + Date.now(),
-          senderId: currentUserId,
-          receiverId: selectedContact.userId,
-          type: type,
-          fileUrl: uploadResult.url,
-          fileName: uploadResult.fileName || file.name,
-          fileSize: uploadResult.fileSize || file.size || 0,
-          isRead: false,
-          isDelivered: false,
-          createdAt: new Date().toISOString(),
-        };
-
-        setMessages((prevMessages) => [...prevMessages, tempMsg]);
-        scrollToBottom();
-
-        await ChatService.sendMessage({
-          receiverId: selectedContact.userId,
-          type: type,
-          fileUrl: uploadResult.url,
-          fileName: uploadResult.fileName || file.name,
-          fileSize: uploadResult.fileSize || file.size || 0,
-        });
-
-        setIsSending(false);
-        showSuccess('Fichier envoyé');
-      }
-    } catch (error) {
-      console.error('Erreur upload:', error);
-      showError('Erreur lors de l\'upload');
-      setIsSending(false);
-    }
-  };
-
-  // ============================================================
-  // APPELS AUDIO/VIDÉO
-  // ============================================================
-  const startCall = (type: 'audio' | 'video') => {
-    if (!selectedContact) return;
-    
-    if (!selectedContact.isOnline) {
-      showWarning(t('offline'));
-      return;
-    }
-
-    setCallType(type);
-    setCallStatus('calling');
-    setIsCalling(true);
-
+    if (!selectedContact.isOnline) { showWarning(t('offline')); return; }
+    setCallType(type); setCallStatus('calling'); setIsCalling(true);
     ChatService.startCall(selectedContact.userId, type);
-    showInfo(`${type === 'audio' ? t('call') : t('video_call')}...`);
-
-    const timeoutId = setTimeout(() => {
-      if (callStatus === 'calling') {
-        setCallStatus('connected');
-        showInfo(`${type === 'audio' ? t('call') : t('video_call')} ${t('success')}`);
-      }
-    }, 3000);
-
-    return () => clearTimeout(timeoutId);
   };
 
   const acceptCall = () => {
-    if (incomingCall) {
-      setCallStatus('connected');
-      ChatService.answerCall(incomingCall.from, true);
-      setIncomingCall(null);
-      showInfo(t('call'));
-    }
-  };
-
-  const rejectCall = () => {
-    if (incomingCall) {
-      ChatService.answerCall(incomingCall.from, false);
-      setIncomingCall(null);
-      setCallStatus('ended');
-      showInfo(t('error'));
-    }
-  };
-
-  const endCall = () => {
-    setCallStatus('ended');
-    setIsCalling(false);
+    if (!incomingCall) return;
+    setCallStatus('connected');
+    ChatService.answerCall(incomingCall.from, true);
     setIncomingCall(null);
-    if (selectedContact) {
-      ChatService.endCall(selectedContact.userId);
+  };
+  const rejectCall = () => {
+    if (!incomingCall) return;
+    ChatService.answerCall(incomingCall.from, false);
+    setIncomingCall(null); setCallStatus('ended');
+  };
+  const endCall = () => {
+    setCallStatus('ended'); setIsCalling(false); setIncomingCall(null);
+    if (selectedContact) ChatService.endCall(selectedContact.userId);
+  };
+
+  // ── Enregistrement vocal ──────────────────────────────────
+  const toggleRecording = async () => {
+    if (isRecording) {
+      setIsRecording(false);
+      if (recordInterval.current) { clearInterval(recordInterval.current); recordInterval.current = null; }
+      if (!selectedContact) return;
+      const dur = recordingTime;
+      setRecordingTime(0);
+      const tempId = 'temp-audio-' + Date.now();
+      setMessages(prev => [...prev, {
+        id: tempId, senderId: currentUserId, receiverId: selectedContact.userId,
+        type: 'audio', content: `🎤 Message vocal (${dur}s)`,
+        fileUrl: 'https://example.com/audio.mp3', fileName: `audio_${Date.now()}.mp3`,
+        fileSize: dur * 16, isRead: false, isDelivered: false, createdAt: new Date().toISOString(),
+      }]);
+      scrollBottom();
+      try {
+        await ChatService.sendMessage({
+          receiverId: selectedContact.userId, type: 'audio',
+          content: `🎤 Message vocal (${dur}s)`,
+          fileUrl: 'https://example.com/audio.mp3', fileName: `audio_${Date.now()}.mp3`,
+          fileSize: dur * 16,
+        });
+      } catch { showError('Erreur envoi vocal'); setMessages(prev => prev.filter(m => m.id !== tempId)); }
+    } else {
+      const perm = Platform.OS === 'android'
+        ? await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO)
+        : (await Audio.requestPermissionsAsync()).status;
+      if (perm !== 'granted' && perm !== PermissionsAndroid.RESULTS.GRANTED) {
+        showError('Permission microphone requise'); return;
+      }
+      setIsRecording(true); setRecordingTime(0);
+      showInfo('🎤 Enregistrement en cours…');
+      recordInterval.current = setInterval(() => setRecordingTime(p => p + 1), 1000);
     }
-    showInfo('Appel terminé');
   };
 
-  // ============================================================
-  // ACTIONS
-  // ============================================================
-  const sendMoney = () => {
+  // ── Upload fichier ────────────────────────────────────────
+  const uploadFile = async () => {
     if (!selectedContact) return;
-    router.push({
-      pathname: '/(user)/send-money',
-      params: {
-        receiverId: selectedContact.userId,
-        receiverName: selectedContact.firstName + ' ' + selectedContact.lastName,
-      },
-    });
-  };
-
-  const blockUser = async () => {
-    if (!selectedContact) return;
-    Alert.alert(
-      t('block'),
-      `${t('confirm_delete')} ${selectedContact.firstName} ${selectedContact.lastName} ?`,
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('block'),
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await FriendService.blockUser(selectedContact.userId);
-              showSuccess(t('success'));
-              if (selectedContact) {
-                setSelectedContact({ ...selectedContact, isOnline: false });
-              }
-              loadOnlineFriends();
-            } catch (error) {
-              console.error('Erreur block:', error);
-              showError(t('error'));
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const viewProfile = () => {
-    if (!selectedContact) return;
-    router.push({
-      pathname: '/(user)/profile',
-      params: { userId: selectedContact.userId },
-    });
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos', 'audios'] as any, allowsEditing: false, quality: 0.8,
+      });
+      if (res.canceled || !res.assets[0]) return;
+      const asset = res.assets[0];
+      const file  = { uri: asset.uri, name: asset.fileName || 'file.jpg', type: asset.mimeType || 'image/jpeg', size: asset.fileSize || 0 };
+      if (file.size > 150 * 1024 * 1024) { showError('Fichier trop volumineux (max 150 Mo)'); return; }
+      setIsSending(true);
+      let kind: string = 'file';
+      if (file.type.startsWith('image/')) kind = 'image';
+      else if (file.type.startsWith('video/')) kind = 'video';
+      else if (file.type.startsWith('audio/')) kind = 'audio';
+      const up = await ChatService.uploadFile(file);
+      setMessages(prev => [...prev, {
+        id: 'temp-file-' + Date.now(), senderId: currentUserId,
+        receiverId: selectedContact.userId, type: kind,
+        fileUrl: up.url, fileName: up.fileName || file.name, fileSize: up.fileSize || file.size,
+        isRead: false, isDelivered: false, createdAt: new Date().toISOString(),
+      }]);
+      scrollBottom();
+      await ChatService.sendMessage({ receiverId: selectedContact.userId, type: kind, fileUrl: up.url, fileName: up.fileName, fileSize: up.fileSize });
+      showSuccess('Fichier envoyé');
+    } catch { showError('Erreur upload'); }
+    finally   { setIsSending(false); }
   };
 
   const onTyping = () => {
     if (!selectedContact) return;
     ChatService.sendTyping(selectedContact.userId, true);
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    typingTimeoutRef.current = setTimeout(() => {
-      if (selectedContact) {
-        ChatService.sendTyping(selectedContact.userId, false);
-      }
-    }, 1000);
+    if (typingTimeout.current) clearTimeout(typingTimeout.current);
+    typingTimeout.current = setTimeout(() => {
+      if (selectedContact) ChatService.sendTyping(selectedContact.userId, false);
+    }, 1500);
   };
 
-  const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+  const scrollBottom = useCallback(() => {
+    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
-  const goBackToList = () => {
-    setShowConversationsList(true);
-    setSelectedContact(null);
-    setMessages([]);
-  };
-
-  const goBack = () => {
-    router.back();
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadAllData();
-    setRefreshing(false);
-  };
-
-  const filteredConversations = () => {
+  const filteredConvs = useMemo(() => {
     if (!searchQuery) return conversations;
-    const query = searchQuery.toLowerCase();
-    return conversations.filter((conv) =>
-      `${conv.firstName} ${conv.lastName}`.toLowerCase().includes(query)
-    );
-  };
+    const q = searchQuery.toLowerCase();
+    return conversations.filter(c => `${c.firstName} ${c.lastName}`.toLowerCase().includes(q));
+  }, [conversations, searchQuery]);
 
-  // ============================================================
-  // RENDU
-  // ============================================================
+  // ─────────────────────────────────────────────────────────
+  //  RENDU MESSAGE
+  // ─────────────────────────────────────────────────────────
   const renderMessage = ({ item }: { item: any }) => {
     const isOwn = item.senderId === currentUserId;
-    const content = item.content || (item.type === 'emoji' ? item.emoji : '');
+    const showCtx  = activeCtxId === item.id;
+    const showReact = reactPickerId === item.id;
+    const isEditing = editingId === item.id;
+    const canEdit = isOwn && !item.isDeleted && item.type === 'text'
+      && Date.now() - new Date(item.createdAt).getTime() < 15 * 60 * 1000;
+    const canDel  = isOwn && !item.isDeleted;
+
+    // Réactions groupées
+    const reactions: Record<string, { count: number; mine: boolean }> = {};
+    (item.reactions || []).forEach((r: any) => {
+      reactions[r.emoji] = reactions[r.emoji] || { count: 0, mine: false };
+      reactions[r.emoji].count++;
+      if (r.userId === currentUserId) reactions[r.emoji].mine = true;
+    });
 
     return (
-      <View style={[styles.messageRow, isOwn ? styles.rowRight : styles.rowLeft]}>
-        <View
-          style={[
-            styles.bubble,
-            isOwn ? styles.bubbleRight : styles.bubbleLeft,
-            { backgroundColor: isOwn ? COLORS.primary : colors.card },
-          ]}
-        >
-          {(item.type === 'image' || item.type === 'video' || item.type === 'audio' || item.type === 'file') && (
-            <MediaMessage item={item} isOwn={isOwn} colors={colors} t={t} />
+      <View style={[s.msgRow, isOwn ? s.rowR : s.rowL]}>
+        <View style={s.msgWrap}>
+
+          {/* ── Édition inline ── */}
+          {isEditing ? (
+            <View style={s.editWrap}>
+              <TextInput
+                style={s.editInput} value={editContent}
+                onChangeText={setEditContent} autoFocus
+                onSubmitEditing={saveEdit}
+              />
+              <TouchableOpacity onPress={saveEdit} style={s.editOk}>
+                <Ionicons name="checkmark" size={16} color={T.white} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setEditingId(null)} style={s.editCancel}>
+                <Ionicons name="close" size={16} color={T.text3} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onLongPress={() => { setActiveCtxId(item.id === activeCtxId ? null : item.id); setReactPickerId(null); }}
+              onPress={() => { setActiveCtxId(null); setReactPickerId(null); }}
+            >
+              {/* ── Message supprimé ── */}
+              {item.isDeleted ? (
+                <View style={s.deletedBubble}>
+                  <Ionicons name="remove-circle-outline" size={14} color={T.text4} />
+                  <Text style={s.deletedText}>Message supprimé</Text>
+                </View>
+              ) : (
+                <View style={[
+                  s.bubble,
+                  isOwn ? s.bubbleOwn : s.bubbleOther,
+                  item.type === 'emoji' && s.emojiBubble,
+                ]}>
+                  {/* Texte */}
+                  {item.type === 'text' && (
+                    <Text style={[s.bubbleText, isOwn && { color: T.white }]}>{item.content}</Text>
+                  )}
+                  {/* Emoji géant */}
+                  {item.type === 'emoji' && <Text style={s.bigEmoji}>{item.emoji}</Text>}
+                  {/* Médias */}
+                  {['image','video','audio','file'].includes(item.type) && (
+                    <MediaMessage item={item} isOwn={isOwn} />
+                  )}
+                  {/* Argent */}
+                  {item.type === 'money' && <MoneyCard item={item} isOwn={isOwn} />}
+                </View>
+              )}
+            </TouchableOpacity>
           )}
 
-          {item.type === 'text' && (
-            <Text style={[styles.messageText, { color: isOwn ? COLORS.white : colors.text }]}>
-              {content}
-            </Text>
-          )}
-
-          {item.type === 'emoji' && (
-            <Text style={styles.bigEmoji}>{item.emoji}</Text>
-          )}
-
-          {item.type === 'money' && (
-            <View style={styles.moneyMessage}>
-              <Ionicons name="cash-outline" size={20} color={isOwn ? COLORS.white : COLORS.success} />
-              <Text style={[styles.moneyText, { color: isOwn ? COLORS.white : COLORS.success }]}>
-                💰 {formatAmount(item.moneyTransfer?.amount || 0)} Ar
-              </Text>
+          {/* ── Réactions bar ── */}
+          {Object.keys(reactions).length > 0 && (
+            <View style={s.reactBar}>
+              {Object.entries(reactions).map(([emoji, v]) => (
+                <TouchableOpacity key={emoji} style={[s.reactChip, v.mine && s.reactChipMine]}
+                  onPress={() => toggleReaction(item, emoji)}>
+                  <Text style={s.reactEmoji}>{emoji}</Text>
+                  {v.count > 1 && <Text style={s.reactCount}> {v.count}</Text>}
+                </TouchableOpacity>
+              ))}
             </View>
           )}
 
-          <Text style={[styles.time, { color: isOwn ? 'rgba(255,255,255,0.7)' : COLORS.gray500 }]}>
-            {formatTime(item.createdAt)}
-          </Text>
+          {/* ── Heure + lu ── */}
+          {!isEditing && (
+            <View style={[s.msgMeta, isOwn && { alignSelf: 'flex-end' }]}>
+              <Text style={s.msgTime}>{formatTime(item.createdAt)}</Text>
+              {item.isEdited && <Text style={s.msgEdited}> · modifié</Text>}
+              {isOwn && (
+                <Ionicons name={item.isRead ? 'checkmark-done' : 'checkmark'}
+                  size={13} color={item.isRead ? T.violet : T.text4} style={{ marginLeft: 3 }} />
+              )}
+            </View>
+          )}
+
+          {/* ── Ctx actions ── */}
+          {showCtx && !item.isDeleted && (
+            <View style={[s.ctxMenu, isOwn ? s.ctxMenuR : s.ctxMenuL]}>
+              <TouchableOpacity style={s.ctxBtn} onPress={() => {
+                setReactPickerId(reactPickerId === item.id ? null : item.id);
+              }}>
+                <Ionicons name="add-circle-outline" size={15} color={T.text3} />
+              </TouchableOpacity>
+              {canEdit && (
+                <TouchableOpacity style={s.ctxBtn} onPress={() => startEdit(item)}>
+                  <Ionicons name="create-outline" size={15} color={T.text3} />
+                </TouchableOpacity>
+              )}
+              {canDel && (
+                <TouchableOpacity style={s.ctxBtn} onPress={() => deleteMsg(item)}>
+                  <Ionicons name="trash-outline" size={15} color={T.error} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* ── Reaction picker ── */}
+          {showReact && (
+            <View style={[s.reactPicker, isOwn ? s.reactPickerR : s.reactPickerL]}>
+              {QUICK_REACTIONS.map(e => (
+                <TouchableOpacity key={e} onPress={() => toggleReaction(item, e)}>
+                  <Text style={s.reactPickerEmoji}>{e}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
         </View>
       </View>
     );
   };
 
-  const renderConversation = ({ item }: { item: any }) => (
+  // ─────────────────────────────────────────────────────────
+  //  RENDU CONVERSATION (sidebar)
+  // ─────────────────────────────────────────────────────────
+  const renderConv = ({ item }: { item: any }) => (
     <TouchableOpacity
-      style={[
-        styles.convItem,
-        selectedContact?.userId === item.userId && styles.convItemActive,
-        { backgroundColor: selectedContact?.userId === item.userId ? COLORS.primaryLight : colors.card },
-      ]}
-      onPress={() => selectConversation(item)}
-      activeOpacity={0.7}
+      style={[s.convItem, selectedContact?.userId === item.userId && s.convActive]}
+      onPress={() => selectConv(item)} activeOpacity={0.7}
     >
-      <View style={[styles.convAvatar, { backgroundColor: getAvatarColor(item.firstName) }]}>
-        <Text style={styles.convAvatarText}>{getInitials(item.firstName, item.lastName)}</Text>
-        {item.isOnline && <View style={styles.onlineDot} />}
-      </View>
-      <View style={styles.convInfo}>
-        <Text style={[styles.convName, { color: colors.text }]}>
-          {item.firstName} {item.lastName}
-        </Text>
-        <Text style={[styles.convLastMsg, { color: colors.textSecondary }]} numberOfLines={1}>
-          {item.lastMessage?.content || t('no_conversations')}
-        </Text>
-      </View>
-      <View style={styles.convMeta}>
-        <Text style={styles.convTime}>
-          {item.lastMessageTime ? formatTime(item.lastMessageTime) : ''}
-        </Text>
-        {item.unreadCount > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadText}>{item.unreadCount}</Text>
-          </View>
-        )}
+      <Avatar name={`${item.firstName} ${item.lastName}`} size={46} online={item.isOnline} />
+      <View style={s.convBody}>
+        <View style={s.convHdr}>
+          <Text style={s.convName} numberOfLines={1}>{item.firstName} {item.lastName}</Text>
+          <Text style={s.convTime}>{item.lastMessageTime ? formatTime(item.lastMessageTime) : ''}</Text>
+        </View>
+        <View style={s.convPrev}>
+          <Text style={s.convPreview} numberOfLines={1}>
+            {item.lastMessage?.content || 'Commencer une conversation'}
+          </Text>
+          {(item.unreadCount || 0) > 0 && (
+            <View style={s.unreadPill}><Text style={s.unreadTxt}>{item.unreadCount}</Text></View>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
 
-  const renderOnlineFriend = ({ item }: { item: any }) => (
-    <TouchableOpacity
-      style={styles.onlineFriendItem}
-      onPress={() => startChat(item.friend.id)}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.onlineAvatar, { backgroundColor: getAvatarColor(item.friend.firstName) }]}>
-        <Text style={styles.onlineAvatarText}>
-          {getInitials(item.friend.firstName, item.friend.lastName)}
-        </Text>
-        <View style={styles.liveDot} />
-      </View>
-      <Text style={styles.onlineFriendNameText} numberOfLines={1}>
-        {item.friend.firstName}
-      </Text>
-    </TouchableOpacity>
-  );
-
-  // ============================================================
-  // MODAL APPEL
-  // ============================================================
-  const renderCallModal = () => {
-    if (!incomingCall && callStatus === 'idle') return null;
-
+  // ─────────────────────────────────────────────────────────
+  //  MODAL APPEL
+  // ─────────────────────────────────────────────────────────
+  const CallModal = () => {
+    if (!incomingCall && callStatus === 'idle' && !isCalling) return null;
     const isIncoming = !!incomingCall;
     const name = isIncoming ? incomingCall?.fromName : selectedContact?.firstName;
-
     return (
-      <Modal visible={true} transparent animationType="fade">
-        <View style={styles.callModal}>
-          <View style={[styles.callContent, { backgroundColor: colors.card }]}>
-            <View
-              style={[
-                styles.callAvatar,
-                { backgroundColor: getAvatarColor(name || '') },
-              ]}
-            >
-              <Text style={styles.callAvatarText}>
-                {getInitials(name?.split(' ')[0] || '', name?.split(' ')[1] || '')}
-              </Text>
+      <Modal visible transparent animationType="fade">
+        <View style={s.callOverlay}>
+          <View style={s.callCard}>
+            <View style={[s.callAvatar, { backgroundColor: avatarColor(name || '') }]}>
+              <Ionicons name={callType === 'video' ? 'videocam' : 'call'} size={30} color={T.white} />
             </View>
-            <Text style={[styles.callName, { color: colors.text }]}>{name || 'Utilisateur'}</Text>
-            <Text style={styles.callStatusText}>
-              {isIncoming
-                ? `${callType === 'audio' ? t('call') : t('video_call')} entrant...`
-                : callStatus === 'calling'
-                ? `${t('call')} en cours...`
-                : callStatus === 'connected'
-                ? t('online')
-                : 'Terminé'}
+            <Text style={s.callName}>{name || 'Utilisateur'}</Text>
+            <Text style={s.callStatus}>
+              {isIncoming ? `Appel ${callType === 'video' ? 'vidéo' : 'audio'} entrant…`
+               : callStatus === 'calling' ? 'Appel en cours…'
+               : callStatus === 'connected' ? 'En communication' : 'Terminé'}
             </Text>
-
-            <View style={styles.callActions}>
+            <View style={s.callBtns}>
               {isIncoming ? (
                 <>
-                  <TouchableOpacity style={[styles.callBtn, styles.callBtnAccept]} onPress={acceptCall}>
-                    <Ionicons name="call" size={32} color={COLORS.white} />
+                  <TouchableOpacity style={[s.callBtn, s.callAccept]} onPress={acceptCall}>
+                    <Ionicons name="call" size={28} color={T.white} />
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.callBtn, styles.callBtnReject]} onPress={rejectCall}>
-                    <Ionicons name="close" size={32} color={COLORS.white} />
+                  <TouchableOpacity style={[s.callBtn, s.callReject]} onPress={rejectCall}>
+                    <Ionicons name="call" size={28} color={T.white} style={{ transform: [{ rotate: '135deg' }] }} />
                   </TouchableOpacity>
                 </>
               ) : callStatus === 'connected' ? (
                 <>
-                  <TouchableOpacity style={[styles.callBtn, styles.callBtnMute]}>
-                    <Ionicons name="mic-off" size={24} color={COLORS.white} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.callBtn, styles.callBtnSpeaker]}>
-                    <Ionicons name="volume-high" size={24} color={COLORS.white} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.callBtn, styles.callBtnReject]} onPress={endCall}>
-                    <Ionicons name="call" size={32} color={COLORS.white} />
+                  <TouchableOpacity style={s.ctrlBtn}><Ionicons name="mic-off" size={22} color={T.white} /></TouchableOpacity>
+                  <TouchableOpacity style={s.ctrlBtn}><Ionicons name="volume-high" size={22} color={T.white} /></TouchableOpacity>
+                  <TouchableOpacity style={[s.ctrlBtn, s.callReject]} onPress={endCall}>
+                    <Ionicons name="call" size={24} color={T.white} style={{ transform: [{ rotate: '135deg' }] }} />
                   </TouchableOpacity>
                 </>
               ) : (
-                <TouchableOpacity style={[styles.callBtn, styles.callBtnReject]} onPress={endCall}>
-                  <Ionicons name="close" size={32} color={COLORS.white} />
+                <TouchableOpacity style={[s.callBtn, s.callReject]} onPress={endCall}>
+                  <Ionicons name="close" size={28} color={T.white} />
                 </TouchableOpacity>
               )}
             </View>
@@ -1095,654 +902,361 @@ export default function ChatScreen() {
     );
   };
 
-  // ============================================================
-  // AFFICHAGE PRINCIPAL
-  // ============================================================
-  if (loading) {
-    return (
-      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={{ marginTop: 12, color: colors.textSecondary }}>{t('loading')}</Text>
+  // ─────────────────────────────────────────────────────────
+  //  LOADING
+  // ─────────────────────────────────────────────────────────
+  if (loading) return (
+    <View style={s.loadWrap}>
+      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+      <ActivityIndicator size="large" color={T.primary} />
+      <Text style={s.loadTxt}>{t('loading')}</Text>
+    </View>
+  );
+
+  // ─────────────────────────────────────────────────────────
+  //  VUE LISTE (conversations + amis en ligne)
+  // ─────────────────────────────────────────────────────────
+  if (view === 'list') return (
+    <View style={[s.root, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+
+      {/* Header liste */}
+      <View style={s.sidebarTop}>
+        <Text style={s.brand}>Messages</Text>
+        <IconBtn name="create-outline" color={T.violet} onPress={() => router.push('/(user)/friends')} />
       </View>
-    );
-  }
 
+      {/* Recherche */}
+      <View style={s.searchBox}>
+        <Ionicons name="search" size={16} color={T.text4} />
+        <TextInput
+          style={s.searchInput} placeholder="Rechercher…"
+          placeholderTextColor={T.text4} value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
+      {/* Amis en ligne */}
+      {onlineFriends.length > 0 && (
+        <View style={s.onlineSection}>
+          <View style={s.onlineHdr}>
+            <View style={s.liveDot} />
+            <Text style={s.onlineTitle}>En ligne</Text>
+            <View style={s.onlineCount}><Text style={s.onlineCountTxt}>{onlineFriends.length}</Text></View>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 8 }}>
+            {onlineFriends.map(f => (
+              <TouchableOpacity key={f.id} style={s.onlineCard} onPress={() => startChat(f.friend.id)}>
+                <Avatar name={`${f.friend.firstName} ${f.friend.lastName}`} size={42} online />
+                <Text style={s.onlineCardName} numberOfLines={1}>{f.friend.firstName}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Liste conversations */}
+      <FlatList
+        data={filteredConvs}
+        keyExtractor={item => item.userId}
+        renderItem={renderConv}
+        contentContainerStyle={s.convList}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await loadAll(); setRefreshing(false); }}
+            colors={[T.primary]} tintColor={T.primary} />
+        }
+        ListEmptyComponent={
+          <View style={s.emptyState}>
+            <View style={s.emptyIcon}><Ionicons name="chatbubbles-outline" size={36} color={T.primary} /></View>
+            <Text style={s.emptyTitle}>Vos messages</Text>
+            <Text style={s.emptyDesc}>Sélectionnez une conversation ou démarrez-en une nouvelle</Text>
+            <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/(user)/friends')}>
+              <Ionicons name="add" size={17} color={T.white} />
+              <Text style={s.emptyBtnTxt}>Nouvelle discussion</Text>
+            </TouchableOpacity>
+          </View>
+        }
+      />
+    </View>
+  );
+
+  // ─────────────────────────────────────────────────────────
+  //  VUE CHAT
+  // ─────────────────────────────────────────────────────────
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-
+    <View style={[s.root, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
       <KeyboardAvoidingView
-        style={[styles.container, { backgroundColor: colors.background }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={styles.chatLayout}>
-          {/* PANEL CONVERSATIONS */}
-          {showConversationsList || !selectedContact ? (
-            <View style={[styles.conversationsPanel, { backgroundColor: colors.card }]}>
-              <View style={styles.searchBox}>
-                <Ionicons name="search" size={18} color={COLORS.gray400} />
-                <TextInput
-                  style={[styles.searchInput, { color: colors.text }]}
-                  placeholder={t('search_friends')}
-                  placeholderTextColor={COLORS.gray400}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </View>
-
-              {onlineFriends.length > 0 && (
-                <View style={styles.onlineSection}>
-                  <Text style={[styles.onlineSectionTitle, { color: colors.text }]}>
-                    {t('online')} ({onlineFriends.length})
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.onlineScrollContent}
-                  >
-                    {onlineFriends.map((friend) => (
-                      <TouchableOpacity
-                        key={friend.id}
-                        style={styles.onlineFriendCard}
-                        onPress={() => startChat(friend.friend.id)}
-                      >
-                        <View
-                          style={[
-                            styles.onlineFriendAvatar,
-                            { backgroundColor: getAvatarColor(friend.friend.firstName) },
-                          ]}
-                        >
-                          <Text style={styles.onlineFriendAvatarText}>
-                            {getInitials(friend.friend.firstName, friend.friend.lastName)}
-                          </Text>
-                          <View style={styles.onlineFriendDot} />
-                        </View>
-                        <Text style={[styles.onlineFriendName, { color: colors.text }]} numberOfLines={1}>
-                          {friend.friend.firstName}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-
-              <FlatList
-                data={filteredConversations()}
-                keyExtractor={(item) => item.userId}
-                renderItem={renderConversation}
-                contentContainerStyle={styles.convList}
-                refreshControl={
-                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
-                }
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <Ionicons name="chatbubbles-outline" size={64} color={COLORS.gray400} />
-                    <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                      {t('no_conversations')}
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.emptyBtn}
-                      onPress={() => router.push('/(user)/friends')}
-                    >
-                      <Text style={styles.emptyBtnText}>{t('add_friend')}</Text>
-                    </TouchableOpacity>
-                  </View>
-                }
-              />
-            </View>
-          ) : (
-            // CHAT AREA
-            <View style={[styles.chatArea, { backgroundColor: colors.background }]}>
-              <View style={[styles.chatHeader, { backgroundColor: colors.card }]}>
-                <TouchableOpacity onPress={goBackToList} style={styles.backBtn}>
-                  <Ionicons name="arrow-back" size={24} color={colors.text} />
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.contactInfo} onPress={viewProfile}>
-                  <View
-                    style={[
-                      styles.avatarLarge,
-                      { backgroundColor: getAvatarColor(selectedContact?.firstName || '') },
-                    ]}
-                  >
-                    <Text style={styles.avatarLargeText}>
-                      {getInitials(selectedContact?.firstName, selectedContact?.lastName)}
-                    </Text>
-                    {selectedContact?.isOnline && <View style={styles.headerOnlineDot} />}
-                  </View>
-                  <View>
-                    <Text style={[styles.contactName, { color: colors.text }]}>
-                      {selectedContact?.firstName} {selectedContact?.lastName}
-                    </Text>
-                    <Text style={styles.contactStatus}>
-                      {isTyping ? (
-                        <Text style={styles.typingText}>{t('typing')}</Text>
-                      ) : selectedContact?.isOnline ? (
-                        <Text style={styles.onlineText}>🟢 {t('online')}</Text>
-                      ) : (
-                        <Text style={styles.offlineText}>{t('offline')}</Text>
-                      )}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                <View style={styles.chatActions}>
-                  <TouchableOpacity style={styles.actionBtn} onPress={() => startCall('audio')}>
-                    <Ionicons name="call-outline" size={22} color={colors.text} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionBtn} onPress={() => startCall('video')}>
-                    <Ionicons name="videocam-outline" size={22} color={colors.text} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.actionBtn}
-                    onPress={() => {
-                      Alert.alert(
-                        t('settings'),
-                        t('confirm'),
-                        [
-                          { text: t('send_money'), onPress: sendMoney },
-                          { text: t('profile'), onPress: viewProfile },
-                          { text: t('block'), onPress: blockUser, style: 'destructive' },
-                          { text: t('cancel'), style: 'cancel' },
-                        ]
-                      );
-                    }}
-                  >
-                    <Ionicons name="ellipsis-vertical" size={22} color={colors.text} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <FlatList
-                ref={flatListRef}
-                data={messages}
-                keyExtractor={(item) => item.id}
-                renderItem={renderMessage}
-                contentContainerStyle={[styles.messagesList, { paddingBottom: 20 }]}
-                onContentSizeChange={scrollToBottom}
-              />
-
-              {/* MESSAGE INPUT AREA */}
-              <View style={[
-                styles.messageInputArea, 
-                { 
-                  backgroundColor: colors.card,
-                  paddingBottom: insets.bottom > 0 ? insets.bottom + 8 : 12,
-                }
-              ]}>
-                <TouchableOpacity onPress={() => setShowEmojiPicker(!showEmojiPicker)}>
-                  <Ionicons name="happy-outline" size={24} color={COLORS.gray500} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={uploadFile}>
-                  <Ionicons name="attach-outline" size={24} color={COLORS.gray500} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={startVoiceRecording}>
-                  <Ionicons
-                    name={isRecording ? 'mic' : 'mic-outline'}
-                    size={24}
-                    color={isRecording ? COLORS.error : COLORS.gray500}
-                  />
-                </TouchableOpacity>
-                <TextInput
-                  style={[styles.messageInput, { color: colors.text }]}
-                  placeholder={t('type_message')}
-                  placeholderTextColor={COLORS.gray400}
-                  value={newMessage}
-                  onChangeText={setNewMessage}
-                  onSubmitEditing={sendMessage}
-                  onChange={onTyping}
-                  multiline
-                />
-                <TouchableOpacity
-                  style={[styles.sendBtn, !newMessage.trim() && styles.sendBtnDisabled]}
-                  onPress={sendMessage}
-                  disabled={!newMessage.trim() || isSending}
-                >
-                  {isSending ? (
-                    <ActivityIndicator size="small" color={COLORS.white} />
-                  ) : (
-                    <Ionicons name="send" size={20} color={COLORS.white} />
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {showEmojiPicker && (
-                <View style={[styles.emojiPicker, { backgroundColor: colors.card }]}>
-                  <FlatList
-                    data={EMOJIS}
-                    keyExtractor={(item) => item}
-                    numColumns={8}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity style={styles.emojiItem} onPress={() => sendEmoji(item)}>
-                        <Text style={styles.emojiText}>{item}</Text>
-                      </TouchableOpacity>
-                    )}
-                    contentContainerStyle={styles.emojiGrid}
-                  />
-                  <TouchableOpacity
-                    style={styles.emojiClose}
-                    onPress={() => setShowEmojiPicker(false)}
-                  >
-                    <Text style={styles.emojiCloseText}>{t('cancel')}</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* PANEL AMIS EN LIGNE */}
-          {showConversationsList && (
-            <View style={[styles.onlineFriendsPanel, { backgroundColor: colors.card }]}>
-              <Text style={[styles.onlinePanelTitle, { color: colors.text }]}>
-                {t('online')} ({onlineFriends.length})
+        {/* ── Chat Header (like .chat-header Angular) ── */}
+        <View style={s.chatHeader}>
+          <IconBtn name="arrow-back" onPress={() => { setView('list'); setSelectedContact(null); setMessages([]); }} />
+          <TouchableOpacity style={s.contactMeta} onPress={() => router.push({ pathname: '/(user)/profile', params: { userId: selectedContact?.userId } })}>
+            <Avatar name={`${selectedContact?.firstName} ${selectedContact?.lastName}`} size={38} online={selectedContact?.isOnline} />
+            <View style={{ marginLeft: 10 }}>
+              <Text style={s.contactName}>{selectedContact?.firstName} {selectedContact?.lastName}</Text>
+              <Text style={s.contactStatus}>
+                {isTyping ? (
+                  <Text style={s.typingTxt}>En train d'écrire…</Text>
+                ) : selectedContact?.isOnline ? (
+                  <Text style={s.onlineTxt}>● En ligne</Text>
+                ) : (
+                  <Text style={s.offlineTxt}>Hors ligne</Text>
+                )}
               </Text>
-              <FlatList
-                data={onlineFriends}
-                keyExtractor={(item) => item.id}
-                renderItem={renderOnlineFriend}
-                contentContainerStyle={styles.onlineList}
-                showsVerticalScrollIndicator={false}
-              />
             </View>
-          )}
+          </TouchableOpacity>
+          <View style={s.chatActions}>
+            <IconBtn name="cash-outline" color={T.text3} onPress={() => setShowTransfer(!showTransfer)} />
+            <IconBtn name="call-outline"  color={T.text3} onPress={() => startCall('audio')} />
+            <IconBtn name="videocam-outline" color={T.text3} onPress={() => startCall('video')} />
+            <IconBtn name="ellipsis-vertical" color={T.text3} onPress={() => Alert.alert(
+              t('settings'), t('confirm'),
+              [
+                { text: 'Voir le profil', onPress: () => router.push({ pathname: '/(user)/profile', params: { userId: selectedContact?.userId } }) },
+                { text: 'Envoyer de l\'argent', onPress: () => setShowTransfer(true) },
+                { text: 'Bloquer', style: 'destructive', onPress: async () => {
+                  try { await FriendService.blockUser(selectedContact.userId); showSuccess('Utilisateur bloqué'); }
+                  catch { showError(t('error')); }
+                }},
+                { text: t('cancel'), style: 'cancel' },
+              ]
+            )} />
+          </View>
         </View>
 
-        {renderCallModal()}
+        {/* ── Panneau transfert (like .transfer-panel Angular) ── */}
+        {showTransfer && (
+          <View style={s.transferPanel}>
+            <View style={s.transferBar}>
+              <Text style={s.transferTitle}>Envoyer à {selectedContact?.firstName}</Text>
+              <IconBtn name="close" onPress={() => setShowTransfer(false)} />
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+              {QUICK_AMOUNTS.map(a => (
+                <TouchableOpacity key={a}
+                  style={[s.amtChip, transferAmount === String(a) && s.amtChipActive]}
+                  onPress={() => setTransferAmount(String(a))}>
+                  <Text style={[s.amtChipTxt, transferAmount === String(a) && { color: T.white }]}>
+                    {formatAmount(a)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={s.transferRow}>
+              <TextInput
+                style={s.transferInput} placeholder="Montant (Ar)"
+                placeholderTextColor={T.text4} value={transferAmount}
+                onChangeText={setTransferAmount} keyboardType="numeric"
+              />
+              <TouchableOpacity
+                style={[s.sendMoneyBtn, (!transferAmount || parseFloat(transferAmount) <= 0) && { opacity: 0.45 }]}
+                onPress={confirmTransfer} disabled={!transferAmount || parseFloat(transferAmount) <= 0}
+              >
+                <Ionicons name="send" size={16} color={T.white} />
+                <Text style={s.sendMoneyTxt}>Envoyer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ── Messages ── */}
+        <FlatList
+          ref={flatListRef} data={messages}
+          keyExtractor={item => item.id}
+          renderItem={renderMessage}
+          contentContainerStyle={s.msgList}
+          onContentSizeChange={scrollBottom}
+          onTouchStart={() => { setActiveCtxId(null); setReactPickerId(null); if (showEmojiPicker) setShowEmojiPicker(false); }}
+        />
+
+        {/* ── Composer (like .composer Angular) ── */}
+        <View style={[s.composer, { paddingBottom: insets.bottom > 0 ? insets.bottom + 4 : 12 }]}>
+          <IconBtn name="happy-outline"   onPress={() => setShowEmojiPicker(p => !p)} />
+          <IconBtn name="attach-outline"  onPress={uploadFile} />
+          <IconBtn name={isRecording ? 'stop' : 'mic-outline'} recording={isRecording} onPress={toggleRecording} />
+          {isRecording && (
+            <View style={s.recPill}>
+              <View style={s.recDot} />
+              <Text style={s.recTime}>{recordingTime}s</Text>
+            </View>
+          )}
+          <TextInput
+            style={s.composerInput} placeholder="Écrire un message…"
+            placeholderTextColor={T.text4} value={newMessage}
+            onChangeText={setNewMessage} onSubmitEditing={sendMessage}
+            onChange={onTyping} multiline
+          />
+          <TouchableOpacity
+            style={[s.sendBtn, (!newMessage.trim() || isSending) && s.sendBtnOff]}
+            onPress={sendMessage} disabled={!newMessage.trim() || isSending}
+          >
+            {isSending
+              ? <ActivityIndicator size="small" color={T.white} />
+              : <Ionicons name="send" size={18} color={T.white} />
+            }
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Emoji picker (like .emoji-panel Angular) ── */}
+        {showEmojiPicker && (
+          <View style={s.emojiPanel}>
+            <FlatList
+              data={EMOJIS} keyExtractor={e => e} numColumns={8}
+              renderItem={({ item: e }) => (
+                <TouchableOpacity style={s.emojiItem} onPress={() => sendEmoji(e)}>
+                  <Text style={s.emojiTxt}>{e}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity style={s.emojiClose} onPress={() => setShowEmojiPicker(false)}>
+              <Text style={s.emojiCloseTxt}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
+
+      <CallModal />
     </View>
   );
 }
 
-// ============================================================
-// STYLES
-// ============================================================
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  chatLayout: { flex: 1, flexDirection: 'row' },
+// ═══════════════════════════════════════════════════════════════
+//  STYLES — design system calqué sur le CSS Angular
+// ═══════════════════════════════════════════════════════════════
+const s = StyleSheet.create({
+  // Root
+  root:       { flex: 1, backgroundColor: T.bg },
+  loadWrap:   { flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' },
+  loadTxt:    { color: T.text3, marginTop: 12, fontSize: 14 },
 
-  conversationsPanel: {
-    width: 320,
-    borderRightWidth: 0.5,
-    borderRightColor: COLORS.gray200,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.gray200,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  onlineSection: {
-    padding: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.gray200,
-  },
-  onlineSectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  onlineScrollContent: { paddingRight: 8 },
-  onlineFriendCard: { alignItems: 'center', marginRight: 12, width: 56 },
-  onlineFriendAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  onlineFriendAvatarText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  onlineFriendDot: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: COLORS.success,
-    borderWidth: 2,
-    borderColor: COLORS.white,
-  },
-  onlineFriendName: { fontSize: 11, marginTop: 4, textAlign: 'center' },
-  convList: { padding: 8 },
-  convItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 12,
-    marginBottom: 2,
-  },
-  convItemActive: {
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary,
-    paddingLeft: 7,
-  },
-  convAvatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  convAvatarText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
-  onlineDot: {
-    position: 'absolute',
-    bottom: 1,
-    right: 1,
-    width: 11,
-    height: 11,
-    borderRadius: 5.5,
-    backgroundColor: COLORS.success,
-    borderWidth: 2,
-    borderColor: COLORS.white,
-  },
-  convInfo: { flex: 1, marginLeft: 12 },
-  convName: { fontSize: 14, fontWeight: '600' },
-  convLastMsg: { fontSize: 12, marginTop: 2 },
-  convMeta: { alignItems: 'flex-end' },
-  convTime: { fontSize: 11, color: COLORS.gray400 },
-  unreadBadge: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 20,
-    minWidth: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-    marginTop: 4,
-  },
-  unreadText: { color: COLORS.white, fontSize: 11, fontWeight: 'bold' },
+  // ── Sidebar / Liste ──────────────────────────────────────
+  sidebarTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.surface },
+  brand:      { fontSize: 18, fontWeight: '800', color: T.violet, letterSpacing: -0.3 },
 
-  chatArea: { flex: 1, flexDirection: 'column' },
-  chatHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.gray200,
-  },
-  backBtn: { padding: 4 },
-  contactInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 8 },
-  avatarLarge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  avatarLargeText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  headerOnlineDot: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: COLORS.success,
-    borderWidth: 2,
-    borderColor: COLORS.white,
-  },
-  contactName: { fontWeight: 'bold', fontSize: 16, marginLeft: 10 },
-  contactStatus: { fontSize: 12, marginLeft: 10 },
-  typingText: { color: COLORS.primary, fontStyle: 'italic' },
-  onlineText: { color: COLORS.success },
-  offlineText: { color: COLORS.gray400 },
-  chatActions: { flexDirection: 'row', gap: 8 },
-  actionBtn: { padding: 4 },
+  searchBox:  { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 12, marginVertical: 10, paddingHorizontal: 13, paddingVertical: 9, borderRadius: 24, backgroundColor: T.surface2, borderWidth: 1, borderColor: T.border },
+  searchInput:{ flex: 1, color: T.text, fontSize: 14 },
 
-  messagesList: { padding: 12, paddingBottom: 20 },
-  messageRow: { marginVertical: 4 },
-  rowRight: { alignItems: 'flex-end' },
-  rowLeft: { alignItems: 'flex-start' },
-  bubble: {
-    maxWidth: '80%',
-    padding: 10,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-  },
-  bubbleRight: { borderBottomRightRadius: 4 },
-  bubbleLeft: { borderBottomLeftRadius: 4 },
-  messageText: { fontSize: 14 },
-  bigEmoji: { fontSize: 40, textAlign: 'center' },
-  time: { fontSize: 10, marginTop: 4, opacity: 0.65, alignSelf: 'flex-end' },
+  onlineSection: { padding: 12, borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.surface },
+  onlineHdr:  { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 },
+  liveDot:    { width: 8, height: 8, borderRadius: 4, backgroundColor: T.success },
+  onlineTitle:{ fontSize: 11, fontWeight: '700', color: T.text3, textTransform: 'uppercase', letterSpacing: 0.8, flex: 1 },
+  onlineCount:{ backgroundColor: 'rgba(16,185,129,0.15)', borderRadius: 20, paddingHorizontal: 7, paddingVertical: 1 },
+  onlineCountTxt: { fontSize: 11, fontWeight: '700', color: T.success },
+  onlineCard: { alignItems: 'center', marginRight: 14, width: 52 },
+  onlineCardName: { fontSize: 11, color: T.text2, marginTop: 4, textAlign: 'center' },
 
-  mediaContainer: { borderRadius: 12, overflow: 'hidden', position: 'relative' },
-  imageMessage: { width: 200, height: 150, borderRadius: 12 },
-  videoMessage: { width: 200, height: 150, borderRadius: 12 },
-  mediaOverlay: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  mediaActionBtn: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-    padding: 6,
-  },
-  audioContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderRadius: 12,
-    gap: 8,
-    minWidth: 200,
-  },
-  audioPlayBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(99,102,241,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  audioProgress: {
-    flex: 1,
-    height: 4,
-    backgroundColor: 'rgba(0,0,0,0.1)',
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  audioProgressBar: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  audioDuration: { fontSize: 12, minWidth: 40 },
-  audioName: { fontSize: 10, opacity: 0.7, maxWidth: 80 },
+  convList:   { padding: 8, paddingBottom: 20, backgroundColor: T.surface },
+  convItem:   { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 10, borderRadius: 12, marginBottom: 1 },
+  convActive: { backgroundColor: T.primaryLt },
+  convBody:   { flex: 1, minWidth: 0 },
+  convHdr:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 },
+  convName:   { fontSize: 14, fontWeight: '600', color: T.text, flex: 1 },
+  convTime:   { fontSize: 11, color: T.text4 },
+  convPrev:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  convPreview:{ fontSize: 12, color: T.text3, flex: 1 },
+  unreadPill: { backgroundColor: T.primary, borderRadius: 20, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  unreadTxt:  { color: T.white, fontSize: 11, fontWeight: '700' },
 
-  documentContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    gap: 12,
-    minWidth: 180,
-  },
-  documentIcon: { width: 40, height: 40, borderRadius: 8, backgroundColor: 'rgba(99,102,241,0.1)', alignItems: 'center', justifyContent: 'center' },
-  documentInfo: { flex: 1 },
-  documentName: { fontSize: 13, fontWeight: '500' },
-  documentSize: { fontSize: 11 },
+  emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32 },
+  emptyIcon:  { width: 80, height: 80, borderRadius: 40, backgroundColor: T.primaryLt, alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: T.text, marginBottom: 6 },
+  emptyDesc:  { fontSize: 14, color: T.text3, textAlign: 'center', marginBottom: 20 },
+  emptyBtn:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: T.primary, borderRadius: 24, paddingVertical: 10, paddingHorizontal: 18 },
+  emptyBtnTxt:{ color: T.white, fontWeight: '600', fontSize: 14 },
 
-  moneyMessage: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  moneyText: { fontSize: 14, fontWeight: '600' },
+  // ── Chat ─────────────────────────────────────────────────
+  chatHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, paddingHorizontal: 12, backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border },
+  contactMeta:{ flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 4 },
+  contactName:{ fontSize: 15, fontWeight: '700', color: T.text },
+  contactStatus:{ fontSize: 12 },
+  typingTxt:  { color: T.primary, fontStyle: 'italic' },
+  onlineTxt:  { color: T.success, fontWeight: '500' },
+  offlineTxt: { color: T.text4 },
+  chatActions:{ flexDirection: 'row', gap: 2 },
 
-  messageInputArea: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    paddingHorizontal: 12,
-    borderTopWidth: 0.5,
-    borderTopColor: COLORS.gray200,
-    gap: 6,
-  },
-  messageInput: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    fontSize: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.gray200,
-    maxHeight: 100,
-  },
-  sendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendBtnDisabled: { opacity: 0.45 },
+  // ── Transfer panel ────────────────────────────────────────
+  transferPanel:{ backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: T.border, padding: 14 },
+  transferBar:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  transferTitle:{ fontSize: 15, fontWeight: '600', color: T.text },
+  amtChip:    { borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6, marginRight: 8 },
+  amtChipActive:{ backgroundColor: T.primary, borderColor: T.primary },
+  amtChipTxt: { fontSize: 13, fontWeight: '600', color: T.text2 },
+  transferRow:{ flexDirection: 'row', gap: 10, alignItems: 'center' },
+  transferInput:{ flex: 1, padding: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.04)', fontSize: 14, color: T.text },
+  sendMoneyBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: T.success, borderRadius: 24, paddingVertical: 10, paddingHorizontal: 16 },
+  sendMoneyTxt: { color: T.white, fontWeight: '600', fontSize: 14 },
 
-  emojiPicker: {
-    position: 'absolute',
-    bottom: 80,
-    left: 16,
-    right: 16,
-    borderRadius: 16,
-    borderWidth: 0.5,
-    borderColor: COLORS.gray200,
-    padding: 12,
-    maxHeight: 280,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  emojiGrid: { paddingBottom: 8 },
-  emojiItem: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  emojiText: { fontSize: 22 },
-  emojiClose: {
-    marginTop: 8,
-    paddingVertical: 6,
-    backgroundColor: COLORS.primary,
-    borderRadius: 20,
-    alignItems: 'center',
-  },
-  emojiCloseText: { color: COLORS.white, fontWeight: '500', fontSize: 13 },
+  // ── Messages ──────────────────────────────────────────────
+  msgList:    { padding: 12, paddingBottom: 8, flexGrow: 1 },
+  msgRow:     { marginVertical: 3 },
+  rowR:       { alignItems: 'flex-end' },
+  rowL:       { alignItems: 'flex-start' },
+  msgWrap:    { maxWidth: '80%', position: 'relative' },
 
-  onlineFriendsPanel: {
-    width: 220,
-    borderLeftWidth: 0.5,
-    borderLeftColor: COLORS.gray200,
-    padding: 12,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  onlinePanelTitle: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 12,
-  },
-  onlineList: { paddingBottom: 8 },
-  onlineFriendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    gap: 10,
-  },
-  onlineAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  onlineAvatarText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 12,
-  },
-  liveDot: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: COLORS.success,
-    borderWidth: 2,
-    borderColor: COLORS.white,
-  },
-  onlineFriendNameText: { fontSize: 13, fontWeight: '500' },
+  bubble:     { padding: 10, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: T.border, backgroundColor: T.surface },
+  bubbleOwn:  { backgroundColor: T.primary, borderWidth: 0, borderBottomRightRadius: 4 },
+  bubbleOther:{ borderBottomLeftRadius: 4 },
+  emojiBubble:{ backgroundColor: 'transparent', borderWidth: 0, paddingHorizontal: 4 },
+  bubbleText: { fontSize: 14, color: T.text, lineHeight: 20 },
+  bigEmoji:   { fontSize: 40, textAlign: 'center' },
 
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  emptyText: { fontSize: 15, marginTop: 12 },
-  emptyBtn: {
-    marginTop: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    backgroundColor: COLORS.primary,
-    borderRadius: 12,
-  },
-  emptyBtnText: { color: COLORS.white, fontWeight: '600', fontSize: 14 },
+  deletedBubble: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderStyle: 'dashed', borderRadius: 12, padding: 8, paddingHorizontal: 12 },
+  deletedText:   { color: T.text4, fontStyle: 'italic', fontSize: 13 },
 
-  callModal: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  callContent: {
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    width: width * 0.85,
-  },
-  callAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  callAvatarText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 32,
-  },
-  callName: { fontSize: 22, fontWeight: 'bold', marginBottom: 4 },
-  callStatusText: { fontSize: 14, color: COLORS.gray400, marginBottom: 24 },
-  callActions: { flexDirection: 'row', gap: 20, alignItems: 'center' },
-  callBtn: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
-  callBtnAccept: { backgroundColor: COLORS.success },
-  callBtnReject: { backgroundColor: COLORS.error },
-  callBtnMute: { backgroundColor: COLORS.gray600 },
-  callBtnSpeaker: { backgroundColor: COLORS.gray600 },
+  reactBar:   { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 3 },
+  reactChip:  { flexDirection: 'row', alignItems: 'center', backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, borderRadius: 20, paddingHorizontal: 7, paddingVertical: 2 },
+  reactChipMine: { borderColor: T.primary, backgroundColor: T.primaryLt },
+  reactEmoji: { fontSize: 14 },
+  reactCount: { fontSize: 12, color: T.text3 },
+
+  msgMeta:    { flexDirection: 'row', alignItems: 'center', marginTop: 3, paddingHorizontal: 4 },
+  msgTime:    { fontSize: 11, color: T.text4 },
+  msgEdited:  { fontSize: 11, color: T.text4, fontStyle: 'italic' },
+
+  ctxMenu:    { position: 'absolute', top: -38, flexDirection: 'row', gap: 2, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, borderRadius: 20, padding: 3, zIndex: 10 },
+  ctxMenuR:   { right: 0 },
+  ctxMenuL:   { left: 0 },
+  ctxBtn:     { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+
+  reactPicker:{ position: 'absolute', top: -46, flexDirection: 'row', gap: 8, backgroundColor: T.surface, borderWidth: 1, borderColor: T.border, borderRadius: 24, paddingHorizontal: 10, paddingVertical: 6, zIndex: 15 },
+  reactPickerR: { right: 0 },
+  reactPickerL: { left: 0 },
+  reactPickerEmoji: { fontSize: 22 },
+
+  // ── Edit inline ──────────────────────────────────────────
+  editWrap:   { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: T.surface, borderWidth: 1.5, borderColor: T.primary, borderRadius: 18, padding: 4, paddingLeft: 12 },
+  editInput:  { flex: 1, color: T.text, fontSize: 14, minWidth: 120 },
+  editOk:     { width: 28, height: 28, borderRadius: 14, backgroundColor: T.success, alignItems: 'center', justifyContent: 'center' },
+  editCancel: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
+
+  // ── Composer ──────────────────────────────────────────────
+  composer:   { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: T.border, backgroundColor: T.surface },
+  recPill:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(239,68,68,0.12)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
+  recDot:     { width: 6, height: 6, borderRadius: 3, backgroundColor: T.error },
+  recTime:    { fontSize: 12, color: T.error, fontWeight: '600' },
+  composerInput: { flex: 1, padding: 10, paddingHorizontal: 14, fontSize: 14, color: T.text, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.04)', maxHeight: 100 },
+  sendBtn:    { width: 40, height: 40, borderRadius: 20, backgroundColor: T.primary, alignItems: 'center', justifyContent: 'center' },
+  sendBtnOff: { opacity: 0.4 },
+
+  // ── Emoji panel ──────────────────────────────────────────
+  emojiPanel: { backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: T.border, padding: 12, maxHeight: 280 },
+  emojiItem:  { width: (width - 24) / 8, height: 38, alignItems: 'center', justifyContent: 'center' },
+  emojiTxt:   { fontSize: 22 },
+  emojiClose: { marginTop: 8, paddingVertical: 7, backgroundColor: T.primaryLt, borderRadius: 20, alignItems: 'center' },
+  emojiCloseTxt: { color: T.violet, fontWeight: '600', fontSize: 13 },
+
+  // ── Call modal ────────────────────────────────────────────
+  callOverlay:{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', alignItems: 'center', justifyContent: 'center' },
+  callCard:   { backgroundColor: T.surface, borderRadius: 24, padding: 32, alignItems: 'center', width: width * 0.85, borderWidth: 1, borderColor: T.border },
+  callAvatar: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  callName:   { fontSize: 22, fontWeight: '700', color: T.text, marginBottom: 4 },
+  callStatus: { fontSize: 14, color: T.text3, marginBottom: 24 },
+  callBtns:   { flexDirection: 'row', gap: 20, alignItems: 'center' },
+  callBtn:    { width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center' },
+  callAccept: { backgroundColor: T.success },
+  callReject: { backgroundColor: T.error },
+  ctrlBtn:    { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
 });

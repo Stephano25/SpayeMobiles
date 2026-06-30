@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -56,9 +56,6 @@ export default function FriendsScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
 
-  const qrCodeRef = useRef<any>(null);
-
-  // Charger les amis
   const load = useCallback(async () => {
     try {
       const [f, r, s, b] = await Promise.all([
@@ -77,7 +74,7 @@ export default function FriendsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [showError]);
+  }, [showError, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -91,7 +88,7 @@ export default function FriendsScreen() {
       setSearchResults([]);
       return;
     }
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       setSearching(true);
       try {
         const res = await FriendService.searchUsers(searchQuery);
@@ -101,12 +98,13 @@ export default function FriendsScreen() {
       }
       setSearching(false);
     }, 400);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [searchQuery]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     await load();
+    setRefreshing(false);
   };
 
   // Actions des amis
@@ -846,7 +844,7 @@ export default function FriendsScreen() {
 }
 
 // ============================================================
-// STYLES - INCHANGÉS
+// STYLES
 // ============================================================
 const styles = StyleSheet.create({
   container: { flex: 1 },

@@ -47,27 +47,41 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const service = TranslationService.getInstance();
 
+  // ✅ Premier useEffect - Chargement initial
   useEffect(() => {
-    load();
-    service.init().then(() => {
-      setCurrentLanguage(service.getLanguage());
-    });
+    const loadInitialData = async () => {
+      try {
+        // Charger le thème
+        const saved = await storage.getItem<ThemeType>('theme');
+        const t = saved || 'light';
+        setThemeState(t);
+        setIsDark(t === 'system' ? system === 'dark' : t === 'dark');
+
+        // Charger la langue
+        await service.init();
+        setCurrentLanguage(service.getLanguage());
+      } catch (error) {
+        console.error('Erreur chargement initial:', error);
+      }
+    };
+
+    loadInitialData();
+
+    // S'abonner aux changements de langue
     const unsub = languageEvents.subscribe((lang) => {
       setCurrentLanguage(lang);
     });
+
     return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ✅ Deuxième useEffect - Mise à jour du thème quand le système change
   useEffect(() => {
-    if (theme === 'system') setIsDark(system === 'dark');
+    if (theme === 'system') {
+      setIsDark(system === 'dark');
+    }
   }, [system, theme]);
-
-  const load = async () => {
-    const saved = await storage.getItem<ThemeType>('theme');
-    const t = saved || 'light';
-    setThemeState(t);
-    setIsDark(t === 'system' ? system === 'dark' : t === 'dark');
-  };
 
   const setTheme = async (newTheme: ThemeType) => {
     await storage.setItem('theme', newTheme);

@@ -39,7 +39,7 @@ export default function UserHome() {
     } catch (e) {
       showError(t('error_loading'));
     }
-  }, []);
+  }, [showError, t]);
 
   useFocusEffect(
     useCallback(() => {
@@ -64,7 +64,7 @@ export default function UserHome() {
     { label: t('settings'), icon: 'settings-outline', color: COLORS.gray600, route: '/(user)/settings' },
   ];
 
-  const getTransactionIcon = (type: string) => {
+  const getTransactionIcon = (type: string): keyof typeof Ionicons.glyphMap => {
     switch (type) {
       case 'deposit':
       case 'receive':
@@ -92,128 +92,122 @@ export default function UserHome() {
   };
 
   return (
-    <SafeScreen backgroundColor={colors.background} withTabBar={false}>
-      <ScrollView
-        style={[styles.container, { backgroundColor: colors.background }]}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.greeting}>{t('home')}</Text>
-              <Text style={styles.userName}>
-                {user?.firstName || 'Dazz'} {user?.lastName || 'Remie'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.avatar}
-              onPress={() => router.push('/(user)/profile')}
-            >
-              <Text style={styles.avatarText}>
-                {getInitials(user?.firstName || 'Dazz', user?.lastName || 'Remie')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.balanceBox}>
-            <Text style={styles.balanceLabel}>{t('balance')}</Text>
-            <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
-          </View>
-        </View>
-
-        <View style={styles.actionsGrid}>
-          {quickActions.slice(0, 4).map((a) => (
-            <TouchableOpacity
-              key={a.label}
-              style={[styles.actionCard, { backgroundColor: colors.card }]}
-              onPress={() => router.push(a.route as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: a.color + '20' }]}>
-                <Ionicons name={a.icon as any} size={22} color={a.color} />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{a.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.actionsGrid}>
-          {quickActions.slice(4, 8).map((a) => (
-            <TouchableOpacity
-              key={a.label}
-              style={[styles.actionCard, { backgroundColor: colors.card }]}
-              onPress={() => router.push(a.route as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: a.color + '20' }]}>
-                <Ionicons name={a.icon as any} size={22} color={a.color} />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{a.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {t('recent_activity')}
+    <SafeScreen backgroundColor={colors.background} withTabBar={true}>
+      <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.greeting}>Bonjour</Text>
+            <Text style={styles.userName}>
+              {user?.firstName || 'Dazz'} {user?.lastName || 'Remie'}
             </Text>
-            <TouchableOpacity onPress={() => router.push('/(user)/transactions')}>
-              <Text style={styles.seeAll}>{t('view_all')}</Text>
-            </TouchableOpacity>
           </View>
+          <TouchableOpacity
+            style={styles.avatar}
+            onPress={() => router.push('/(user)/profile')}
+          >
+            <Text style={styles.avatarText}>
+              {getInitials(user?.firstName || 'Dazz', user?.lastName || 'Remie')}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-          {recentTx.length === 0 ? (
-            <Text style={styles.empty}>{t('no_transactions')}</Text>
-          ) : (
-            recentTx.map((tx) => {
-              const isCredit = tx.type === 'deposit' || tx.type === 'receive';
-              return (
+        <View style={styles.balanceBox}>
+          <Text style={styles.balanceLabel}>{t('balance')}</Text>
+          <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
+        </View>
+      </View>
+
+      <View style={styles.actionsGrid}>
+        {quickActions.slice(0, 4).map((a) => (
+          <TouchableOpacity
+            key={a.label}
+            style={[styles.actionCard, { backgroundColor: colors.card }]}
+            onPress={() => router.push(a.route as any)}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: a.color + '20' }]}>
+              <Ionicons name={a.icon as any} size={22} color={a.color} />
+            </View>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>{a.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.actionsGrid}>
+        {quickActions.slice(4, 8).map((a) => (
+          <TouchableOpacity
+            key={a.label}
+            style={[styles.actionCard, { backgroundColor: colors.card }]}
+            onPress={() => router.push(a.route as any)}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: a.color + '20' }]}>
+              <Ionicons name={a.icon as any} size={22} color={a.color} />
+            </View>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>{a.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            {t('recent_activity')}
+          </Text>
+          <TouchableOpacity onPress={() => router.push('/(user)/transactions')}>
+            <Text style={styles.seeAll}>{t('view_all')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {recentTx.length === 0 ? (
+          <Text style={styles.empty}>{t('no_transactions')}</Text>
+        ) : (
+          recentTx.map((tx) => {
+            const isCredit = tx.type === 'deposit' || tx.type === 'receive';
+            return (
+              <View
+                key={tx.id || tx._id}
+                style={[styles.txItem, { backgroundColor: colors.card }]}
+              >
                 <View
-                  key={tx.id || tx._id}
-                  style={[styles.txItem, { backgroundColor: colors.card }]}
+                  style={[
+                    styles.txIcon,
+                    { backgroundColor: getTransactionColor(tx.type) + '20' },
+                  ]}
                 >
-                  <View
-                    style={[
-                      styles.txIcon,
-                      { backgroundColor: getTransactionColor(tx.type) + '20' },
-                    ]}
-                  >
-                    <Ionicons
-                      name={getTransactionIcon(tx.type) as any}
-                      size={20}
-                      color={getTransactionColor(tx.type)}
-                    />
-                  </View>
-                  <View style={styles.txInfo}>
-                    <Text style={[styles.txDesc, { color: colors.text }]} numberOfLines={2}>
-                      {tx.description || translateTransactionType(tx.type)}
-                    </Text>
-                    <Text style={styles.txDate}>
-                      {formatDate(tx.createdAt)}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.txAmount,
-                      { color: isCredit ? COLORS.success : COLORS.error },
-                    ]}
-                  >
-                    {isCredit ? '+' : '-'}
-                    {formatAmount(tx.amount)} Ar
+                  <Ionicons
+                    name={getTransactionIcon(tx.type)}
+                    size={20}
+                    color={getTransactionColor(tx.type)}
+                  />
+                </View>
+                <View style={styles.txInfo}>
+                  <Text style={[styles.txDesc, { color: colors.text }]} numberOfLines={2}>
+                    {tx.description || translateTransactionType(tx.type)}
+                  </Text>
+                  <Text style={styles.txDate}>
+                    {formatDate(tx.createdAt)}
                   </Text>
                 </View>
-              );
-            })
-          )}
-        </View>
-      </ScrollView>
+                <Text
+                  style={[
+                    styles.txAmount,
+                    { color: isCredit ? COLORS.success : COLORS.error },
+                  ]}
+                >
+                  {isCredit ? '+' : '-'}
+                  {formatAmount(tx.amount)} Ar
+                </Text>
+              </View>
+            );
+          })
+        )}
+      </View>
     </SafeScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
   header: {
-    paddingTop: 20,
+    paddingTop: 16,
     paddingBottom: 30,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 24,
@@ -289,7 +283,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  section: { marginTop: 24, paddingHorizontal: 20, marginBottom: 40 },
+  section: { marginTop: 24, paddingHorizontal: 20, marginBottom: 20 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',

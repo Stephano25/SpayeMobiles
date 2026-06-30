@@ -39,7 +39,7 @@ export default function TransactionsScreen() {
     } finally {
       setLoading(false);
     }
-  }, [showError]);
+  }, [showError, t]);
 
   useFocusEffect(
     useCallback(() => {

@@ -22,8 +22,7 @@ export const detectBackendIP = async (): Promise<string | null> => {
 
     // 🔥 Liste des IP à tester - PRIORISER L'IP DU RÉSEAU LOCAL
     const ipsToTest = [
-      // Priorité aux IP du réseau local (192.168.x.x)
-      '192.168.188.135', // IP de votre backend
+      '192.168.188.135',
       '192.168.188.1',
       '192.168.1.100',
       '192.168.1.101',
@@ -41,15 +40,14 @@ export const detectBackendIP = async (): Promise<string | null> => {
       '192.168.0.102',
       '10.0.0.100',
       '10.0.0.101',
-      '10.0.2.2',  // Android Emulator
-      '10.0.3.2',  // Android Genymotion
+      '10.0.2.2',
+      '10.0.3.2',
       'localhost',
       '127.0.0.1',
     ];
 
     console.log(`🔍 Test de ${ipsToTest.length} IP possibles...`);
 
-    // Tester chaque IP
     for (const testIP of ipsToTest) {
       try {
         const controller = new AbortController();
