@@ -1,3 +1,4 @@
+// src/utils/storage.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const storage = {
@@ -18,5 +19,17 @@ export const storage = {
     try {
       await AsyncStorage.removeItem(key);
     } catch {}
+  },
+  async clear(): Promise<void> {
+    try {
+      await AsyncStorage.clear();
+    } catch {}
+  },
+  async getAllKeys(): Promise<string[]> {
+    try {
+      return await AsyncStorage.getAllKeys();
+    } catch {
+      return [];
+    }
   },
 };

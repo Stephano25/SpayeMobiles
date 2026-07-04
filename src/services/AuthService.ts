@@ -1,10 +1,10 @@
+// src/services/AuthService.ts
 import api from './api';
 import { storage } from '../utils/storage';
 import { User, LoginResponse } from '../types';
-import { getApiUrl } from '../config';
+import { getApiUrl, setBackendIp } from '../config/api';
 
 export const AuthService = {
-  // Récupérer l'URL de l'API
   getApiUrl: async (): Promise<string> => {
     return await getApiUrl();
   },
@@ -91,7 +91,6 @@ export const AuthService = {
     return user;
   },
 
-  // 🔥 Gestion du callback Google
   async handleGoogleCallback(token: string): Promise<void> {
     await this.saveSession(token, {} as User);
     try {

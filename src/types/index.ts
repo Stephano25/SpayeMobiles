@@ -1,7 +1,4 @@
-// ============================================================
-// TYPES - SPaye Mobile
-// ============================================================
-
+// src/types/index.ts
 export interface User {
   id: string;
   email: string;
@@ -20,6 +17,7 @@ export interface User {
 
 export interface LoginResponse {
   access_token: string;
+  token: string;
   user: User;
 }
 
@@ -58,19 +56,11 @@ export interface Wallet {
 export type TransactionType = 'deposit' | 'withdrawal' | 'transfer' | 'payment' | 'mobile_money' | 'receive' | 'send';
 export type TransactionStatus = 'pending' | 'completed' | 'failed' | 'cancelled' | 'processing';
 
-export interface TransactionUser {
-  _id?: string;
-  id?: string;
-  firstName: string;
-  lastName: string;
-  email?: string;
-}
-
 export interface Transaction {
   id: string;
   _id?: string;
-  senderId: string | TransactionUser;
-  receiverId?: string | TransactionUser;
+  senderId: string | { id: string; firstName: string; lastName: string };
+  receiverId?: string | { id: string; firstName: string; lastName: string };
   type: TransactionType;
   amount: number;
   fee?: number;
@@ -82,6 +72,39 @@ export interface Transaction {
   mobileMoneyNumber?: string;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface Conversation {
+  userId: string;
+  firstName: string;
+  lastName: string;
+  profilePicture?: string;
+  lastMessage?: { content: string; type: string; createdAt: string };
+  lastMessageTime: string;
+  unreadCount: number;
+  isOnline?: boolean;
+}
+
+export type MessageType = 'text' | 'image' | 'file' | 'emoji' | 'money' | 'audio' | 'video';
+
+export interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  type: MessageType;
+  content?: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  emoji?: string;
+  isRead: boolean;
+  isDelivered: boolean;
+  createdAt: string;
+  isDeleted?: boolean;
+  isEdited?: boolean;
+  moneyTransfer?: { amount: number; status: string; transactionId?: string; failReason?: string };
+  sender?: { id: string; firstName: string; lastName: string; profilePicture?: string };
+  reactions?: { emoji: string; userId: string }[];
 }
 
 export interface DashboardStats {
@@ -114,34 +137,4 @@ export interface TopUser {
   name: string;
   transactionCount: number;
   totalVolume: number;
-}
-
-export interface Conversation {
-  userId: string;
-  firstName: string;
-  lastName: string;
-  profilePicture?: string;
-  lastMessage?: { content: string; type: string; createdAt: string };
-  lastMessageTime: string;
-  unreadCount: number;
-  isOnline?: boolean;
-}
-
-export type MessageType = 'text' | 'image' | 'file' | 'emoji' | 'money';
-
-export interface Message {
-  id: string;
-  senderId: string;
-  receiverId: string;
-  type: MessageType;
-  content?: string;
-  fileUrl?: string;
-  fileName?: string;
-  fileSize?: number;
-  emoji?: string;
-  isRead: boolean;
-  isDelivered: boolean;
-  createdAt: string;
-  moneyTransfer?: { amount: number; status: string; transactionId?: string };
-  sender?: { id: string; firstName: string; lastName: string; profilePicture?: string };
 }

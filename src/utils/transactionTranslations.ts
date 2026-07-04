@@ -1,9 +1,8 @@
+// src/utils/transactionTranslations.ts
 import { TranslationService } from '../services/TranslationService';
 
-// Obtenir le service de traduction
 const getService = () => TranslationService.getInstance();
 
-// Traduire un type de transaction
 export const translateTransactionType = (type: string): string => {
   const service = getService();
   const translations: Record<string, string> = {
@@ -19,7 +18,6 @@ export const translateTransactionType = (type: string): string => {
   return service.t(key);
 };
 
-// Traduire un statut de transaction
 export const translateTransactionStatus = (status: string): string => {
   const service = getService();
   const translations: Record<string, string> = {
@@ -33,10 +31,9 @@ export const translateTransactionStatus = (status: string): string => {
   return service.t(key);
 };
 
-// Hook personnalisé pour les transactions
 export const useTransactionTranslations = () => {
   const service = TranslationService.getInstance();
-  
+
   return {
     t: (key: string) => service.t(key),
     translateType: (type: string) => {

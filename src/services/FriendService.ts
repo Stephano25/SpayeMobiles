@@ -1,13 +1,12 @@
+// src/services/FriendService.ts
 import api from './api';
-import { Friend } from '../types';
 
 export const FriendService = {
   getFriends: async (): Promise<any[]> => {
     try {
       const res = await api.get('/friends');
       return res.data || [];
-    } catch (error) {
-      console.error('Erreur getFriends:', error);
+    } catch {
       return [];
     }
   },
@@ -16,8 +15,7 @@ export const FriendService = {
     try {
       const res = await api.get('/friends/requests');
       return res.data || [];
-    } catch (error) {
-      console.error('Erreur getFriendRequests:', error);
+    } catch {
       return [];
     }
   },
@@ -26,8 +24,7 @@ export const FriendService = {
     try {
       const res = await api.get('/friends/suggestions');
       return res.data || [];
-    } catch (error) {
-      console.error('Erreur getSuggestions:', error);
+    } catch {
       return [];
     }
   },
@@ -36,8 +33,7 @@ export const FriendService = {
     try {
       const res = await api.get('/friends/blocked');
       return res.data || [];
-    } catch (error) {
-      console.error('Erreur getBlockedUsers:', error);
+    } catch {
       return [];
     }
   },
@@ -46,19 +42,8 @@ export const FriendService = {
     try {
       const res = await api.get('/friends/search', { params: { q: query } });
       return res.data || [];
-    } catch (error) {
-      console.error('Erreur searchUsers:', error);
+    } catch {
       return [];
-    }
-  },
-
-  checkBlockStatus: async (userId: string): Promise<any> => {
-    try {
-      const res = await api.get(`/friends/block-status/${userId}`);
-      return res.data || { isBlocked: false, canMessage: true };
-    } catch (error) {
-      console.error('Erreur checkBlockStatus:', error);
-      return { isBlocked: false, canMessage: true };
     }
   },
 
@@ -66,9 +51,8 @@ export const FriendService = {
     try {
       const res = await api.post(`/friends/request/${friendId}`);
       return res.data;
-    } catch (error) {
-      console.error('Erreur sendFriendRequest:', error);
-      throw error;
+    } catch {
+      throw new Error('Erreur envoi demande');
     }
   },
 
@@ -76,9 +60,8 @@ export const FriendService = {
     try {
       const res = await api.post(`/friends/accept/${requestId}`);
       return res.data;
-    } catch (error) {
-      console.error('Erreur acceptFriendRequest:', error);
-      throw error;
+    } catch {
+      throw new Error('Erreur acceptation');
     }
   },
 
@@ -86,9 +69,8 @@ export const FriendService = {
     try {
       const res = await api.post(`/friends/decline/${requestId}`);
       return res.data;
-    } catch (error) {
-      console.error('Erreur declineFriendRequest:', error);
-      throw error;
+    } catch {
+      throw new Error('Erreur refus');
     }
   },
 
@@ -96,9 +78,8 @@ export const FriendService = {
     try {
       const res = await api.post(`/friends/block/${userId}`);
       return res.data;
-    } catch (error) {
-      console.error('Erreur blockUser:', error);
-      throw error;
+    } catch {
+      throw new Error('Erreur blocage');
     }
   },
 
@@ -106,9 +87,8 @@ export const FriendService = {
     try {
       const res = await api.post(`/friends/unblock/${userId}`);
       return res.data;
-    } catch (error) {
-      console.error('Erreur unblockUser:', error);
-      throw error;
+    } catch {
+      throw new Error('Erreur déblocage');
     }
   },
 
@@ -116,19 +96,8 @@ export const FriendService = {
     try {
       const res = await api.delete(`/friends/${friendId}`);
       return res.data;
-    } catch (error) {
-      console.error('Erreur removeFriend:', error);
-      throw error;
-    }
-  },
-
-  findUsersByPhones: async (phones: string[]): Promise<any[]> => {
-    try {
-      const res = await api.post('/friends/find-by-phones', { phones });
-      return res.data || [];
-    } catch (error) {
-      console.error('Erreur findUsersByPhones:', error);
-      return [];
+    } catch {
+      throw new Error('Erreur suppression');
     }
   },
 };

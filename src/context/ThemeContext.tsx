@@ -1,7 +1,8 @@
+// src/context/ThemeContext.tsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { storage } from '../utils/storage';
-import { COLORS } from '../config';
+import { COLORS } from '../config/colors';
 import { TranslationService, languageEvents } from '../services/TranslationService';
 
 type ThemeType = 'light' | 'dark' | 'system';
@@ -47,17 +48,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const service = TranslationService.getInstance();
 
-  // ✅ Premier useEffect - Chargement initial
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Charger le thème
         const saved = await storage.getItem<ThemeType>('theme');
         const t = saved || 'light';
         setThemeState(t);
         setIsDark(t === 'system' ? system === 'dark' : t === 'dark');
 
-        // Charger la langue
         await service.init();
         setCurrentLanguage(service.getLanguage());
       } catch (error) {
@@ -67,16 +65,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     loadInitialData();
 
-    // S'abonner aux changements de langue
     const unsub = languageEvents.subscribe((lang) => {
       setCurrentLanguage(lang);
     });
 
     return unsub;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ Deuxième useEffect - Mise à jour du thème quand le système change
   useEffect(() => {
     if (theme === 'system') {
       setIsDark(system === 'dark');

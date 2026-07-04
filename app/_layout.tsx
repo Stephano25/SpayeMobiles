@@ -1,13 +1,13 @@
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useEffect } from 'react';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AuthProvider } from '../src/context/AuthContext';
+import { AuthProvider, setNavigateTo } from '../src/context/AuthContext';
 import { ThemeProvider } from '../src/context/ThemeContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
 import { COLORS } from '../src/config';
-import { useEffect } from 'react';
 import { TranslationService } from '../src/services/TranslationService';
 
 // Import des Layouts
@@ -24,6 +24,35 @@ function TranslationInit() {
   return null;
 }
 
+function RootNavigator() {
+  const navigationRef = useNavigationContainerRef();
+
+  useEffect(() => {
+    if (navigationRef) {
+      // ✅ Enregistrer la fonction de navigation
+      setNavigateTo((routeName: string) => {
+        navigationRef.navigate(routeName as never);
+      });
+    }
+  }, [navigationRef]);
+
+  return (
+    <NavigationContainer ref={navigationRef}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animation: 'slide_from_right',
+        }}
+        initialRouteName="Auth"
+      >
+        <Stack.Screen name="Auth" component={AuthLayout} />
+        <Stack.Screen name="User" component={UserLayout} />
+        <Stack.Screen name="Admin" component={AdminLayout} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
@@ -33,19 +62,7 @@ export default function RootLayout() {
             <AuthProvider>
               <TranslationInit />
               <StatusBar style="light" backgroundColor={COLORS.primary} />
-              <NavigationContainer>
-                <Stack.Navigator
-                  screenOptions={{
-                    headerShown: false,
-                    animation: 'slide_from_right',
-                  }}
-                  initialRouteName="Auth"
-                >
-                  <Stack.Screen name="Auth" component={AuthLayout} />
-                  <Stack.Screen name="User" component={UserLayout} />
-                  <Stack.Screen name="Admin" component={AdminLayout} />
-                </Stack.Navigator>
-              </NavigationContainer>
+              <RootNavigator />
             </AuthProvider>
           </NotificationProvider>
         </ThemeProvider>

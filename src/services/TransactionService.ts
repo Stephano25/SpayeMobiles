@@ -1,19 +1,15 @@
+// src/services/TransactionService.ts
 import api from './api';
-import { Transaction, DashboardStats } from '../types';
+import { Transaction } from '../types';
 
 export const TransactionService = {
-  getUserDashboardStats: async (): Promise<DashboardStats> => {
+  getUserDashboardStats: async (): Promise<any> => {
     const res = await api.get('/transactions/user/stats');
     return res.data;
   },
 
   getUserTransactions: async (): Promise<Transaction[]> => {
     const res = await api.get('/transactions/user');
-    return res.data;
-  },
-
-  getAllTransactions: async (): Promise<Transaction[]> => {
-    const res = await api.get('/transactions/all');
     return res.data;
   },
 

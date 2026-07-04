@@ -1,11 +1,11 @@
+// app/(user)/_layout.tsx
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useTranslation } from '../../src/services/TranslationService';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { View, StatusBar, Platform } from 'react-native';
-import { COLORS } from '../../src/config';
+import { COLORS } from '../../src/config/colors';
 
-// Import des écrans
 import UserHome from './UserHome';
 import WalletScreen from './wallet';
 import TransactionsScreen from './transactions';
@@ -27,15 +27,12 @@ export default function UserLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor={COLORS.primary}
-      />
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
       <Stack.Navigator
         screenOptions={{
           headerShown: false,
           animation: 'slide_from_right',
-          contentStyle: { 
+          contentStyle: {
             backgroundColor: colors.background,
             paddingTop: insets.top || (Platform.OS === 'ios' ? 44 : 30),
             paddingBottom: insets.bottom || (Platform.OS === 'ios' ? 34 : 20),

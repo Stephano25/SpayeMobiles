@@ -1,5 +1,6 @@
+// src/services/api.ts
 import axios from 'axios';
-import { getApiUrl } from '../config';
+import { getApiUrl } from '../config/api';
 import { storage } from '../utils/storage';
 
 let apiInstance: any = null;
@@ -8,7 +9,7 @@ export const getApi = async () => {
   if (apiInstance) return apiInstance;
 
   const baseURL = await getApiUrl();
-  
+
   apiInstance = axios.create({
     baseURL,
     headers: { 'Content-Type': 'application/json' },
@@ -37,7 +38,6 @@ export const getApi = async () => {
   return apiInstance;
 };
 
-// API wrapper avec fonctions async
 const api = {
   get: async (...args: any[]) => {
     const instance = await getApi();

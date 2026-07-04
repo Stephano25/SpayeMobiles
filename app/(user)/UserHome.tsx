@@ -1,3 +1,4 @@
+// app/(user)/UserHome.tsx
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -85,10 +86,10 @@ export default function UserHome() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('fr-MG', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric' 
+    return date.toLocaleDateString('fr-MG', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
     });
   };
 
@@ -110,7 +111,7 @@ export default function UserHome() {
             <View>
               <Text style={styles.greeting}>Bonjour</Text>
               <Text style={styles.userName}>
-                {user?.firstName || 'Dazz'} {user?.lastName || 'Remie'}
+                {user?.firstName || 'Utilisateur'} {user?.lastName || ''}
               </Text>
             </View>
             <TouchableOpacity
@@ -118,7 +119,7 @@ export default function UserHome() {
               onPress={() => navigateTo('Profile')}
             >
               <Text style={styles.avatarText}>
-                {getInitials(user?.firstName || 'Dazz', user?.lastName || 'Remie')}
+                {getInitials(user?.firstName || 'U', user?.lastName || '')}
               </Text>
             </TouchableOpacity>
           </View>

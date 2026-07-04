@@ -1,4 +1,5 @@
-import React from 'react';
+// App.tsx
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -7,12 +8,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from './src/context/AuthContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { NotificationProvider } from './src/context/NotificationContext';
-import { COLORS } from './src/config';
+import { COLORS } from './src/config/colors';
+import { detectBackendIP } from './src/config/api';
 
 // Import des écrans
 import LoginScreen from './app/(auth)/login';
 import RegisterScreen from './app/(auth)/register';
-import IPConfigScreen from './app/(auth)/ip-config';
 import UserHome from './app/(user)/UserHome';
 import AdminHome from './app/(admin)/index';
 import WalletScreen from './app/(user)/wallet';
@@ -29,6 +30,11 @@ import UserSettingsScreen from './app/(user)/settings';
 const Stack = createNativeStackNavigator();
 
 export default function App() {
+  useEffect(() => {
+    // ✅ Détection automatique au démarrage
+    detectBackendIP().catch(console.error);
+  }, []);
+
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -46,7 +52,6 @@ export default function App() {
                 >
                   <Stack.Screen name="Login" component={LoginScreen} />
                   <Stack.Screen name="Register" component={RegisterScreen} />
-                  <Stack.Screen name="IPConfig" component={IPConfigScreen} />
                   <Stack.Screen name="UserHome" component={UserHome} />
                   <Stack.Screen name="AdminHome" component={AdminHome} />
                   <Stack.Screen name="Wallet" component={WalletScreen} />

@@ -40,6 +40,12 @@
         {
           "photosPermission": "SPaye a besoin d'accéder à votre galerie pour partager des images."
         }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "SPaye a besoin d'accéder au microphone pour les messages vocaux."
+        }
       ]
     ]
   }

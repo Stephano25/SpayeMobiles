@@ -1,5 +1,5 @@
+// src/context/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
 import { storage } from '../utils/storage';
 import api from '../services/api';
 import { AuthService } from '../services/AuthService';
@@ -9,7 +9,13 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { firstName: string; lastName: string; email: string; password: string; phoneNumber?: string }) => Promise<void>;
+  register: (data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    phoneNumber?: string;
+  }) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   getToken: () => string | null;
@@ -23,11 +29,16 @@ export const useAuth = () => {
   return context;
 };
 
+let navigateTo: ((route: string) => void) | null = null;
+
+export const setNavigateTo = (navigate: (route: string) => void) => {
+  navigateTo = navigate;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const navigation = useNavigation();
 
   useEffect(() => {
     loadUser();
@@ -56,20 +67,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setToken(access_token);
       setUser(userData);
       const isAdmin = userData.role === 'admin' || userData.role === 'super_admin';
-      navigation.navigate(isAdmin ? 'AdminHome' as never : 'UserHome' as never);
+      if (navigateTo) {
+        navigateTo(isAdmin ? 'Admin' : 'User');
+      }
     } catch (error) {
       throw error;
     }
   };
 
-  const register = async (data: { firstName: string; lastName: string; email: string; password: string; phoneNumber?: string }) => {
+  const register = async (data: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    phoneNumber?: string;
+  }) => {
     try {
       const res = await AuthService.register(data);
       const { access_token, user: userData } = res;
       await AuthService.saveSession(access_token, userData);
       setToken(access_token);
       setUser(userData);
-      navigation.navigate('UserHome' as never);
+      if (navigateTo) {
+        navigateTo('User');
+      }
     } catch (error) {
       throw error;
     }
@@ -79,7 +100,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await AuthService.logout();
     setUser(null);
     setToken(null);
-    navigation.navigate('Login' as never);
+    if (navigateTo) {
+      navigateTo('Auth');
+    }
   };
 
   const updateProfile = async (data: Partial<User>) => {
@@ -90,7 +113,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getToken = () => token;
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, updateProfile, getToken }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, login, register, logout, updateProfile, getToken }}
+    >
       {children}
     </AuthContext.Provider>
   );

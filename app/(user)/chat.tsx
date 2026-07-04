@@ -16,15 +16,15 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio, Video, ResizeMode } from 'expo-av';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useAuth }          from '../../src/context/AuthContext';
-import { useTheme }         from '../../src/context/ThemeContext';
-import { useNotification }  from '../../src/context/NotificationContext';
-import { ChatService }      from '../../src/services/ChatService';
-import { FriendService }    from '../../src/services/FriendService';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { useAuth } from '../../src/context/AuthContext';
+import { useTheme } from '../../src/context/ThemeContext';
+import { useNotification } from '../../src/context/NotificationContext';
+import { ChatService } from '../../src/services/ChatService';
+import { FriendService } from '../../src/services/FriendService';
 import { COLORS, formatTime, getInitials, getAvatarColor, formatAmount } from '../../src/config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTranslation }   from '../../src/services/TranslationService';
+import { useTranslation } from '../../src/services/TranslationService';
 
 const { width } = Dimensions.get('window');
 
@@ -283,10 +283,12 @@ const mc = StyleSheet.create({
 // ═══════════════════════════════════════════════════════════════
 export default function ChatScreen() {
   const insets           = useSafeAreaInsets();
+  const navigation       = useNavigation();
+  const route            = useRoute();
   const { user, getToken } = useAuth();
   const { showError, showSuccess, showInfo, showWarning } = useNotification();
   const { t }            = useTranslation();
-  const { userId }       = useLocalSearchParams<{ userId: string }>();
+  const userId           = (route.params as any)?.userId as string | undefined;
 
   // ── State ──────────────────────────────────────────────────
   const [conversations, setConversations]         = useState<any[]>([]);
@@ -923,7 +925,7 @@ export default function ChatScreen() {
       {/* Header liste */}
       <View style={s.sidebarTop}>
         <Text style={s.brand}>Messages</Text>
-        <IconBtn name="create-outline" color={T.violet} onPress={() => router.push('/(user)/friends')} />
+        <IconBtn name="create-outline" color={T.violet} onPress={() => navigation.navigate('Friends')} />
       </View>
 
       {/* Recherche */}
@@ -970,7 +972,7 @@ export default function ChatScreen() {
             <View style={s.emptyIcon}><Ionicons name="chatbubbles-outline" size={36} color={T.primary} /></View>
             <Text style={s.emptyTitle}>Vos messages</Text>
             <Text style={s.emptyDesc}>Sélectionnez une conversation ou démarrez-en une nouvelle</Text>
-            <TouchableOpacity style={s.emptyBtn} onPress={() => router.push('/(user)/friends')}>
+            <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.navigate('Friends')}>
               <Ionicons name="add" size={17} color={T.white} />
               <Text style={s.emptyBtnTxt}>Nouvelle discussion</Text>
             </TouchableOpacity>
@@ -993,7 +995,7 @@ export default function ChatScreen() {
         {/* ── Chat Header (like .chat-header Angular) ── */}
         <View style={s.chatHeader}>
           <IconBtn name="arrow-back" onPress={() => { setView('list'); setSelectedContact(null); setMessages([]); }} />
-          <TouchableOpacity style={s.contactMeta} onPress={() => router.push({ pathname: '/(user)/profile', params: { userId: selectedContact?.userId } })}>
+          <TouchableOpacity style={s.contactMeta} onPress={() => navigation.navigate('Profile', { userId: selectedContact?.userId })}>
             <Avatar name={`${selectedContact?.firstName} ${selectedContact?.lastName}`} size={38} online={selectedContact?.isOnline} />
             <View style={{ marginLeft: 10 }}>
               <Text style={s.contactName}>{selectedContact?.firstName} {selectedContact?.lastName}</Text>
@@ -1015,7 +1017,7 @@ export default function ChatScreen() {
             <IconBtn name="ellipsis-vertical" color={T.text3} onPress={() => Alert.alert(
               t('settings'), t('confirm'),
               [
-                { text: 'Voir le profil', onPress: () => router.push({ pathname: '/(user)/profile', params: { userId: selectedContact?.userId } }) },
+                { text: 'Voir le profil', onPress: () => navigation.navigate('Profile', { userId: selectedContact?.userId }) },
                 { text: 'Envoyer de l\'argent', onPress: () => setShowTransfer(true) },
                 { text: 'Bloquer', style: 'destructive', onPress: async () => {
                   try { await FriendService.blockUser(selectedContact.userId); showSuccess('Utilisateur bloqué'); }

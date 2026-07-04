@@ -1,3 +1,4 @@
+// app/(auth)/register.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -15,10 +16,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { COLORS, RADIUS, SHADOW } from '../../src/config';
+import { COLORS, RADIUS, SPACING, FONT, SHADOW } from '../../src/config/colors';
 import { Ionicons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
-import { AuthService } from '../../src/services/AuthService';
 import { useTranslation } from '../../src/services/TranslationService';
 
 export default function RegisterScreen() {
@@ -29,11 +28,10 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { register } = useAuth();
-  const { showError, showSuccess } = useNotification();
+  const { showError } = useNotification();
   const { t } = useTranslation();
   const navigation = useNavigation();
 
@@ -58,38 +56,6 @@ export default function RegisterScreen() {
       showError(e?.response?.data?.message || t('error'));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleRegister = async () => {
-    setGoogleLoading(true);
-    try {
-      const apiUrl = await AuthService.getApiUrl();
-      const result = await WebBrowser.openAuthSessionAsync(
-        `${apiUrl}/auth/google`,
-        'spaye://auth/callback'
-      );
-
-      if (result.type === 'success') {
-        const url = new URL(result.url);
-        const token = url.searchParams.get('token');
-        if (token) {
-          await AuthService.handleGoogleCallback(token);
-          const user = await AuthService.getUser();
-          const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-          navigation.navigate(isAdmin ? 'AdminHome' as never : 'UserHome' as never);
-          showSuccess(t('success'));
-        } else {
-          showError(t('error'));
-        }
-      } else if (result.type === 'cancel') {
-        showError(t('error'));
-      }
-    } catch (error: any) {
-      console.error('Erreur Google Register:', error);
-      showError(t('error'));
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -125,7 +91,7 @@ export default function RegisterScreen() {
               placeholderTextColor={COLORS.gray400}
               value={firstName}
               onChangeText={setFirstName}
-              editable={!loading && !googleLoading}
+              editable={!loading}
               returnKeyType="next"
             />
 
@@ -135,7 +101,7 @@ export default function RegisterScreen() {
               placeholderTextColor={COLORS.gray400}
               value={lastName}
               onChangeText={setLastName}
-              editable={!loading && !googleLoading}
+              editable={!loading}
               returnKeyType="next"
             />
 
@@ -147,7 +113,7 @@ export default function RegisterScreen() {
               onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
-              editable={!loading && !googleLoading}
+              editable={!loading}
               returnKeyType="next"
             />
 
@@ -158,7 +124,7 @@ export default function RegisterScreen() {
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
-              editable={!loading && !googleLoading}
+              editable={!loading}
               returnKeyType="next"
             />
 
@@ -170,7 +136,7 @@ export default function RegisterScreen() {
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
-                editable={!loading && !googleLoading}
+                editable={!loading}
                 returnKeyType="next"
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
@@ -186,7 +152,7 @@ export default function RegisterScreen() {
                 secureTextEntry={!showConfirmPassword}
                 value={confirm}
                 onChangeText={setConfirm}
-                editable={!loading && !googleLoading}
+                editable={!loading}
                 returnKeyType="done"
                 onSubmitEditing={handleRegister}
               />
@@ -196,36 +162,22 @@ export default function RegisterScreen() {
             </View>
 
             <TouchableOpacity
-              style={[styles.button, (loading || googleLoading) && styles.buttonDisabled]}
+              style={[styles.button, loading && styles.buttonDisabled]}
               onPress={handleRegister}
-              disabled={loading || googleLoading}
+              disabled={loading}
             >
-              {loading ? <ActivityIndicator color={COLORS.primary} size="small" /> : <Text style={styles.buttonText}>{t('register')}</Text>}
-            </TouchableOpacity>
-
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>{t('or')}</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.googleButton, (loading || googleLoading) && styles.buttonDisabled]}
-              onPress={handleGoogleRegister}
-              disabled={loading || googleLoading}
-              activeOpacity={0.7}
-            >
-              {googleLoading ? (
+              {loading ? (
                 <ActivityIndicator color={COLORS.primary} size="small" />
               ) : (
-                <>
-                  <Ionicons name="logo-google" size={22} color={COLORS.primary} />
-                  <Text style={styles.googleButtonText}>{t('continue_with_google')}</Text>
-                </>
+                <Text style={styles.buttonText}>{t('register')}</Text>
               )}
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => navigation.navigate('Login' as never)} disabled={loading || googleLoading}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Login' as never)}
+              disabled={loading}
+              style={styles.loginLink}
+            >
               <Text style={styles.link}>{t('have_account')}</Text>
             </TouchableOpacity>
 
@@ -242,9 +194,12 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingVertical: 40 },
   logoContainer: { alignItems: 'center', marginBottom: 24 },
   logoCircle: {
-    width: 70, height: 70, borderRadius: 35,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
   },
   title: { fontSize: 32, fontWeight: 'bold', color: COLORS.white, textAlign: 'center' },
@@ -278,20 +233,7 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.6 },
   buttonText: { color: COLORS.primary, fontWeight: 'bold', fontSize: 16 },
-  dividerContainer: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.3)' },
-  dividerText: { color: 'rgba(255,255,255,0.6)', paddingHorizontal: 16, fontSize: 14 },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.white,
-    paddingVertical: 14,
-    borderRadius: RADIUS.md,
-    gap: 12,
-    ...SHADOW.md,
-  },
-  googleButtonText: { color: COLORS.text, fontWeight: '600', fontSize: 16 },
-  link: { color: COLORS.white, textAlign: 'center', marginTop: 20, textDecorationLine: 'underline', fontSize: 14 },
+  loginLink: { marginTop: 20, alignItems: 'center' },
+  link: { color: COLORS.white, textDecorationLine: 'underline', fontSize: 14 },
   bottomSpacer: { height: 30 },
 });

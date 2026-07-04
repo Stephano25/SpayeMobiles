@@ -16,7 +16,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { FriendService } from '../../src/services/FriendService';
@@ -32,6 +32,7 @@ export default function FriendsScreen() {
   const { colors } = useTheme();
   const { showSuccess, showError } = useNotification();
   const { t } = useTranslation();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
@@ -208,10 +209,7 @@ export default function FriendsScreen() {
   };
 
   const chatWithFriend = (friendId: string) => {
-    router.push({
-      pathname: '/(user)/chat',
-      params: { userId: friendId },
-    });
+    navigation.navigate('Chat', { userId: friendId });
   };
 
   const onlineFriends = friends.filter(f => f.friend?.isOnline === true);
@@ -413,9 +411,9 @@ export default function FriendsScreen() {
           <TouchableOpacity
             style={styles.friendActionBtn}
             onPress={() => {
-              router.push({
-                pathname: '/(user)/send-money',
-                params: { receiverId: friend.id, receiverName: `${friend.firstName} ${friend.lastName}` },
+              navigation.navigate('SendMoney', { 
+                receiverId: friend.id, 
+                receiverName: `${friend.firstName} ${friend.lastName}` 
               });
             }}
           >
@@ -456,7 +454,7 @@ export default function FriendsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('my_friends')}</Text>

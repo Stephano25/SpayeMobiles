@@ -67,7 +67,15 @@ export default function SendMoneyScreen() {
         description || undefined
       );
       setStep('success');
-      setTimeout(() => navigation.navigate('Wallet'), 1800);
+      // ✅ Navigation corrigée
+      setTimeout(() => {
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Wallet' }],
+          })
+        );
+      }, 1800);
     } catch (e: any) {
       showError(e?.response?.data?.message || "Erreur lors de l'envoi");
       setStep('form');

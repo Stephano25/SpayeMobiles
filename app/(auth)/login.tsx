@@ -1,3 +1,4 @@
+// app/(auth)/login.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -15,7 +16,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { COLORS, RADIUS, SHADOW } from '../../src/config';
+import { COLORS, RADIUS, SPACING, FONT, SHADOW } from '../../src/config/colors';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { AuthService } from '../../src/services/AuthService';
@@ -57,7 +58,7 @@ export default function LoginScreen() {
     setGoogleLoading(true);
     try {
       const apiUrl = await AuthService.getApiUrl();
-      
+
       if (!apiUrl || apiUrl === '') {
         showError(t('error'));
         setGoogleLoading(false);
@@ -78,12 +79,12 @@ export default function LoginScreen() {
       if (result.type === 'success' && result.url) {
         const url = new URL(result.url);
         const token = url.searchParams.get('token');
-        
+
         if (token) {
           await AuthService.handleGoogleCallback(token);
           const user = await AuthService.getUser();
           const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-          navigation.navigate(isAdmin ? 'AdminHome' as never : 'UserHome' as never);
+          navigation.navigate(isAdmin ? 'Admin' as never : 'User' as never);
         } else {
           showError(t('error'));
         }
@@ -122,7 +123,7 @@ export default function LoginScreen() {
               <Ionicons name="wallet-outline" size={48} color={COLORS.white} />
             </View>
             <Text style={styles.title}>{t('app_name')}</Text>
-            <Text style={styles.subtitle}>{t('register')}</Text>
+            <Text style={styles.subtitle}>{t('login')}</Text>
           </View>
 
           <View style={styles.form}>
@@ -204,14 +205,6 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => navigation.navigate('IPConfig' as never)}
-              style={styles.configLink}
-            >
-              <Ionicons name="settings-outline" size={16} color="rgba(255,255,255,0.6)" />
-              <Text style={styles.configText}>{t('settings')}</Text>
-            </TouchableOpacity>
-
             <View style={styles.bottomSpacer} />
           </View>
         </ScrollView>
@@ -225,9 +218,12 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40 },
   logoContainer: { alignItems: 'center', marginBottom: 32 },
   logoCircle: {
-    width: 80, height: 80, borderRadius: 40,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
   title: { fontSize: 36, fontWeight: 'bold', color: COLORS.white, textAlign: 'center' },
@@ -273,7 +269,5 @@ const styles = StyleSheet.create({
   registerLink: { marginTop: 20, alignItems: 'center' },
   registerText: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
   registerHighlight: { color: COLORS.white, fontWeight: 'bold', textDecorationLine: 'underline' },
-  configLink: { marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  configText: { color: 'rgba(255,255,255,0.6)', fontSize: 13 },
   bottomSpacer: { height: 20 },
 });

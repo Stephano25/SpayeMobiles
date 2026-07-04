@@ -1,7 +1,8 @@
+// src/components/SafeScreen.tsx
 import React from 'react';
 import { View, StyleSheet, StatusBar, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { COLORS } from '../config';
+import { COLORS } from '../config/colors';
 
 interface SafeScreenProps {
   children: React.ReactNode;
@@ -19,7 +20,7 @@ export const SafeScreen: React.FC<SafeScreenProps> = ({
   withTabBar = false,
 }) => {
   const insets = useSafeAreaInsets();
-  
+
   const safeBottomPadding = insets.bottom > 0 ? insets.bottom + 20 : 20;
   const topPadding = insets.top > 0 ? insets.top : (Platform.OS === 'ios' ? 44 : 30);
 
@@ -32,10 +33,10 @@ export const SafeScreen: React.FC<SafeScreenProps> = ({
         style={[styles.content, { backgroundColor }]}
         contentContainerStyle={[
           styles.contentContainer,
-          { 
+          {
             paddingBottom: safeBottomPadding,
             paddingTop: topPadding,
-          }
+          },
         ]}
         showsVerticalScrollIndicator={false}
         bounces={true}
