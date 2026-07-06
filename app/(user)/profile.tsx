@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  ScrollView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
@@ -18,20 +17,40 @@ import { useNotification } from '../../src/context/NotificationContext';
 import { COLORS, formatAmount, getInitials } from '../../src/config';
 import { User } from '../../src/types';
 import { SafeScreen } from '../../src/components/SafeScreen';
-import { useTranslation } from '../../src/services/TranslationService';
+
+// Service de traduction simple
+const t = (key: string) => {
+  const translations: Record<string, string> = {
+    profile: 'Profil',
+    first_name: 'Prénom',
+    last_name: 'Nom',
+    email: 'Email',
+    phone: 'Téléphone',
+    balance: 'Solde',
+    not_specified: 'Non renseigné',
+    save: 'Enregistrer',
+    cancel: 'Annuler',
+    logout: 'Déconnexion',
+    confirm: 'Confirmer',
+    success: 'Succès',
+    error: 'Erreur',
+  };
+  return translations[key] || key;
+};
 
 export default function ProfileScreen() {
   const { colors } = useTheme();
   const { user, updateProfile, logout } = useAuth();
   const { showSuccess, showError } = useNotification();
-  const { t } = useTranslation();
   const navigation = useNavigation();
   const [editMode, setEditMode] = useState(false);
-  const [form, setForm] = useState<Partial<User>>({
+  // ✅ Correction: utiliser 'balance' comme number
+  const [form, setForm] = useState<Partial<User> & { balance?: number }>({
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     email: user?.email || '',
     phoneNumber: user?.phoneNumber || '',
+    balance: user?.balance || 0,
   });
   const [loading, setLoading] = useState(false);
 
@@ -59,6 +78,7 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             await logout();
+            navigation.navigate('Login' as never);
           },
         },
       ]
@@ -133,15 +153,15 @@ export default function ProfileScreen() {
           <>
             <View style={styles.row}>
               <Text style={[styles.label, { color: colors.text }]}>{t('first_name')} :</Text>
-              <Text style={[styles.value, { color: colors.text }]}>{user?.firstName}</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{user?.firstName || '-'}</Text>
             </View>
             <View style={styles.row}>
               <Text style={[styles.label, { color: colors.text }]}>{t('last_name')} :</Text>
-              <Text style={[styles.value, { color: colors.text }]}>{user?.lastName}</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{user?.lastName || '-'}</Text>
             </View>
             <View style={styles.row}>
               <Text style={[styles.label, { color: colors.text }]}>{t('email')} :</Text>
-              <Text style={[styles.value, { color: colors.text }]}>{user?.email}</Text>
+              <Text style={[styles.value, { color: colors.text }]}>{user?.email || '-'}</Text>
             </View>
             <View style={styles.row}>
               <Text style={[styles.label, { color: colors.text }]}>{t('phone')} :</Text>
@@ -151,14 +171,17 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.row}>
               <Text style={[styles.label, { color: colors.text }]}>{t('balance')} :</Text>
+              {/* ✅ Correction: utiliser user?.balance comme number */}
               <Text style={[styles.value, { color: COLORS.primary, fontWeight: 'bold' }]}>
                 {formatAmount(user?.balance || 0)} Ar
               </Text>
             </View>
-            <View style={styles.row}>
-              <Text style={[styles.label, { color: colors.text }]}>QR Code :</Text>
-              <Text style={[styles.value, { color: colors.text }]}>{user?.qrCode}</Text>
-            </View>
+            {user?.qrCode && (
+              <View style={styles.row}>
+                <Text style={[styles.label, { color: colors.text }]}>QR Code :</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{user.qrCode}</Text>
+              </View>
+            )}
           </>
         )}
       </View>

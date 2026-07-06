@@ -1,64 +1,115 @@
 // src/services/api.ts
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiUrl } from '../config/api';
 
-let apiInstance: any = null;
+// URL de base par défaut
+const DEFAULT_BASE_URL = 'http://192.168.188.135:3000';
 
-export const getApi = async () => {
-  if (apiInstance) return apiInstance;
+interface ApiResponse<T = any> {
+  data: T;
+  status: number;
+  message?: string;
+}
 
-  const baseURL = await getApiUrl();
+class ApiService {
+  private static instance: ApiService;
+  private baseUrl: string = DEFAULT_BASE_URL;
+  private isInitialized: boolean = false;
 
-  apiInstance = axios.create({
-    baseURL,
-    headers: { 'Content-Type': 'application/json' },
-    timeout: 30000,
-  });
-
-  apiInstance.interceptors.request.use(async (config: any) => {
-    const token = await AsyncStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+  static getInstance(): ApiService {
+    if (!ApiService.instance) {
+      ApiService.instance = new ApiService();
     }
-    return config;
-  });
+    return ApiService.instance;
+  }
 
-  apiInstance.interceptors.response.use(
-    (response: any) => response,
-    async (error: any) => {
-      if (error.response?.status === 401) {
-        await AsyncStorage.removeItem('token');
-        await AsyncStorage.removeItem('user');
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+    try {
+      const url = await getApiUrl();
+      this.baseUrl = url.replace('/api', '');
+      this.isInitialized = true;
+      console.log('✅ API initialisée avec:', this.baseUrl);
+    } catch (error) {
+      console.error('❌ Erreur initialisation API:', error);
+      this.baseUrl = DEFAULT_BASE_URL;
+    }
+  }
+
+  private async getHeaders(): Promise<HeadersInit> {
+    const token = await AsyncStorage.getItem('auth_token');
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    };
+  }
+
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    await this.initialize();
+    
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers = await this.getHeaders();
+    
+    console.log(`📡 ${options.method || 'GET'} ${url}`);
+    
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        ...headers,
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Erreur ${response.status}:`, errorText);
+      
+      if (response.status === 401) {
+        // Token expiré - déconnecter l'utilisateur
+        await AsyncStorage.removeItem('auth_token');
+        await AsyncStorage.removeItem('user_data');
+        throw new Error('Session expirée. Veuillez vous reconnecter.');
       }
-      return Promise.reject(error);
+      
+      throw new Error(errorText || `Erreur ${response.status}`);
     }
-  );
 
-  return apiInstance;
-};
+    const data = await response.json();
+    return data;
+  }
 
-const api = {
-  get: async (...args: any[]) => {
-    const instance = await getApi();
-    return instance.get(...args);
-  },
-  post: async (...args: any[]) => {
-    const instance = await getApi();
-    return instance.post(...args);
-  },
-  put: async (...args: any[]) => {
-    const instance = await getApi();
-    return instance.put(...args);
-  },
-  patch: async (...args: any[]) => {
-    const instance = await getApi();
-    return instance.patch(...args);
-  },
-  delete: async (...args: any[]) => {
-    const instance = await getApi();
-    return instance.delete(...args);
-  },
-};
+  async get<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'GET' });
+  }
 
-export default api;
+  async post<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async put<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async patch<T>(endpoint: string, data?: any): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async delete<T>(endpoint: string): Promise<T> {
+    return this.request<T>(endpoint, { method: 'DELETE' });
+  }
+}
+
+export default ApiService.getInstance();

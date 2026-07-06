@@ -1,3 +1,4 @@
+// app/(user)/wallet.tsx
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -14,10 +15,22 @@ import { useNotification } from '../../src/context/NotificationContext';
 import { WalletService } from '../../src/services/WalletService';
 import { TransactionService } from '../../src/services/TransactionService';
 import { COLORS, formatAmount, formatRelativeTime } from '../../src/config';
-import { Transaction } from '../../src/types';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
 import { translateTransactionType } from '../../src/utils/transactionTranslations';
+
+// ✅ Définition du type Transaction localement
+interface Transaction {
+  id: string;
+  type: 'send' | 'receive' | 'deposit' | 'withdraw' | 'payment' | 'mobile_money';
+  amount: number;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  senderId?: string;
+  receiverId?: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function WalletScreen() {
   const { colors } = useTheme();
@@ -34,7 +47,8 @@ export default function WalletScreen() {
         WalletService.getWallet(),
         TransactionService.getUserTransactions(),
       ]);
-      setBalance(wallet.balance ?? 0);
+      // ✅ Vérifier que wallet a bien une propriété balance
+      setBalance((wallet as any)?.balance ?? 0);
       setTransactions((txs || []).slice(0, 15));
     } catch (e) {
       showError(t('error'));

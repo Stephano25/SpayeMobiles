@@ -1,62 +1,13 @@
 // src/utils/transactionTranslations.ts
-import { TranslationService } from '../services/TranslationService';
-
-const getService = () => TranslationService.getInstance();
-
 export const translateTransactionType = (type: string): string => {
-  const service = getService();
   const translations: Record<string, string> = {
-    'deposit': 'deposit',
-    'withdrawal': 'withdrawal',
-    'payment': 'payment',
-    'transfer': 'transfer',
-    'mobile_money': 'mobile_money',
-    'receive': 'receive',
-    'send': 'send',
+    'send': 'Envoi',
+    'receive': 'Réception',
+    'deposit': 'Dépôt',
+    'withdraw': 'Retrait',
+    'payment': 'Paiement',
+    'mobile_money': 'Mobile Money',
+    'transfer': 'Transfert',
   };
-  const key = translations[type] || type;
-  return service.t(key);
-};
-
-export const translateTransactionStatus = (status: string): string => {
-  const service = getService();
-  const translations: Record<string, string> = {
-    'completed': 'completed',
-    'pending': 'pending',
-    'failed': 'failed',
-    'cancelled': 'cancelled',
-    'processing': 'pending',
-  };
-  const key = translations[status] || status;
-  return service.t(key);
-};
-
-export const useTransactionTranslations = () => {
-  const service = TranslationService.getInstance();
-
-  return {
-    t: (key: string) => service.t(key),
-    translateType: (type: string) => {
-      const map: Record<string, string> = {
-        'deposit': 'deposit',
-        'withdrawal': 'withdrawal',
-        'payment': 'payment',
-        'transfer': 'transfer',
-        'mobile_money': 'mobile_money',
-        'receive': 'receive',
-        'send': 'send',
-      };
-      return service.t(map[type] || type);
-    },
-    translateStatus: (status: string) => {
-      const map: Record<string, string> = {
-        'completed': 'completed',
-        'pending': 'pending',
-        'failed': 'failed',
-        'cancelled': 'cancelled',
-        'processing': 'pending',
-      };
-      return service.t(map[status] || status);
-    },
-  };
+  return translations[type] || type;
 };

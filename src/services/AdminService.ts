@@ -1,16 +1,83 @@
 // src/services/AdminService.ts
 import api from './api';
-import { AdminDashboardStats, SystemSettings, QRCodeResponse, QRScanResult } from '../types';
-import { User } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Types
+export interface AdminDashboardStats {
+  totalUsers: number;
+  activeUsers: number;
+  totalTransactions: number;
+  totalVolume: number;
+  recentUsers: any[];
+  recentTransactions: any[];
+  dailyStats: any[];
+  topUsers: any[];
+  totalAdmins: number;
+  totalSuperAdmins: number;
+  adminTransactions: number;
+  adminVolume: number;
+  myAdminTransactions: number;
+  myAdminVolume: number;
+  userRole: string;
+}
+
+export interface SystemSettings {
+  general: {
+    siteName: string;
+    siteUrl: string;
+    adminEmail: string;
+    supportEmail: string;
+    maintenanceMode: boolean;
+    registrationEnabled: boolean;
+    defaultUserRole: string;
+    maxFileSize: number;
+    sessionTimeout: number;
+  };
+  security: {
+    twoFactorAuth: boolean;
+    passwordMinLength: number;
+    passwordRequireUppercase: boolean;
+    passwordRequireNumbers: boolean;
+    passwordRequireSpecial: boolean;
+    maxLoginAttempts: number;
+    lockoutDuration: number;
+    sessionTimeout: number;
+    requireEmailVerification: boolean;
+    requirePhoneVerification: boolean;
+  };
+  payment: {
+    minTransaction: number;
+    maxTransaction: number;
+    dailyTransferLimit: number;
+    monthlyTransferLimit: number;
+    mobileMoneyEnabled: boolean;
+    mobileMoneyOperators: { airtel: boolean; orange: boolean; mvola: boolean };
+    transferFees: { airtel: number; orange: number; mvola: number; internal: number };
+    currency: string;
+  };
+}
+
+export interface QRCodeResponse {
+  qrCode: string;
+  data: string;
+  expiresAt: string;
+}
+
+export interface QRScanResult {
+  success: boolean;
+  message: string;
+  data?: any;
+}
 
 export const AdminService = {
   // Dashboard
   getDashboardStats: async (): Promise<AdminDashboardStats> => {
     try {
-      const res = await api.get('/admin/dashboard/stats');
-      return res.data;
+      const data = await api.get<AdminDashboardStats>('/admin/dashboard/stats');
+      return data;
     } catch (error) {
       console.error('Erreur getDashboardStats:', error);
+      // Retourner des valeurs par défaut
       return {
         totalUsers: 0,
         activeUsers: 0,
@@ -32,69 +99,59 @@ export const AdminService = {
   },
 
   // Utilisateurs
-  getAllUsers: async (): Promise<User[]> => {
+  getAllUsers: async (): Promise<any[]> => {
     try {
-      const res = await api.get('/admin/users');
-      return res.data || [];
+      const data = await api.get<any[]>('/admin/users');
+      return data || [];
     } catch (error) {
       console.error('Erreur getAllUsers:', error);
       return [];
     }
   },
 
-  getUserById: async (userId: string): Promise<User> => {
-    const res = await api.get(`/admin/users/${userId}`);
-    return res.data;
+  getUserById: async (userId: string): Promise<any> => {
+    return api.get(`/admin/users/${userId}`);
   },
 
   updateUserStatus: async (userId: string, isActive: boolean): Promise<any> => {
-    const res = await api.patch(`/admin/users/${userId}/status`, { isActive });
-    return res.data;
+    return api.patch(`/admin/users/${userId}/status`, { isActive });
   },
 
   updateUserRole: async (userId: string, role: string): Promise<any> => {
-    const res = await api.patch(`/admin/users/${userId}/role`, { role });
-    return res.data;
+    return api.patch(`/admin/users/${userId}/role`, { role });
   },
 
   deleteUser: async (userId: string): Promise<any> => {
-    const res = await api.delete(`/admin/users/${userId}`);
-    return res.data;
+    return api.delete(`/admin/users/${userId}`);
   },
 
-  // Admin Actions - Dépôt
+  // Admin Actions
   depositMoney: async (userId: string, amount: number, description?: string, qrCode?: string): Promise<any> => {
-    const res = await api.post(`/admin/users/${userId}/deposit`, { amount, description, qrCode });
-    return res.data;
+    return api.post(`/admin/users/${userId}/deposit`, { amount, description, qrCode });
   },
 
-  // Admin Actions - Retrait
   withdrawMoney: async (userId: string, amount: number, description?: string, qrCode?: string): Promise<any> => {
-    const res = await api.post(`/admin/users/${userId}/withdraw`, { amount, description, qrCode });
-    return res.data;
+    return api.post(`/admin/users/${userId}/withdraw`, { amount, description, qrCode });
   },
 
   // QR Code
   generateQRCode: async (type: 'deposit' | 'withdraw', amount?: number): Promise<QRCodeResponse> => {
-    const res = await api.post('/admin/generate-qr', { type, amount });
-    return res.data;
+    return api.post<QRCodeResponse>('/admin/generate-qr', { type, amount });
   },
 
   scanQRCode: async (qrData: string): Promise<QRScanResult> => {
-    const res = await api.post('/admin/scan-qr', { qrData });
-    return res.data;
+    return api.post<QRScanResult>('/admin/scan-qr', { qrData });
   },
 
   // Administrateurs
   createAdmin: async (adminData: any): Promise<any> => {
-    const res = await api.post('/admin/admins', adminData);
-    return res.data;
+    return api.post('/admin/admins', adminData);
   },
 
   getAdmins: async (): Promise<any[]> => {
     try {
-      const res = await api.get('/admin/admins');
-      return res.data || [];
+      const data = await api.get<any[]>('/admin/admins');
+      return data || [];
     } catch (error) {
       console.error('Erreur getAdmins:', error);
       return [];
@@ -102,15 +159,14 @@ export const AdminService = {
   },
 
   deleteAdmin: async (adminId: string): Promise<any> => {
-    const res = await api.delete(`/admin/admins/${adminId}`);
-    return res.data;
+    return api.delete(`/admin/admins/${adminId}`);
   },
 
   // Transactions
   getAllTransactions: async (): Promise<any[]> => {
     try {
-      const res = await api.get('/admin/transactions');
-      return res.data || [];
+      const data = await api.get<any[]>('/admin/transactions');
+      return data || [];
     } catch (error) {
       console.error('Erreur getAllTransactions:', error);
       return [];
@@ -118,15 +174,13 @@ export const AdminService = {
   },
 
   getTransactionById: async (transactionId: string): Promise<any> => {
-    const res = await api.get(`/admin/transactions/${transactionId}`);
-    return res.data;
+    return api.get(`/admin/transactions/${transactionId}`);
   },
 
   // Paramètres
   getSettings: async (): Promise<SystemSettings> => {
     try {
-      const res = await api.get('/admin/settings');
-      return res.data;
+      return await api.get<SystemSettings>('/admin/settings');
     } catch (error) {
       console.error('Erreur getSettings:', error);
       return {
@@ -168,15 +222,14 @@ export const AdminService = {
   },
 
   updateSettings: async (settings: SystemSettings): Promise<SystemSettings> => {
-    const res = await api.patch('/admin/settings', settings);
-    return res.data;
+    return api.patch<SystemSettings>('/admin/settings', settings);
   },
 
   // Système
   getSystemLogs: async (): Promise<any[]> => {
     try {
-      const res = await api.get('/admin/system/logs');
-      return res.data || [];
+      const data = await api.get<any[]>('/admin/system/logs');
+      return data || [];
     } catch {
       return [];
     }
@@ -184,26 +237,22 @@ export const AdminService = {
 
   getSystemStats: async (): Promise<any> => {
     try {
-      const res = await api.get('/admin/system/stats');
-      return res.data;
+      return await api.get('/admin/system/stats');
     } catch {
       return { uptime: '0s', memoryUsage: '0 MB' };
     }
   },
 
   clearCache: async (): Promise<any> => {
-    const res = await api.post('/admin/system/clear-cache');
-    return res.data;
+    return api.post('/admin/system/clear-cache');
   },
 
   // Profil Admin
   getAdminProfile: async (): Promise<any> => {
-    const res = await api.get('/admin/profile');
-    return res.data;
+    return api.get('/admin/profile');
   },
 
   updateAdminProfile: async (profileData: any): Promise<any> => {
-    const res = await api.patch('/admin/profile', profileData);
-    return res.data;
+    return api.patch('/admin/profile', profileData);
   },
 };

@@ -58,12 +58,19 @@ export default function AdminCreateScreen() {
     setGeneratingQR(true);
     try {
       const response = await AdminService.generateQRCode('deposit');
-      setQrCodeImage(response.qrCodeImage);
-      setQrCodeGenerated(true);
-      setShowQRModal(true);
-      showSuccess('QR Code généré avec succès');
-    } catch (error) {
-      showError('Erreur lors de la génération du QR Code');
+      // ✅ Correction: utiliser 'qrCode' au lieu de 'qrCodeImage'
+      const imageUrl = response.qrCode || response.qrCodeImage || response.data?.qrCode;
+      if (imageUrl) {
+        setQrCodeImage(imageUrl);
+        setQrCodeGenerated(true);
+        setShowQRModal(true);
+        showSuccess('QR Code généré avec succès');
+      } else {
+        showError('Erreur: QR Code non reçu');
+      }
+    } catch (error: any) {
+      console.error('Erreur génération QR:', error);
+      showError(error?.message || 'Erreur lors de la génération du QR Code');
     } finally {
       setGeneratingQR(false);
     }
@@ -106,7 +113,7 @@ export default function AdminCreateScreen() {
       showSuccess('Administrateur créé avec succès');
       navigation.goBack();
     } catch (error: any) {
-      showError(error?.response?.data?.message || 'Erreur lors de la création');
+      showError(error?.response?.data?.message || error?.message || 'Erreur lors de la création');
     } finally {
       setLoading(false);
     }
@@ -136,11 +143,6 @@ export default function AdminCreateScreen() {
   const getRoleColor = (roleValue: string) => {
     const r = ROLES.find(r => r.value === roleValue);
     return r?.color || '#6366f1';
-  };
-
-  const getRoleIcon = (roleValue: string) => {
-    const r = ROLES.find(r => r.value === roleValue);
-    return r?.icon || 'shield-outline';
   };
 
   return (

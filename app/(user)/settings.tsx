@@ -1,3 +1,4 @@
+// app/(user)/settings.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -15,7 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { AuthService } from '../../src/services/AuthService';
+import AuthService from '../../src/services/AuthService';
 import { getStoredIp, setBackendIp, getApiUrl } from '../../src/config';
 import { COLORS, getInitials } from '../../src/config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,7 +35,7 @@ const THEMES = [
 ];
 
 export default function UserSettingsScreen() {
-  const { colors, theme, setTheme, isDark } = useTheme();
+  const { colors, theme, setTheme } = useTheme();
   const { user, logout, updateProfile } = useAuth();
   const { showSuccess, showError } = useNotification();
   const { t, language, setLanguage } = useTranslation();
@@ -107,11 +108,11 @@ export default function UserSettingsScreen() {
 
   const changePassword = async () => {
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      showError(t('error'));
+      showError('Les mots de passe ne correspondent pas');
       return;
     }
     if (passwordForm.newPassword.length < 6) {
-      showError(t('error'));
+      showError('Le mot de passe doit contenir au moins 6 caractères');
       return;
     }
     setChangingPassword(true);
@@ -119,8 +120,8 @@ export default function UserSettingsScreen() {
       await AuthService.changePassword(passwordForm.currentPassword, passwordForm.newPassword);
       showSuccess(t('success'));
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    } catch {
-      showError(t('error'));
+    } catch (error: any) {
+      showError(error?.message || t('error'));
     } finally {
       setChangingPassword(false);
     }

@@ -1,9 +1,26 @@
 // src/services/ChatService.ts
 import api from './api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Conversation, Message } from '../types';
 import { getSocketUrl } from '../config/api';
 import { io, Socket } from 'socket.io-client';
+
+export interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  type: 'text' | 'image' | 'file' | 'emoji';
+  createdAt: string;
+  read: boolean;
+  reactions?: Record<string, string[]>;
+}
+
+export interface Conversation {
+  id: string;
+  participants: string[];
+  lastMessage?: Message;
+  unreadCount: number;
+  updatedAt: string;
+}
 
 let socket: Socket | null = null;
 let socketUrl: string | null = null;
@@ -104,8 +121,8 @@ export const ChatService = {
 
   getConversations: async (): Promise<Conversation[]> => {
     try {
-      const res = await api.get('/chat/conversations');
-      return res.data || [];
+      const response = await api.get('/chat/conversations');
+      return response || [];
     } catch {
       return [];
     }
@@ -113,8 +130,10 @@ export const ChatService = {
 
   getMessages: async (otherUserId: string, page = 1, limit = 20): Promise<Message[]> => {
     try {
-      const res = await api.get(`/chat/messages/${otherUserId}`, { params: { page, limit } });
-      return res.data || [];
+      const response = await api.get(`/chat/messages/${otherUserId}`, { 
+        params: { page, limit } 
+      } as any);
+      return response || [];
     } catch {
       return [];
     }
@@ -135,7 +154,7 @@ export const ChatService = {
       if (socket?.connected) {
         socket.emit('sendMessage', data);
       }
-      return response.data;
+      return response;
     } catch (error: any) {
       console.error('❌ Erreur envoi message:', error);
       if (socket?.connected) {
@@ -148,31 +167,31 @@ export const ChatService = {
 
   markAsRead: async (senderId: string): Promise<any> => {
     try {
-      const res = await api.post(`/chat/read/${senderId}`);
-      return res.data;
+      const response = await api.post(`/chat/read/${senderId}`);
+      return response;
     } catch {
       return null;
     }
   },
 
   updateMessage: async (messageId: string, content: string): Promise<Message> => {
-    const res = await api.put(`/chat/message/${messageId}`, { content });
-    return res.data;
+    const response = await api.put(`/chat/message/${messageId}`, { content });
+    return response;
   },
 
   deleteMessage: async (messageId: string): Promise<Message> => {
-    const res = await api.delete(`/chat/message/${messageId}`);
-    return res.data;
+    const response = await api.delete(`/chat/message/${messageId}`);
+    return response;
   },
 
   reactToMessage: async (messageId: string, emoji: string): Promise<Message> => {
-    const res = await api.post(`/chat/message/${messageId}/react`, { emoji });
-    return res.data;
+    const response = await api.post(`/chat/message/${messageId}/react`, { emoji });
+    return response;
   },
 
   removeReaction: async (messageId: string): Promise<Message> => {
-    const res = await api.delete(`/chat/message/${messageId}/react`);
-    return res.data;
+    const response = await api.delete(`/chat/message/${messageId}/react`);
+    return response;
   },
 
   uploadFile: async (file: { uri: string; name: string; type: string }): Promise<{ url: string; fileName: string; fileSize: number }> => {
@@ -183,11 +202,11 @@ export const ChatService = {
       type: file.type,
     } as any);
 
-    const res = await api.post('/chat/upload', formData, {
+    const response = await api.post('/chat/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 60000,
-    });
-    return res.data;
+    } as any);
+    return response;
   },
 
   startCall: (receiverId: string, type: 'audio' | 'video') => {

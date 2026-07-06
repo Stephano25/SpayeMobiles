@@ -10,17 +10,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Keyboard,
-  TouchableWithoutFeedback,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { COLORS, RADIUS, SPACING, FONT, SHADOW } from '../../src/config/colors';
+import { COLORS, RADIUS, SHADOW } from '../../src/config/colors';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
-import { AuthService } from '../../src/services/AuthService';
-import { useTranslation } from '../../src/services/TranslationService';
+import { getApiUrl } from '../../src/config/api';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -30,24 +29,29 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const { showError } = useNotification();
-  const { t } = useTranslation();
   const navigation = useNavigation();
 
   const handleLogin = async () => {
     if (!email.trim()) {
-      showError(t('error'));
+      showError('Email requis');
       return;
     }
     if (!password.trim()) {
-      showError(t('error'));
+      showError('Mot de passe requis');
       return;
     }
 
     setLoading(true);
     try {
-      await login(email.trim(), password.trim());
+      const result = await login(email.trim(), password.trim());
+      // ✅ Correction: vérifier result.user.role
+      if (result?.user?.role === 'admin' || result?.user?.role === 'super_admin') {
+        navigation.replace('AdminHome' as never);
+      } else {
+        navigation.replace('UserHome' as never);
+      }
     } catch (error: any) {
-      const message = error?.response?.data?.message || error?.message || t('error');
+      const message = error?.response?.data?.message || error?.message || 'Erreur de connexion';
       showError(message);
     } finally {
       setLoading(false);
@@ -57,10 +61,10 @@ export default function LoginScreen() {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      const apiUrl = await AuthService.getApiUrl();
+      const apiUrl = await getApiUrl();
 
-      if (!apiUrl || apiUrl === '') {
-        showError(t('error'));
+      if (!apiUrl) {
+        showError('Serveur non configuré');
         setGoogleLoading(false);
         return;
       }
@@ -81,135 +85,142 @@ export default function LoginScreen() {
         const token = url.searchParams.get('token');
 
         if (token) {
-          await AuthService.handleGoogleCallback(token);
-          const user = await AuthService.getUser();
-          const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-          navigation.navigate(isAdmin ? 'Admin' as never : 'User' as never);
+          const user = await loginWithGoogleToken(token);
+          if (user?.role === 'admin' || user?.role === 'super_admin') {
+            navigation.replace('AdminHome' as never);
+          } else {
+            navigation.replace('UserHome' as never);
+          }
         } else {
-          showError(t('error'));
+          showError('Token manquant');
         }
       } else if (result.type === 'cancel') {
-        showError(t('error'));
+        // L'utilisateur a annulé
       } else {
-        showError(t('error'));
+        showError('Erreur lors de la connexion Google');
       }
     } catch (error: any) {
       console.error('❌ Erreur Google Login:', error);
-      showError(t('error'));
+      showError('Erreur lors de la connexion Google');
     } finally {
       setGoogleLoading(false);
     }
   };
 
-  const dismissKeyboard = () => {
-    Keyboard.dismiss();
+  const loginWithGoogleToken = async (token: string) => {
+    try {
+      const response = await fetch(`${await getApiUrl()}/auth/google/callback?token=${token}`);
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Erreur login Google:', error);
+      throw error;
+    }
   };
 
   return (
-    <TouchableWithoutFeedback onPress={dismissKeyboard}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={true}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={true}
-        >
-          <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="wallet-outline" size={48} color={COLORS.white} />
-            </View>
-            <Text style={styles.title}>{t('app_name')}</Text>
-            <Text style={styles.subtitle}>{t('login')}</Text>
+        <View style={styles.logoContainer}>
+          <View style={styles.logoCircle}>
+            <Ionicons name="wallet-outline" size={48} color={COLORS.white} />
+          </View>
+          <Text style={styles.title}>SPaye</Text>
+          <Text style={styles.subtitle}>Connexion</Text>
+        </View>
+
+        <View style={styles.form}>
+          <View style={styles.inputWrapper}>
+            <Ionicons name="mail-outline" size={20} color={COLORS.gray400} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor={COLORS.gray400}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              editable={!loading && !googleLoading}
+              returnKeyType="next"
+            />
           </View>
 
-          <View style={styles.form}>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="mail-outline" size={20} color={COLORS.gray400} style={styles.inputIcon} />
-              <TextInput
-                style={styles.input}
-                placeholder={t('email')}
-                placeholderTextColor={COLORS.gray400}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                editable={!loading && !googleLoading}
-                returnKeyType="next"
-              />
-            </View>
-
-            <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={20} color={COLORS.gray400} style={styles.inputIcon} />
-              <TextInput
-                style={[styles.input, styles.passwordInput]}
-                placeholder={t('password')}
-                placeholderTextColor={COLORS.gray400}
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-                editable={!loading && !googleLoading}
-                onSubmitEditing={handleLogin}
-                returnKeyType="done"
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color={COLORS.gray400} />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, (loading || googleLoading) && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={loading || googleLoading}
-              activeOpacity={0.7}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.primary} size="small" />
-              ) : (
-                <Text style={styles.buttonText}>{t('login')}</Text>
-              )}
+          <View style={styles.inputWrapper}>
+            <Ionicons name="lock-closed-outline" size={20} color={COLORS.gray400} style={styles.inputIcon} />
+            <TextInput
+              style={[styles.input, styles.passwordInput]}
+              placeholder="Mot de passe"
+              placeholderTextColor={COLORS.gray400}
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+              editable={!loading && !googleLoading}
+              onSubmitEditing={handleLogin}
+              returnKeyType="done"
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+              <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color={COLORS.gray400} />
             </TouchableOpacity>
-
-            <View style={styles.dividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>{t('or')}</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.googleButton, (loading || googleLoading) && styles.buttonDisabled]}
-              onPress={handleGoogleLogin}
-              disabled={loading || googleLoading}
-              activeOpacity={0.7}
-            >
-              {googleLoading ? (
-                <ActivityIndicator color={COLORS.primary} size="small" />
-              ) : (
-                <>
-                  <Ionicons name="logo-google" size={22} color={COLORS.primary} />
-                  <Text style={styles.googleButtonText}>{t('continue_with_google')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Register' as never)}
-              style={styles.registerLink}
-              disabled={loading || googleLoading}
-            >
-              <Text style={styles.registerText}>
-                {t('no_account')} <Text style={styles.registerHighlight}>{t('register')}</Text>
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.bottomSpacer} />
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </TouchableWithoutFeedback>
+
+          <TouchableOpacity
+            style={[styles.button, (loading || googleLoading) && styles.buttonDisabled]}
+            onPress={handleLogin}
+            disabled={loading || googleLoading}
+            activeOpacity={0.7}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.primary} size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Se connecter</Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>ou</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.googleButton, (loading || googleLoading) && styles.buttonDisabled]}
+            onPress={handleGoogleLogin}
+            disabled={loading || googleLoading}
+            activeOpacity={0.7}
+          >
+            {googleLoading ? (
+              <ActivityIndicator color={COLORS.primary} size="small" />
+            ) : (
+              <>
+                <Ionicons name="logo-google" size={22} color={COLORS.primary} />
+                <Text style={styles.googleButtonText}>Continuer avec Google</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Register' as never)}
+            style={styles.registerLink}
+            disabled={loading || googleLoading}
+          >
+            <Text style={styles.registerText}>
+              Pas encore de compte ? <Text style={styles.registerHighlight}>S'inscrire</Text>
+            </Text>
+          </TouchableOpacity>
+
+          <View style={styles.bottomSpacer} />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

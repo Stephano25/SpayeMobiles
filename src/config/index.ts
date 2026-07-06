@@ -8,22 +8,31 @@ export * from './navigationBar';
 // =====================================================
 
 export const formatAmount = (amount: number): string => {
-  return new Intl.NumberFormat('fr-MG').format(amount ?? 0);
+  if (!amount && amount !== 0) return '0';
+  return new Intl.NumberFormat('fr-MG').format(amount);
 };
 
 export const formatDate = (date: string | Date): string => {
-  return new Date(date).toLocaleDateString('fr-MG');
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('fr-MG');
 };
 
 export const formatTime = (date: string | Date): string => {
-  return new Date(date).toLocaleTimeString('fr-MG', {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('fr-MG', {
     hour: '2-digit',
     minute: '2-digit',
   });
 };
 
 export const formatDateTime = (date: string | Date): string => {
+  if (!date) return '';
   const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
   return `${d.toLocaleDateString('fr-MG')} ${d.toLocaleTimeString('fr-MG', {
     hour: '2-digit',
     minute: '2-digit',
@@ -31,7 +40,11 @@ export const formatDateTime = (date: string | Date): string => {
 };
 
 export const formatRelativeTime = (date: string | Date): string => {
-  const diffMs = Date.now() - new Date(date).getTime();
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  
+  const diffMs = Date.now() - d.getTime();
   const diffMin = Math.floor(diffMs / 60000);
   const diffH = Math.floor(diffMin / 60);
   const diffD = Math.floor(diffH / 24);
@@ -44,7 +57,10 @@ export const formatRelativeTime = (date: string | Date): string => {
 };
 
 export const getInitials = (firstName?: string, lastName?: string): string => {
-  return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
+  if (!firstName && !lastName) return '?';
+  const first = firstName ? firstName.charAt(0).toUpperCase() : '';
+  const last = lastName ? lastName.charAt(0).toUpperCase() : '';
+  return first + last || '?';
 };
 
 const AVATAR_COLORS = [
@@ -53,13 +69,15 @@ const AVATAR_COLORS = [
 ];
 
 export const getAvatarColor = (name: string): string => {
+  if (!name) return AVATAR_COLORS[0];
   let hash = 0;
-  for (let i = 0; i < (name || '').length; i++) {
+  for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 };
 
+// ✅ Ré-export des fonctions API
 export { 
   getApiUrl,
   getSocketUrl,
@@ -68,3 +86,7 @@ export {
   resetBackendIp,
   detectBackendIP,
 } from './api';
+
+// ✅ Ré-export des couleurs
+export { COLORS, RADIUS, SPACING, FONT, SHADOW } from './colors';
+export { NAVIGATION_BAR, TAB_BAR_HEIGHT, BOTTOM_BUTTON_PADDING } from './navigationBar';

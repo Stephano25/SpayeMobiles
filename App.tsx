@@ -31,6 +31,7 @@ const Stack = createNativeStackNavigator();
 
 export default function App() {
   useEffect(() => {
+    // Détecter le backend au démarrage
     detectBackendIP().catch(console.error);
   }, []);
 

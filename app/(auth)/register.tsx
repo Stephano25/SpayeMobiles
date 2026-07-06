@@ -10,15 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Keyboard,
-  TouchableWithoutFeedback,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { COLORS, RADIUS, SPACING, FONT, SHADOW } from '../../src/config/colors';
+import { COLORS, RADIUS, SHADOW } from '../../src/config/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { useTranslation } from '../../src/services/TranslationService';
 
 export default function RegisterScreen() {
   const [firstName, setFirstName] = useState('');
@@ -32,20 +29,19 @@ export default function RegisterScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { register } = useAuth();
   const { showError } = useNotification();
-  const { t } = useTranslation();
   const navigation = useNavigation();
 
   const handleRegister = async () => {
     if (!firstName || !lastName || !email || !password) {
-      showError(t('error'));
+      showError('Tous les champs sont requis');
       return;
     }
     if (password !== confirm) {
-      showError(t('error'));
+      showError('Les mots de passe ne correspondent pas');
       return;
     }
     if (password.length < 6) {
-      showError(t('error'));
+      showError('Le mot de passe doit contenir au moins 6 caractères');
       return;
     }
 
@@ -53,139 +49,133 @@ export default function RegisterScreen() {
     try {
       await register({ firstName, lastName, email, password, phoneNumber: phone });
     } catch (e: any) {
-      showError(e?.response?.data?.message || t('error'));
+      showError(e?.response?.data?.message || 'Erreur lors de l\'inscription');
     } finally {
       setLoading(false);
     }
   };
 
-  const dismissKeyboard = () => {
-    Keyboard.dismiss();
-  };
-
   return (
-    <TouchableWithoutFeedback onPress={dismissKeyboard}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+    >
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={true}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          bounces={true}
-        >
-          <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="person-add-outline" size={48} color={COLORS.white} />
-            </View>
-            <Text style={styles.title}>{t('app_name')}</Text>
-            <Text style={styles.subtitle}>{t('register')}</Text>
+        <View style={styles.logoContainer}>
+          <View style={styles.logoCircle}>
+            <Ionicons name="person-add-outline" size={48} color={COLORS.white} />
+          </View>
+          <Text style={styles.title}>SPaye</Text>
+          <Text style={styles.subtitle}>Inscription</Text>
+        </View>
+
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Prénom"
+            placeholderTextColor={COLORS.gray400}
+            value={firstName}
+            onChangeText={setFirstName}
+            editable={!loading}
+            returnKeyType="next"
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Nom"
+            placeholderTextColor={COLORS.gray400}
+            value={lastName}
+            onChangeText={setLastName}
+            editable={!loading}
+            returnKeyType="next"
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor={COLORS.gray400}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            editable={!loading}
+            returnKeyType="next"
+          />
+
+          <TextInput
+            style={styles.input}
+            placeholder="Téléphone (optionnel)"
+            placeholderTextColor={COLORS.gray400}
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+            editable={!loading}
+            returnKeyType="next"
+          />
+
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.inputWithIcon}
+              placeholder="Mot de passe"
+              placeholderTextColor={COLORS.gray400}
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+              editable={!loading}
+              returnKeyType="next"
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+              <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color={COLORS.gray400} />
+            </TouchableOpacity>
           </View>
 
-          <View style={styles.form}>
+          <View style={styles.inputWrapper}>
             <TextInput
-              style={styles.input}
-              placeholder={t('first_name')}
+              style={styles.inputWithIcon}
+              placeholder="Confirmer le mot de passe"
               placeholderTextColor={COLORS.gray400}
-              value={firstName}
-              onChangeText={setFirstName}
+              secureTextEntry={!showConfirmPassword}
+              value={confirm}
+              onChangeText={setConfirm}
               editable={!loading}
-              returnKeyType="next"
+              returnKeyType="done"
+              onSubmitEditing={handleRegister}
             />
-
-            <TextInput
-              style={styles.input}
-              placeholder={t('last_name')}
-              placeholderTextColor={COLORS.gray400}
-              value={lastName}
-              onChangeText={setLastName}
-              editable={!loading}
-              returnKeyType="next"
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder={t('email')}
-              placeholderTextColor={COLORS.gray400}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              editable={!loading}
-              returnKeyType="next"
-            />
-
-            <TextInput
-              style={styles.input}
-              placeholder={t('phone')}
-              placeholderTextColor={COLORS.gray400}
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              editable={!loading}
-              returnKeyType="next"
-            />
-
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.inputWithIcon}
-                placeholder={t('password')}
-                placeholderTextColor={COLORS.gray400}
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-                editable={!loading}
-                returnKeyType="next"
-              />
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-                <Ionicons name={showPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color={COLORS.gray400} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.inputWithIcon}
-                placeholder={t('confirm_password')}
-                placeholderTextColor={COLORS.gray400}
-                secureTextEntry={!showConfirmPassword}
-                value={confirm}
-                onChangeText={setConfirm}
-                editable={!loading}
-                returnKeyType="done"
-                onSubmitEditing={handleRegister}
-              />
-              <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeIcon}>
-                <Ionicons name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color={COLORS.gray400} />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
-              onPress={handleRegister}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color={COLORS.primary} size="small" />
-              ) : (
-                <Text style={styles.buttonText}>{t('register')}</Text>
-              )}
+            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeIcon}>
+              <Ionicons name={showConfirmPassword ? 'eye-outline' : 'eye-off-outline'} size={20} color={COLORS.gray400} />
             </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Login' as never)}
-              disabled={loading}
-              style={styles.loginLink}
-            >
-              <Text style={styles.link}>{t('have_account')}</Text>
-            </TouchableOpacity>
-
-            <View style={styles.bottomSpacer} />
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </TouchableWithoutFeedback>
+
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleRegister}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color={COLORS.primary} size="small" />
+            ) : (
+              <Text style={styles.buttonText}>S'inscrire</Text>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Login' as never)}
+            disabled={loading}
+            style={styles.loginLink}
+          >
+            <Text style={styles.link}>Déjà un compte ? Se connecter</Text>
+          </TouchableOpacity>
+
+          <View style={styles.bottomSpacer} />
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
