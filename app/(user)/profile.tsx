@@ -8,51 +8,33 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { COLORS, formatAmount, getInitials } from '../../src/config';
-import { User } from '../../src/types';
+import { COLORS, formatAmount, getInitials, getAvatarColor } from '../../src/config/colors';
 import { SafeScreen } from '../../src/components/SafeScreen';
-
-// Service de traduction simple
-const t = (key: string) => {
-  const translations: Record<string, string> = {
-    profile: 'Profil',
-    first_name: 'Prénom',
-    last_name: 'Nom',
-    email: 'Email',
-    phone: 'Téléphone',
-    balance: 'Solde',
-    not_specified: 'Non renseigné',
-    save: 'Enregistrer',
-    cancel: 'Annuler',
-    logout: 'Déconnexion',
-    confirm: 'Confirmer',
-    success: 'Succès',
-    error: 'Erreur',
-  };
-  return translations[key] || key;
-};
+import { useTranslation } from '../../src/services/TranslationService';
 
 export default function ProfileScreen() {
   const { colors } = useTheme();
   const { user, updateProfile, logout } = useAuth();
   const { showSuccess, showError } = useNotification();
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const [editMode, setEditMode] = useState(false);
-  // ✅ Correction: utiliser 'balance' comme number
-  const [form, setForm] = useState<Partial<User> & { balance?: number }>({
+  const [form, setForm] = useState({
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
     email: user?.email || '',
     phoneNumber: user?.phoneNumber || '',
-    balance: user?.balance || 0,
+    bio: user?.bio || '',
   });
   const [loading, setLoading] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const save = async () => {
     setLoading(true);
@@ -78,12 +60,13 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             await logout();
-            navigation.navigate('Login' as never);
           },
         },
       ]
     );
   };
+
+  const avatarGradient = getAvatarColor((user?.firstName || '') + (user?.lastName || ''));
 
   return (
     <SafeScreen backgroundColor={colors.background}>
@@ -98,9 +81,17 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.avatarContainer}>
-        <Text style={styles.avatarText}>
-          {getInitials(user?.firstName || '', user?.lastName || '')}
-        </Text>
+        {user?.profilePicture && !imageError ? (
+          <Image
+            source={{ uri: user.profilePicture }}
+            style={styles.avatar}
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <View style={[styles.avatarPlaceholder, { backgroundColor: avatarGradient }]}>
+            <Text style={styles.avatarText}>{getInitials(user?.firstName, user?.lastName)}</Text>
+          </View>
+        )}
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.card }]}>
@@ -137,9 +128,18 @@ export default function ProfileScreen() {
               keyboardType="phone-pad"
               placeholderTextColor={COLORS.gray400}
             />
-            <TouchableOpacity 
-              style={[styles.saveButton, loading && styles.saveBtnDisabled]} 
-              onPress={save} 
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+              value={form.bio}
+              onChangeText={(text) => setForm({ ...form, bio: text })}
+              placeholder={t('bio')}
+              multiline
+              numberOfLines={3}
+              placeholderTextColor={COLORS.gray400}
+            />
+            <TouchableOpacity
+              style={[styles.saveButton, loading && styles.saveBtnDisabled]}
+              onPress={save}
               disabled={loading}
             >
               {loading ? (
@@ -169,9 +169,14 @@ export default function ProfileScreen() {
                 {user?.phoneNumber || t('not_specified')}
               </Text>
             </View>
+            {user?.bio && (
+              <View style={styles.row}>
+                <Text style={[styles.label, { color: colors.text }]}>{t('bio')} :</Text>
+                <Text style={[styles.value, { color: colors.text }]}>{user.bio}</Text>
+              </View>
+            )}
             <View style={styles.row}>
               <Text style={[styles.label, { color: colors.text }]}>{t('balance')} :</Text>
-              {/* ✅ Correction: utiliser user?.balance comme number */}
               <Text style={[styles.value, { color: COLORS.primary, fontWeight: 'bold' }]}>
                 {formatAmount(user?.balance || 0)} Ar
               </Text>
@@ -186,7 +191,7 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+      <TouchableOpacity style={[styles.logoutButton, { backgroundColor: COLORS.error }]} onPress={handleLogout}>
         <Ionicons name="log-out-outline" size={20} color={COLORS.white} />
         <Text style={styles.logoutText}>{t('logout')}</Text>
       </TouchableOpacity>
@@ -201,24 +206,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 20,
-    marginBottom: 10,
   },
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
   avatarContainer: {
     alignSelf: 'center',
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
+  },
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    justifyContent: 'center',
   },
   avatarText: { fontSize: 36, fontWeight: 'bold', color: COLORS.white },
   card: {
@@ -256,9 +262,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   saveBtnDisabled: { opacity: 0.6 },
-  saveButtonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  saveButtonText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
   logoutButton: {
-    backgroundColor: COLORS.error,
     marginHorizontal: 20,
     padding: 14,
     borderRadius: 12,
@@ -268,5 +273,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  logoutText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  logoutText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
 });

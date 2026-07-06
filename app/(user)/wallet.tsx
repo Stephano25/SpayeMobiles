@@ -14,186 +14,212 @@ import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { WalletService } from '../../src/services/WalletService';
 import { TransactionService } from '../../src/services/TransactionService';
-import { COLORS, formatAmount, formatRelativeTime } from '../../src/config';
+import { COLORS, formatAmount } from '../../src/config/colors';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
-import { Transaction } from '../../src/types';
-
-const translateTransactionType = (type: string): string => {
-  const translations: Record<string, string> = {
-    send: 'Envoi',
-    receive: 'Réception',
-    deposit: 'Dépôt',
-    withdraw: 'Retrait',
-    payment: 'Paiement',
-    mobile_money: 'Mobile Money',
-    transfer: 'Transfert',
-  };
-  return translations[type] || type;
-};
 
 export default function WalletScreen() {
   const { colors } = useTheme();
   const { showError } = useNotification();
   const { t } = useTranslation();
   const navigation = useNavigation();
-  const [balance, setBalance] = useState(0);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [wallet, setWallet] = useState<any>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [stats, setStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const load = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
-      const [wallet, txs, statsData] = await Promise.all([
+      const [walletData, txData] = await Promise.all([
         WalletService.getWallet(),
         TransactionService.getUserTransactions(),
-        TransactionService.getUserDashboardStats(),
       ]);
-      setBalance(wallet.balance ?? 0);
-      setTransactions((txs || []).slice(0, 15));
-      setStats(statsData);
-    } catch (e) {
-      showError(t('error'));
+      setWallet(walletData);
+      setTransactions((txData || []).slice(0, 10));
+    } catch (error) {
+      showError(t('error_loading'));
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
     }
   }, [showError, t]);
 
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load])
+      loadData();
+    }, [loadData])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await load();
-    setRefreshing(false);
+    await loadData();
   };
 
-  const totalIn = transactions
-    .filter((t) => t.type === 'deposit' || t.type === 'receive')
-    .reduce((s, t) => s + t.amount, 0);
+  const totalDeposits = transactions
+    .filter(t => t.type === 'deposit')
+    .reduce((sum, t) => sum + t.amount, 0);
 
-  const totalOut = transactions
-    .filter((t) => t.type !== 'deposit' && t.type !== 'receive')
-    .reduce((s, t) => s + t.amount, 0);
-
-  const actions = [
-    { label: t('send'), icon: 'send', color: COLORS.primary, route: 'SendMoney' },
-    { label: t('receive'), icon: 'qr-code', color: COLORS.success, route: 'ReceiveMoney' },
-    { label: t('mobile_money'), icon: 'phone-portrait', color: COLORS.warning, route: 'MobileMoney' },
-    { label: t('scan'), icon: 'scan', color: COLORS.secondary, route: 'ScanPay' },
-  ];
-
-  const getOther = (tx: Transaction): any => {
-    const incoming = tx.type === 'deposit' || tx.type === 'receive';
-    const party = incoming ? tx.sender : tx.receiver;
-    return party || {};
-  };
-
-  const txIcon = (type: string): keyof typeof Ionicons.glyphMap => {
-    switch (type) {
-      case 'deposit':
-      case 'receive':
-        return 'arrow-down-circle';
-      case 'mobile_money':
-        return 'phone-portrait';
-      default:
-        return 'arrow-up-circle';
-    }
-  };
+  const totalWithdrawals = transactions
+    .filter(t => t.type === 'withdrawal' || t.type === 'transfer' || t.type === 'payment')
+    .reduce((sum, t) => sum + t.amount, 0);
 
   const navigateTo = (route: string) => {
     navigation.navigate(route as never);
   };
 
+  const getTransactionIcon = (type: string): keyof typeof Ionicons.glyphMap => {
+    const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
+      deposit: 'arrow-down',
+      withdrawal: 'arrow-up',
+      transfer: 'swap-horizontal',
+      payment: 'card',
+      mobile_money: 'phone-portrait',
+      receive: 'arrow-down',
+      send: 'arrow-up',
+    };
+    return icons[type] || 'receipt';
+  };
+
+  const isExpense = (type: string) => {
+    return ['withdrawal', 'transfer', 'payment', 'mobile_money', 'send'].includes(type);
+  };
+
   return (
     <SafeScreen backgroundColor={colors.background}>
+      <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.white} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{t('wallet')}</Text>
+        <TouchableOpacity onPress={onRefresh} style={styles.refreshBtn}>
+          <Ionicons name="refresh" size={24} color={COLORS.white} />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView
         style={[styles.container, { backgroundColor: colors.background }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl 
-            refreshing={refreshing} 
-            onRefresh={onRefresh} 
-            tintColor={COLORS.primary} 
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
         }
       >
-        <View style={[styles.balanceCard, { backgroundColor: COLORS.primary }]}>
+        {/* Balance Card */}
+        <View style={[styles.balanceCard, { backgroundColor: '#1a1830' }]}>
           <Text style={styles.balanceLabel}>{t('balance')}</Text>
-          <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
-          <View style={styles.balanceFooter}>
-            <View style={styles.balanceStat}>
-              <Ionicons name="arrow-down-circle" size={16} color="#A7F3D0" />
-              <Text style={styles.balanceStatText}>+{formatAmount(totalIn)} Ar</Text>
-            </View>
-            <View style={styles.balanceStat}>
-              <Ionicons name="arrow-up-circle" size={16} color="#FECACA" />
-              <Text style={styles.balanceStatText}>-{formatAmount(totalOut)} Ar</Text>
-            </View>
+          <Text style={styles.balanceAmount}>{formatAmount(wallet?.balance || 0)} Ar</Text>
+          <View style={styles.balanceActions}>
+            <TouchableOpacity style={[styles.balBtn, styles.balBtnPrimary]} onPress={() => navigateTo('SendMoney')}>
+              <Ionicons name="send" size={18} color="#1a1200" />
+              <Text style={styles.balBtnText}>{t('send')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.balBtn} onPress={() => navigateTo('ReceiveMoney')}>
+              <Ionicons name="qr-code" size={18} color={COLORS.white} />
+              <Text style={[styles.balBtnText, { color: COLORS.white }]}>{t('receive')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.balBtn} onPress={() => navigateTo('MobileMoney')}>
+              <Ionicons name="phone-portrait" size={18} color={COLORS.white} />
+              <Text style={[styles.balBtnText, { color: COLORS.white }]}>{t('mobile_money')}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        <View style={styles.actionsRow}>
-          {actions.map((a) => (
+        {/* Quick Actions */}
+        <View style={styles.quickActions}>
+          {[
+            { icon: 'send', label: t('send'), route: 'SendMoney' },
+            { icon: 'scan', label: t('scan'), route: 'ScanPay' },
+            { icon: 'phone-portrait', label: t('mobile_money'), route: 'MobileMoney' },
+            { icon: 'receipt', label: t('history'), route: 'Transactions' },
+          ].map((item) => (
             <TouchableOpacity
-              key={a.label}
-              style={styles.actionBtn}
-              onPress={() => navigateTo(a.route)}
+              key={item.route}
+              style={[styles.quickBtn, { backgroundColor: colors.card }]}
+              onPress={() => navigateTo(item.route)}
             >
-              <View style={[styles.actionIcon, { backgroundColor: a.color + '18' }]}>
-                <Ionicons name={a.icon as any} size={22} color={a.color} />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{a.label}</Text>
+              <Ionicons name={item.icon as any} size={22} color={COLORS.primary} />
+              <Text style={[styles.quickLabel, { color: colors.text }]}>{item.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('recent_activity')}</Text>
-          <TouchableOpacity onPress={() => navigateTo('Transactions')}>
-            <Text style={styles.seeAll}>{t('view_all')}</Text>
-          </TouchableOpacity>
+        {/* Stats */}
+        <View style={styles.statsGrid}>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.statIcon, { backgroundColor: COLORS.successLight }]}>
+              <Ionicons name="arrow-down" size={16} color={COLORS.success} />
+            </View>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatAmount(totalDeposits)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('deposits')}</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.statIcon, { backgroundColor: COLORS.errorLight }]}>
+              <Ionicons name="arrow-up" size={16} color={COLORS.error} />
+            </View>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatAmount(totalWithdrawals)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('withdrawals')}</Text>
+          </View>
+          <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+            <View style={[styles.statIcon, { backgroundColor: COLORS.primaryLight }]}>
+              <Ionicons name="swap-horizontal" size={16} color={COLORS.primary} />
+            </View>
+            <Text style={[styles.statValue, { color: colors.text }]}>{transactions.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('transactions')}</Text>
+          </View>
         </View>
 
-        {transactions.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: colors.card }]}>
-            <Ionicons name="receipt-outline" size={36} color={COLORS.gray400} />
-            <Text style={styles.emptyText}>{t('no_transactions')}</Text>
+        {/* Recent Transactions */}
+        <View style={[styles.txCard, { backgroundColor: colors.card }]}>
+          <View style={styles.txHeader}>
+            <Text style={[styles.txTitle, { color: colors.text }]}>{t('recent_activity')}</Text>
+            <TouchableOpacity onPress={() => navigateTo('Transactions')}>
+              <Text style={[styles.viewAll, { color: COLORS.primary }]}>{t('view_all')}</Text>
+            </TouchableOpacity>
           </View>
-        ) : (
-          transactions.map((tx) => {
-            const other = getOther(tx);
-            const credit = tx.type === 'deposit' || tx.type === 'receive';
-            return (
-              <View key={tx.id} style={[styles.txRow, { backgroundColor: colors.card }]}>
-                <View
-                  style={[
-                    styles.txIconBg,
-                    { backgroundColor: credit ? COLORS.successLight : COLORS.errorLight },
-                  ]}
+
+          {transactions.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="receipt-outline" size={48} color={COLORS.gray400} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('no_transactions')}</Text>
+              <TouchableOpacity
+                style={[styles.emptyBtn, { backgroundColor: COLORS.primary }]}
+                onPress={() => navigateTo('SendMoney')}
+              >
+                <Text style={styles.emptyBtnText}>{t('send')}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            transactions.map((tx) => {
+              const expense = isExpense(tx.type);
+              return (
+                <TouchableOpacity
+                  key={tx.id}
+                  style={styles.txItem}
+                  onPress={() => navigation.navigate('Transactions' as never)}
                 >
-                  <Ionicons
-                    name={txIcon(tx.type)}
-                    size={20}
-                    color={credit ? COLORS.success : COLORS.error}
-                  />
-                </View>
-                <View style={styles.txInfo}>
-                  <Text style={[styles.txTitle, { color: colors.text }]} numberOfLines={1}>
-                    {tx.description ||
-                      (other.firstName ? `${other.firstName} ${other.lastName || ''}` : translateTransactionType(tx.type))}
+                  <View style={[styles.txIcon, { backgroundColor: expense ? COLORS.errorLight : COLORS.successLight }]}>
+                    <Ionicons name={getTransactionIcon(tx.type)} size={17} color={expense ? COLORS.error : COLORS.success} />
+                  </View>
+                  <View style={styles.txInfo}>
+                    <Text style={[styles.txDesc, { color: colors.text }]}>
+                      {tx.description || t(tx.type || 'transfer')}
+                    </Text>
+                    <Text style={[styles.txDate, { color: colors.textSecondary }]}>
+                      {new Date(tx.createdAt).toLocaleDateString('fr-MG')}
+                    </Text>
+                    <View style={styles.txStatus}>
+                      <Text style={[styles.txStatusText, tx.status === 'completed' ? styles.statusCompleted : styles.statusPending]}>
+                        {tx.status === 'completed' ? t('completed') : t('pending')}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.txAmount, { color: expense ? COLORS.error : COLORS.success }]}>
+                    {expense ? '-' : '+'}{formatAmount(tx.amount)} Ar
                   </Text>
-                  <Text style={styles.txDate}>{formatRelativeTime(tx.createdAt)}</Text>
-                </View>
-                <Text style={[styles.txAmount, { color: credit ? COLORS.success : COLORS.error }]}>
-                  {credit ? '+' : '-'}
-                  {formatAmount(tx.amount)} Ar
-                </Text>
-              </View>
-            );
-          })
-        )}
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </View>
       </ScrollView>
     </SafeScreen>
   );
@@ -201,119 +227,117 @@ export default function WalletScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
+  refreshBtn: { padding: 4 },
   balanceCard: {
-    borderRadius: 20,
+    margin: 16,
     padding: 24,
-    marginBottom: 20,
+    borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 4,
   },
   balanceLabel: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 14,
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   balanceAmount: {
     color: COLORS.white,
     fontSize: 34,
     fontWeight: 'bold',
-    marginTop: 6,
-    marginBottom: 16,
+    marginVertical: 8,
   },
-  balanceFooter: {
+  balanceActions: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 10,
+    marginTop: 8,
   },
-  balanceStat: {
+  balBtn: {
+    flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  balanceStatText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  actionBtn: {
-    alignItems: 'center',
-    width: '23%',
-  },
-  actionIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    gap: 6,
   },
-  actionLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    textAlign: 'center',
+  balBtnPrimary: {
+    backgroundColor: '#e8c96a',
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: 'bold',
-  },
-  seeAll: {
-    color: COLORS.primary,
+  balBtnText: {
     fontWeight: '600',
     fontSize: 13,
   },
-  emptyCard: {
-    alignItems: 'center',
-    padding: 40,
-    borderRadius: 16,
-  },
-  emptyText: {
-    color: COLORS.gray400,
-    marginTop: 8,
-  },
-  txRow: {
+  quickActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 16,
-    marginBottom: 8,
+    paddingHorizontal: 16,
     gap: 12,
+    marginBottom: 16,
+  },
+  quickBtn: {
+    flex: 1,
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1,
   },
-  txIconBg: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+  quickLabel: { fontSize: 11, fontWeight: '500', marginTop: 4 },
+  statsGrid: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  statIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 6,
   },
+  statValue: { fontSize: 16, fontWeight: 'bold' },
+  statLabel: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  txCard: { margin: 16, padding: 16, borderRadius: 20 },
+  txHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  txTitle: { fontSize: 16, fontWeight: 'bold' },
+  viewAll: { fontWeight: '600', fontSize: 14 },
+  txItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: COLORS.gray100 },
+  txIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   txInfo: { flex: 1 },
-  txTitle: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  txDate: {
-    fontSize: 12,
-    color: COLORS.gray400,
-    marginTop: 2,
-  },
-  txAmount: {
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
+  txDesc: { fontSize: 13, fontWeight: '500' },
+  txDate: { fontSize: 10, marginTop: 1 },
+  txStatus: { flexDirection: 'row', marginTop: 2 },
+  txStatusText: { fontSize: 9, fontWeight: '600', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 },
+  statusCompleted: { color: COLORS.success, backgroundColor: COLORS.successLight },
+  statusPending: { color: COLORS.warning, backgroundColor: COLORS.warningLight },
+  txAmount: { fontSize: 13, fontWeight: 'bold' },
+  emptyState: { alignItems: 'center', paddingVertical: 24 },
+  emptyText: { fontSize: 14, marginTop: 8 },
+  emptyBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
+  emptyBtnText: { color: COLORS.white, fontWeight: 'bold' },
 });

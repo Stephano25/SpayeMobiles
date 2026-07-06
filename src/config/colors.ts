@@ -98,15 +98,62 @@ export const SHADOW = {
   },
 };
 
-// ✅ FONCTIONS MANQUANTES
+// ✅ FORMATAGE
 export function formatAmount(amount: number): string {
   if (!amount && amount !== 0) return '0';
   return new Intl.NumberFormat('fr-MG').format(amount);
 }
 
-export function getInitials(firstName: string, lastName: string): string {
+// ✅ INITIALES
+export function getInitials(firstName?: string, lastName?: string): string {
   if (!firstName && !lastName) return '?';
   const first = firstName ? firstName.charAt(0).toUpperCase() : '';
   const last = lastName ? lastName.charAt(0).toUpperCase() : '';
   return first + last || '?';
+}
+
+// ✅ AVATAR COLORS
+const AVATAR_COLORS = [
+  '#6366f1', // Indigo
+  '#8b5cf6', // Violet
+  '#10b981', // Emerald
+  '#f59e0b', // Amber
+  '#3b82f6', // Blue
+  '#ec4899', // Pink
+  '#ef4444', // Red
+  '#06b6d4', // Cyan
+  '#14b8a6', // Teal
+  '#84cc16', // Lime
+  '#f97316', // Orange
+  '#8b5cf6', // Purple
+  '#6b7280', // Gray
+  '#d946ef', // Fuchsia
+  '#0ea5e9', // Sky
+];
+
+export function getAvatarColor(name: string): string {
+  if (!name) return AVATAR_COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
+
+// ✅ DATE FORMAT
+export function formatDate(date: string | Date): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('fr-MG');
+}
+
+export function formatDateTime(date: string | Date): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return `${d.toLocaleDateString('fr-MG')} ${d.toLocaleTimeString('fr-MG', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
 }
