@@ -44,14 +44,9 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const result = await login(email.trim(), password.trim());
-      // ✅ Correction: vérifier result.user.role
-      if (result?.user?.role === 'admin' || result?.user?.role === 'super_admin') {
-        navigation.replace('AdminHome' as never);
-      } else {
-        navigation.replace('UserHome' as never);
-      }
+      // ✅ La navigation est gérée par AuthContext
     } catch (error: any) {
-      const message = error?.response?.data?.message || error?.message || 'Erreur de connexion';
+      const message = error?.message || 'Erreur de connexion';
       showError(message);
     } finally {
       setLoading(false);

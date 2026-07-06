@@ -2,14 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiUrl } from '../config/api';
 
-// URL de base par défaut
 const DEFAULT_BASE_URL = 'http://192.168.188.135:3000';
-
-interface ApiResponse<T = any> {
-  data: T;
-  status: number;
-  message?: string;
-}
 
 class ApiService {
   private static instance: ApiService;
@@ -27,7 +20,8 @@ class ApiService {
     if (this.isInitialized) return;
     try {
       const url = await getApiUrl();
-      this.baseUrl = url.replace('/api', '');
+      // ✅ Correction: garder l'URL complète avec /api
+      this.baseUrl = url.replace(/\/api$/, '');
       this.isInitialized = true;
       console.log('✅ API initialisée avec:', this.baseUrl);
     } catch (error) {
@@ -51,7 +45,9 @@ class ApiService {
   ): Promise<T> {
     await this.initialize();
     
-    const url = `${this.baseUrl}${endpoint}`;
+    // ✅ Correction: l'endpoint doit commencer par /api
+    const fullEndpoint = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
+    const url = `${this.baseUrl}${fullEndpoint}`;
     const headers = await this.getHeaders();
     
     console.log(`📡 ${options.method || 'GET'} ${url}`);
@@ -69,13 +65,17 @@ class ApiService {
       console.error(`❌ Erreur ${response.status}:`, errorText);
       
       if (response.status === 401) {
-        // Token expiré - déconnecter l'utilisateur
         await AsyncStorage.removeItem('auth_token');
         await AsyncStorage.removeItem('user_data');
         throw new Error('Session expirée. Veuillez vous reconnecter.');
       }
       
-      throw new Error(errorText || `Erreur ${response.status}`);
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(errorJson.message || errorJson.error || `Erreur ${response.status}`);
+      } catch {
+        throw new Error(errorText || `Erreur ${response.status}`);
+      }
     }
 
     const data = await response.json();

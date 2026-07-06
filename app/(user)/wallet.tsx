@@ -17,20 +17,20 @@ import { TransactionService } from '../../src/services/TransactionService';
 import { COLORS, formatAmount, formatRelativeTime } from '../../src/config';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
-import { translateTransactionType } from '../../src/utils/transactionTranslations';
+import { Transaction } from '../../src/types';
 
-// ✅ Définition du type Transaction localement
-interface Transaction {
-  id: string;
-  type: 'send' | 'receive' | 'deposit' | 'withdraw' | 'payment' | 'mobile_money';
-  amount: number;
-  status: 'pending' | 'completed' | 'failed' | 'cancelled';
-  senderId?: string;
-  receiverId?: string;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+const translateTransactionType = (type: string): string => {
+  const translations: Record<string, string> = {
+    send: 'Envoi',
+    receive: 'Réception',
+    deposit: 'Dépôt',
+    withdraw: 'Retrait',
+    payment: 'Paiement',
+    mobile_money: 'Mobile Money',
+    transfer: 'Transfert',
+  };
+  return translations[type] || type;
+};
 
 export default function WalletScreen() {
   const { colors } = useTheme();
@@ -40,16 +40,18 @@ export default function WalletScreen() {
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState<any>(null);
 
   const load = useCallback(async () => {
     try {
-      const [wallet, txs] = await Promise.all([
+      const [wallet, txs, statsData] = await Promise.all([
         WalletService.getWallet(),
         TransactionService.getUserTransactions(),
+        TransactionService.getUserDashboardStats(),
       ]);
-      // ✅ Vérifier que wallet a bien une propriété balance
-      setBalance((wallet as any)?.balance ?? 0);
+      setBalance(wallet.balance ?? 0);
       setTransactions((txs || []).slice(0, 15));
+      setStats(statsData);
     } catch (e) {
       showError(t('error'));
     }
@@ -84,8 +86,8 @@ export default function WalletScreen() {
 
   const getOther = (tx: Transaction): any => {
     const incoming = tx.type === 'deposit' || tx.type === 'receive';
-    const party = incoming ? tx.senderId : tx.receiverId;
-    return party && typeof party === 'object' ? party : {};
+    const party = incoming ? tx.sender : tx.receiver;
+    return party || {};
   };
 
   const txIcon = (type: string): keyof typeof Ionicons.glyphMap => {
@@ -164,7 +166,7 @@ export default function WalletScreen() {
             const other = getOther(tx);
             const credit = tx.type === 'deposit' || tx.type === 'receive';
             return (
-              <View key={tx.id || (tx as any)._id} style={[styles.txRow, { backgroundColor: colors.card }]}>
+              <View key={tx.id} style={[styles.txRow, { backgroundColor: colors.card }]}>
                 <View
                   style={[
                     styles.txIconBg,

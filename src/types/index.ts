@@ -6,24 +6,45 @@ export interface User {
   lastName: string;
   role: 'user' | 'admin' | 'super_admin';
   isActive: boolean;
-  balance?: number;
-  qrCode?: string;
   phoneNumber?: string;
   profilePicture?: string;
+  balance?: number;
+  qrCode?: string;
+  friends?: string[];
+  bio?: string;
+  lastLogin?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface Transaction {
   id: string;
-  type: 'send' | 'receive' | 'deposit' | 'withdraw';
+  type: 'send' | 'receive' | 'deposit' | 'withdraw' | 'payment' | 'mobile_money' | 'transfer';
   amount: number;
-  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  fee?: number;
+  totalAmount?: number;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled' | 'processing';
   senderId?: string;
   receiverId?: string;
   description?: string;
+  reference?: string;
+  paymentMethod?: string;
+  mobileMoneyOperator?: string;
+  mobileMoneyNumber?: string;
   createdAt: string;
   updatedAt: string;
+  sender?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  receiver?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
 }
 
 export interface AdminDashboardStats {
@@ -33,15 +54,15 @@ export interface AdminDashboardStats {
   totalVolume: number;
   recentUsers: User[];
   recentTransactions: Transaction[];
-  dailyStats: { date: string; count: number; volume: number }[];
-  topUsers: { user: User; totalVolume: number; transactionCount: number }[];
-  totalAdmins: number;
-  totalSuperAdmins: number;
-  adminTransactions: number;
-  adminVolume: number;
-  myAdminTransactions: number;
-  myAdminVolume: number;
-  userRole: string;
+  dailyStats: { date: string; users: number; transactions: number; volume: number }[];
+  topUsers: { userId: string; name: string; transactionCount: number; totalVolume: number }[];
+  totalAdmins?: number;
+  totalSuperAdmins?: number;
+  adminTransactions?: number;
+  adminVolume?: number;
+  myAdminTransactions?: number;
+  myAdminVolume?: number;
+  userRole?: string;
 }
 
 export interface SystemSettings {
@@ -82,12 +103,115 @@ export interface SystemSettings {
 
 export interface QRCodeResponse {
   qrCode: string;
-  data: string;
+  qrCodeImage?: string;
+  data?: string;
   expiresAt: string;
+  action?: 'deposit' | 'withdraw';
+  amount?: number | null;
 }
 
 export interface QRScanResult {
   success: boolean;
   message: string;
   data?: any;
+  valid?: boolean;
+  action?: string;
+  adminId?: string;
+  adminName?: string;
+  amount?: number;
+}
+
+export interface Friend {
+  id: string;
+  userId: string;
+  friendId: string;
+  status: 'pending' | 'accepted' | 'blocked' | 'deleted';
+  createdAt: string;
+  friend?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phoneNumber?: string;
+    profilePicture?: string;
+    isOnline?: boolean;
+    lastSeen?: string;
+  };
+}
+
+export interface FriendRequest {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
+  sender?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    profilePicture?: string;
+  };
+}
+
+export interface SearchUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber?: string;
+  profilePicture?: string;
+  isFriend: boolean;
+  hasPendingRequest: boolean;
+  isBlocked?: boolean;
+  blockedBy?: string;
+}
+
+export interface Wallet {
+  balance: number;
+  currency?: string;
+  userId?: string;
+  qrCode?: string;
+  dailyLimit?: number;
+  monthlyLimit?: number;
+  isActive?: boolean;
+  totalSent?: number;
+  totalReceived?: number;
+  totalTransactions?: number;
+  totalFees?: number;
+  remainingDailyLimit?: number;
+  remainingMonthlyLimit?: number;
+  recentTransactions?: Transaction[];
+}
+
+export interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  content: string;
+  type: 'text' | 'image' | 'file' | 'emoji' | 'money';
+  createdAt: string;
+  read: boolean;
+  delivered?: boolean;
+  reactions?: { userId: string; emoji: string }[];
+  moneyTransfer?: {
+    amount: number;
+    status: 'pending' | 'completed' | 'failed';
+    transactionId?: string;
+    failReason?: string;
+  };
+  sender?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    profilePicture?: string;
+  };
+}
+
+export interface Conversation {
+  id: string;
+  participants: string[];
+  lastMessage?: Message;
+  unreadCount: number;
+  updatedAt: string;
 }

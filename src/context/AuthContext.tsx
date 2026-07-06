@@ -1,13 +1,13 @@
 // src/context/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AuthService } from '../services/AuthService';
+import authService from '../services/AuthService';
 import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<any>;
   register: (data: {
     firstName: string;
     lastName: string;
@@ -29,6 +29,7 @@ export const useAuth = () => {
   return context;
 };
 
+// ✅ Fonction de navigation globale
 let navigateTo: ((route: string) => void) | null = null;
 
 export const setNavigateTo = (navigate: (route: string) => void) => {
@@ -37,7 +38,6 @@ export const setNavigateTo = (navigate: (route: string) => void) => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -46,11 +46,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUser = async () => {
     try {
-      const storedToken = await AsyncStorage.getItem('token');
-      const userData = await AsyncStorage.getItem('user');
-      if (storedToken && userData) {
+      const userData = await AsyncStorage.getItem('user_data');
+      if (userData) {
         setUser(JSON.parse(userData));
-        setToken(storedToken);
       }
     } catch (error) {
       console.error('Erreur chargement utilisateur:', error);
@@ -63,18 +61,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return user;
   };
 
+  const getToken = async (): Promise<string | null> => {
+    return await AsyncStorage.getItem('auth_token');
+  };
+
   const login = async (email: string, password: string) => {
     try {
-      const res = await AuthService.login(email, password);
-      const { access_token, user: userData } = res;
-      await AuthService.saveSession(access_token, userData);
-      setToken(access_token);
-      setUser(userData);
+      const response = await authService.login({ email, password });
+      setUser(response.user);
       
-      const isAdmin = userData.role === 'admin' || userData.role === 'super_admin';
+      // ✅ Utiliser navigateTo pour changer de route après login
+      const isAdmin = response.user.role === 'admin' || response.user.role === 'super_admin';
       if (navigateTo) {
-        navigateTo(isAdmin ? 'Admin' : 'User');
+        navigateTo(isAdmin ? 'AdminHome' : 'UserHome');
       }
+      return response;
     } catch (error) {
       throw error;
     }
@@ -88,13 +89,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     phoneNumber?: string;
   }) => {
     try {
-      const res = await AuthService.register(data);
-      const { access_token, user: userData } = res;
-      await AuthService.saveSession(access_token, userData);
-      setToken(access_token);
-      setUser(userData);
+      const response = await authService.register(data);
+      setUser(response.user);
       if (navigateTo) {
-        navigateTo('User');
+        navigateTo('UserHome');
       }
     } catch (error) {
       throw error;
@@ -102,21 +100,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    await AuthService.logout();
+    await authService.logout();
     setUser(null);
-    setToken(null);
     if (navigateTo) {
-      navigateTo('Auth');
+      navigateTo('Login');
     }
   };
 
   const updateProfile = async (data: Partial<User>) => {
-    const updatedUser = await AuthService.updateProfile(data);
-    setUser(updatedUser);
-  };
-
-  const getToken = async () => {
-    return token || await AsyncStorage.getItem('token');
+    try {
+      const updatedUser = await authService.updateProfile(data);
+      setUser(updatedUser);
+    } catch (error) {
+      throw error;
+    }
   };
 
   return (

@@ -1,8 +1,6 @@
 // src/services/AdminService.ts
 import api from './api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Types
 export interface AdminDashboardStats {
   totalUsers: number;
   activeUsers: number;
@@ -10,15 +8,15 @@ export interface AdminDashboardStats {
   totalVolume: number;
   recentUsers: any[];
   recentTransactions: any[];
-  dailyStats: any[];
-  topUsers: any[];
-  totalAdmins: number;
-  totalSuperAdmins: number;
-  adminTransactions: number;
-  adminVolume: number;
-  myAdminTransactions: number;
-  myAdminVolume: number;
-  userRole: string;
+  dailyStats: { date: string; users: number; transactions: number; volume: number }[];
+  topUsers: { userId: string; name: string; transactionCount: number; totalVolume: number }[];
+  totalAdmins?: number;
+  totalSuperAdmins?: number;
+  adminTransactions?: number;
+  adminVolume?: number;
+  myAdminTransactions?: number;
+  myAdminVolume?: number;
+  userRole?: string;
 }
 
 export interface SystemSettings {
@@ -57,18 +55,6 @@ export interface SystemSettings {
   };
 }
 
-export interface QRCodeResponse {
-  qrCode: string;
-  data: string;
-  expiresAt: string;
-}
-
-export interface QRScanResult {
-  success: boolean;
-  message: string;
-  data?: any;
-}
-
 export const AdminService = {
   // Dashboard
   getDashboardStats: async (): Promise<AdminDashboardStats> => {
@@ -77,7 +63,6 @@ export const AdminService = {
       return data;
     } catch (error) {
       console.error('Erreur getDashboardStats:', error);
-      // Retourner des valeurs par défaut
       return {
         totalUsers: 0,
         activeUsers: 0,
@@ -135,12 +120,13 @@ export const AdminService = {
   },
 
   // QR Code
-  generateQRCode: async (type: 'deposit' | 'withdraw', amount?: number): Promise<QRCodeResponse> => {
-    return api.post<QRCodeResponse>('/admin/generate-qr', { type, amount });
+  generateQRCode: async (type: 'deposit' | 'withdraw', amount?: number): Promise<any> => {
+    const response = await api.post('/admin/generate-qr', { type, amount });
+    return response;
   },
 
-  scanQRCode: async (qrData: string): Promise<QRScanResult> => {
-    return api.post<QRScanResult>('/admin/scan-qr', { qrData });
+  scanQRCode: async (qrData: string): Promise<any> => {
+    return api.post('/admin/scan-qr', { qrData });
   },
 
   // Administrateurs

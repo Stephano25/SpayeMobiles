@@ -1,3 +1,4 @@
+// app/(user)/transactions.tsx
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -16,7 +17,31 @@ import { TransactionService } from '../../src/services/TransactionService';
 import { COLORS, formatAmount, formatDateTime } from '../../src/config';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
-import { translateTransactionType, translateTransactionStatus } from '../../src/utils/transactionTranslations';
+
+// ✅ Traductions des types
+const translateTransactionType = (type: string): string => {
+  const translations: Record<string, string> = {
+    send: 'Envoi',
+    receive: 'Réception',
+    deposit: 'Dépôt',
+    withdraw: 'Retrait',
+    payment: 'Paiement',
+    mobile_money: 'Mobile Money',
+    transfer: 'Transfert',
+  };
+  return translations[type] || type;
+};
+
+const translateTransactionStatus = (status: string): string => {
+  const translations: Record<string, string> = {
+    pending: 'En attente',
+    completed: 'Réussi',
+    failed: 'Échoué',
+    cancelled: 'Annulé',
+    processing: 'En cours',
+  };
+  return translations[status] || status;
+};
 
 export default function TransactionsScreen() {
   const { colors } = useTheme();

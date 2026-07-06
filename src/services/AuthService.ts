@@ -2,7 +2,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from './api';
 
-// ✅ Export des types pour les utiliser ailleurs
 export interface LoginCredentials {
   email: string;
   password: string;
@@ -20,7 +19,16 @@ export interface LoginResponse {
     balance?: number;
     qrCode?: string;
     phoneNumber?: string;
+    profilePicture?: string;
   };
+}
+
+export interface RegisterData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phoneNumber?: string;
 }
 
 class AuthService {
@@ -49,6 +57,23 @@ class AuthService {
       return response;
     } catch (error) {
       console.error('❌ Erreur login:', error);
+      throw error;
+    }
+  }
+
+  async register(data: RegisterData): Promise<LoginResponse> {
+    try {
+      const response = await api.post<LoginResponse>('/auth/register', data);
+      
+      if (response.access_token) {
+        await AsyncStorage.setItem('auth_token', response.access_token);
+        await AsyncStorage.setItem('user_data', JSON.stringify(response.user));
+        this.currentUser = response.user;
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur register:', error);
       throw error;
     }
   }
@@ -91,6 +116,18 @@ class AuthService {
       });
     } catch (error) {
       console.error('❌ Erreur changement mot de passe:', error);
+      throw error;
+    }
+  }
+
+  async updateProfile(data: any): Promise<any> {
+    try {
+      const response = await api.put('/users/profile', data);
+      await AsyncStorage.setItem('user_data', JSON.stringify(response));
+      this.currentUser = response;
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur updateProfile:', error);
       throw error;
     }
   }

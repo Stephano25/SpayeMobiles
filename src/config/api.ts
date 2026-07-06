@@ -1,7 +1,9 @@
 // src/config/api.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 let cachedApiUrl: string | null = null;
+let cachedSocketUrl: string | null = null;
 
 const DEFAULT_IP = '192.168.188.135';
 
@@ -17,6 +19,7 @@ export const setBackendIp = async (ip: string): Promise<void> => {
   try {
     await AsyncStorage.setItem('backend_ip', ip);
     cachedApiUrl = null;
+    cachedSocketUrl = null;
   } catch {}
 };
 
@@ -25,6 +28,7 @@ export const testConnection = async (ip: string): Promise<boolean> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
+    // ✅ Correction: utiliser /api/health
     const response = await fetch(`http://${ip}:3000/api/health`, {
       signal: controller.signal,
       headers: { 
@@ -88,6 +92,7 @@ export const getApiUrl = async (): Promise<string> => {
     if (savedIp && savedIp.trim()) {
       const isValid = await testConnection(savedIp.trim());
       if (isValid) {
+        // ✅ Correction: URL complète avec /api
         cachedApiUrl = `http://${savedIp.trim()}:3000/api`;
         console.log(`📍 API URL: ${cachedApiUrl}`);
         return cachedApiUrl;
@@ -109,7 +114,20 @@ export const getApiUrl = async (): Promise<string> => {
   }
 };
 
+export const getSocketUrl = async (): Promise<string> => {
+  if (cachedSocketUrl) return cachedSocketUrl;
+  try {
+    const apiUrl = await getApiUrl();
+    cachedSocketUrl = apiUrl.replace('/api', '');
+    return cachedSocketUrl;
+  } catch {
+    cachedSocketUrl = `http://${DEFAULT_IP}:3000`;
+    return cachedSocketUrl;
+  }
+};
+
 export const resetBackendIp = async (): Promise<void> => {
   await AsyncStorage.removeItem('backend_ip');
   cachedApiUrl = null;
+  cachedSocketUrl = null;
 };
