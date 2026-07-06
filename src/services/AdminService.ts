@@ -121,12 +121,23 @@ export const AdminService = {
 
   // QR Code
   generateQRCode: async (type: 'deposit' | 'withdraw', amount?: number): Promise<any> => {
+    try {
     const response = await api.post('/admin/generate-qr', { type, amount });
-    return response;
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur génération QR:', error);
+      throw error;
+    }
   },
 
   scanQRCode: async (qrData: string): Promise<any> => {
-    return api.post('/admin/scan-qr', { qrData });
+    try {
+      const response = await api.post('/admin/scan-qr', { qrData });
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur scan QR:', error);
+      throw error;
+    }
   },
 
   // Administrateurs

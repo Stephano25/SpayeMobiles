@@ -10,14 +10,13 @@ import {
   RefreshControl,
   Switch,
   TextInput,
-  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { AdminService } from '../../src/services/AdminService';
-import { COLORS, formatAmount, getInitials } from '../../src/config/colors';
+import { COLORS, formatAmount, getInitials, getAvatarColor } from '../../src/config/colors';
 import { User } from '../../src/types';
 
 export default function AdminUsersScreen() {
@@ -28,11 +27,6 @@ export default function AdminUsersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [showDepositModal, setShowDepositModal] = useState(false);
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
 
   useEffect(() => {
     loadUsers();
@@ -88,57 +82,6 @@ export default function AdminUsersScreen() {
     );
   };
 
-  const handleDeposit = async () => {
-    if (!selectedUser || !amount || parseFloat(amount) <= 0) {
-      showError('Montant invalide');
-      return;
-    }
-
-    try {
-      await AdminService.depositMoney(
-        selectedUser.id,
-        parseFloat(amount),
-        description || `Dépôt administrateur`
-      );
-      showSuccess(`Dépôt de ${formatAmount(parseFloat(amount))} Ar effectué`);
-      setShowDepositModal(false);
-      setSelectedUser(null);
-      setAmount('');
-      setDescription('');
-      await loadUsers();
-    } catch (error) {
-      showError('Erreur lors du dépôt');
-    }
-  };
-
-  const handleWithdraw = async () => {
-    if (!selectedUser || !amount || parseFloat(amount) <= 0) {
-      showError('Montant invalide');
-      return;
-    }
-
-    if (parseFloat(amount) > (selectedUser.balance || 0)) {
-      showError('Solde insuffisant');
-      return;
-    }
-
-    try {
-      await AdminService.withdrawMoney(
-        selectedUser.id,
-        parseFloat(amount),
-        description || `Retrait administrateur`
-      );
-      showSuccess(`Retrait de ${formatAmount(parseFloat(amount))} Ar effectué`);
-      setShowWithdrawModal(false);
-      setSelectedUser(null);
-      setAmount('');
-      setDescription('');
-      await loadUsers();
-    } catch (error) {
-      showError('Erreur lors du retrait');
-    }
-  };
-
   const filteredUsers = users.filter(user =>
     `${user.firstName} ${user.lastName} ${user.email}`
       .toLowerCase()
@@ -147,7 +90,7 @@ export default function AdminUsersScreen() {
 
   const renderUser = ({ item }: { item: User }) => (
     <View style={[styles.userCard, { backgroundColor: colors.card }]}>
-      <View style={styles.avatarContainer}>
+      <View style={[styles.avatarContainer, { backgroundColor: getAvatarColor(item.firstName + item.lastName) }]}>
         <Text style={styles.avatarText}>
           {getInitials(item.firstName, item.lastName)}
         </Text>
@@ -160,7 +103,7 @@ export default function AdminUsersScreen() {
           {item.email}
         </Text>
         <Text style={[styles.userBalance, { color: COLORS.primary }]}>
-          {formatAmount(item.balance)} Ar
+          {formatAmount(item.balance || 0)} Ar
         </Text>
       </View>
       <View style={styles.userActions}>
@@ -175,33 +118,14 @@ export default function AdminUsersScreen() {
             thumbColor={COLORS.white}
           />
         </View>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: COLORS.success + '18' }]}
-            onPress={() => {
-              setSelectedUser(item);
-              setShowDepositModal(true);
-            }}
-          >
-            <Ionicons name="add" size={20} color={COLORS.success} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: COLORS.error + '18' }]}
-            onPress={() => {
-              setSelectedUser(item);
-              setShowWithdrawModal(true);
-            }}
-            disabled={(item.balance || 0) < 100}
-          >
-            <Ionicons name="remove" size={20} color={COLORS.error} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, { backgroundColor: COLORS.error + '18' }]}
-            onPress={() => deleteUser(item.id, item.firstName)}
-          >
-            <Ionicons name="trash-outline" size={20} color={COLORS.error} />
-          </TouchableOpacity>
-        </View>
+        
+        {/* ✅ Seulement le bouton Supprimer (les autres sont dans le dashboard) */}
+        <TouchableOpacity
+          style={[styles.deleteBtn, { backgroundColor: COLORS.error + '18' }]}
+          onPress={() => deleteUser(item.id, item.firstName)}
+        >
+          <Ionicons name="trash-outline" size={18} color={COLORS.error} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -249,120 +173,6 @@ export default function AdminUsersScreen() {
           </View>
         }
       />
-
-      {/* Modal Dépôt */}
-      <Modal
-        visible={showDepositModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowDepositModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Dépôt - {selectedUser?.firstName} {selectedUser?.lastName}
-              </Text>
-              <TouchableOpacity onPress={() => setShowDepositModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
-              Solde actuel: {formatAmount(selectedUser?.balance || 0)} Ar
-            </Text>
-
-            <TextInput
-              style={[styles.modalInput, { color: colors.text, borderColor: colors.border }]}
-              placeholder="Montant (Ar)"
-              placeholderTextColor={COLORS.gray400}
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="numeric"
-            />
-
-            <TextInput
-              style={[styles.modalInput, { color: colors.text, borderColor: colors.border }]}
-              placeholder="Description (optionnelle)"
-              placeholderTextColor={COLORS.gray400}
-              value={description}
-              onChangeText={setDescription}
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnCancel]}
-                onPress={() => setShowDepositModal(false)}
-              >
-                <Text style={styles.modalBtnCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnConfirm]}
-                onPress={handleDeposit}
-              >
-                <Text style={styles.modalBtnConfirmText}>Déposer</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal Retrait */}
-      <Modal
-        visible={showWithdrawModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowWithdrawModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Retrait - {selectedUser?.firstName} {selectedUser?.lastName}
-              </Text>
-              <TouchableOpacity onPress={() => setShowWithdrawModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
-              Solde actuel: {formatAmount(selectedUser?.balance || 0)} Ar
-            </Text>
-
-            <TextInput
-              style={[styles.modalInput, { color: colors.text, borderColor: colors.border }]}
-              placeholder="Montant (Ar)"
-              placeholderTextColor={COLORS.gray400}
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="numeric"
-            />
-
-            <TextInput
-              style={[styles.modalInput, { color: colors.text, borderColor: colors.border }]}
-              placeholder="Description (optionnelle)"
-              placeholderTextColor={COLORS.gray400}
-              value={description}
-              onChangeText={setDescription}
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnCancel]}
-                onPress={() => setShowWithdrawModal(false)}
-              >
-                <Text style={styles.modalBtnCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.modalBtnConfirm]}
-                onPress={handleWithdraw}
-              >
-                <Text style={styles.modalBtnConfirmText}>Retirer</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -416,7 +226,6 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -429,8 +238,7 @@ const styles = StyleSheet.create({
   userActions: { alignItems: 'flex-end', gap: 6 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statusLabel: { fontSize: 12 },
-  actionButtons: { flexDirection: 'row', gap: 6 },
-  actionBtn: {
+  deleteBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -439,37 +247,4 @@ const styles = StyleSheet.create({
   },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
   emptyText: { fontSize: 16, marginTop: 12 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '90%',
-    maxWidth: 400,
-    borderRadius: 20,
-    padding: 24,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: { fontSize: 18, fontWeight: 'bold' },
-  modalLabel: { fontSize: 14, marginBottom: 16 },
-  modalInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
-  modalBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },
-  modalBtnCancel: { backgroundColor: COLORS.gray100 },
-  modalBtnCancelText: { color: COLORS.gray600, fontWeight: '600' },
-  modalBtnConfirm: { backgroundColor: COLORS.primary },
-  modalBtnConfirmText: { color: COLORS.white, fontWeight: '600' },
 });

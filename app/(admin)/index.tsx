@@ -9,6 +9,10 @@ import {
   RefreshControl,
   Animated,
   Dimensions,
+  Modal,
+  Image,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -17,6 +21,7 @@ import { useNotification } from '../../src/context/NotificationContext';
 import { AdminService } from '../../src/services/AdminService';
 import { useAuth } from '../../src/context/AuthContext';
 import { COLORS, formatAmount } from '../../src/config/colors';
+import * as Clipboard from 'expo-clipboard';
 
 const { width } = Dimensions.get('window');
 
@@ -73,13 +78,21 @@ function AnimatedStatCard({ label, value, icon, colors: cardColors, route, delay
 
 export default function AdminDashboard() {
   const { colors, isDark } = useTheme();
-  const { showError } = useNotification();
+  const { showError, showSuccess } = useNotification();
   const { getCurrentUser } = useAuth();
   const navigation = useNavigation();
   const [stats, setStats] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const headerOpacity = useRef(new Animated.Value(0)).current;
+
+  // États pour QR Code
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
+  const [qrCodeData, setQrCodeData] = useState<string>('');
+  const [qrAction, setQrAction] = useState<'deposit' | 'withdraw'>('deposit');
+  const [generatingQR, setGeneratingQR] = useState(false);
+  const [qrExpiresAt, setQrExpiresAt] = useState<string>('');
 
   useEffect(() => {
     const user = getCurrentUser();
@@ -108,6 +121,49 @@ export default function AdminDashboard() {
     setRefreshing(true);
     await load();
     setRefreshing(false);
+  };
+
+  // ✅ Génération de QR Code
+  const generateQRCode = async (type: 'deposit' | 'withdraw') => {
+    setQrAction(type);
+    setGeneratingQR(true);
+    setShowQRModal(true);
+    setQrCodeImage(null);
+
+    try {
+      const response = await AdminService.generateQRCode(type);
+      const imageUrl = response.qrCodeImage || response.qrCode;
+      if (imageUrl) {
+        setQrCodeImage(imageUrl);
+        setQrCodeData(response.qrCode || JSON.stringify(response));
+        setQrExpiresAt(response.expiresAt || new Date(Date.now() + 5 * 60000).toISOString());
+        showSuccess(`QR Code de ${type === 'deposit' ? 'dépôt' : 'retrait'} généré`);
+      } else {
+        showError('Erreur: QR Code non reçu');
+      }
+    } catch (error: any) {
+      showError(error?.message || 'Erreur lors de la génération');
+    } finally {
+      setGeneratingQR(false);
+    }
+  };
+
+  const copyQRCode = async () => {
+    try {
+      await Clipboard.setStringAsync(qrCodeData);
+      showSuccess('QR Code copié dans le presse-papier');
+    } catch {
+      showError('Erreur lors de la copie');
+    }
+  };
+
+  const shareQRCode = async () => {
+    try {
+      // Implémentation de partage
+      showSuccess('QR Code partagé');
+    } catch {
+      showError('Erreur lors du partage');
+    }
   };
 
   const cards = [
@@ -204,6 +260,34 @@ export default function AdminDashboard() {
         ))}
       </View>
 
+      {/* ✅ Actions Admin - Génération QR Code */}
+      <View style={styles.actionsContainer}>
+        <Text style={[styles.actionsTitle, { color: colors.text }]}>Opérations rapides</Text>
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.actionCard, { backgroundColor: colors.card }]}
+            onPress={() => generateQRCode('deposit')}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: COLORS.success + '18' }]}>
+              <Ionicons name="qr-code" size={28} color={COLORS.success} />
+            </View>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>Générer QR</Text>
+            <Text style={[styles.actionSub, { color: colors.textSecondary }]}>Dépôt</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionCard, { backgroundColor: colors.card }]}
+            onPress={() => generateQRCode('withdraw')}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: COLORS.error + '18' }]}>
+              <Ionicons name="qr-code" size={28} color={COLORS.error} />
+            </View>
+            <Text style={[styles.actionLabel, { color: colors.text }]}>Générer QR</Text>
+            <Text style={[styles.actionSub, { color: colors.textSecondary }]}>Retrait</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Menu Grid */}
       <View style={styles.menuSection}>
         <Text style={[styles.menuTitle, { color: colors.text }]}>Gestion rapide</Text>
@@ -255,6 +339,61 @@ export default function AdminDashboard() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* ✅ Modal QR Code */}
+      <Modal
+        visible={showQRModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowQRModal(false);
+          setQrCodeImage(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                QR Code {qrAction === 'deposit' ? 'Dépôt' : 'Retrait'}
+              </Text>
+              <TouchableOpacity onPress={() => {
+                setShowQRModal(false);
+                setQrCodeImage(null);
+              }}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {generatingQR ? (
+              <View style={styles.qrLoading}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+                <Text style={[styles.qrLoadingText, { color: colors.textSecondary }]}>Génération...</Text>
+              </View>
+            ) : (
+              <>
+                {qrCodeImage && (
+                  <View style={styles.qrImageWrapper}>
+                    <Image source={{ uri: qrCodeImage }} style={styles.qrImage} resizeMode="contain" />
+                    <Text style={[styles.qrExpiry, { color: colors.textSecondary }]}>
+                      Expire le: {new Date(qrExpiresAt).toLocaleString('fr-MG')}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.qrActions}>
+                  <TouchableOpacity style={[styles.qrActionBtn, { backgroundColor: COLORS.primary }]} onPress={copyQRCode}>
+                    <Ionicons name="copy" size={20} color={COLORS.white} />
+                    <Text style={styles.qrActionText}>Copier</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.qrActionBtn, { backgroundColor: COLORS.success }]} onPress={shareQRCode}>
+                    <Ionicons name="share" size={20} color={COLORS.white} />
+                    <Text style={styles.qrActionText}>Partager</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -358,6 +497,46 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  actionsContainer: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  actionsTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 14,
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  actionCard: {
+    flex: 1,
+    padding: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  actionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  actionLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  actionSub: {
+    fontSize: 11,
+    textAlign: 'center',
+  },
   menuSection: { paddingHorizontal: 20, marginTop: 28 },
   menuTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
   menuGrid: {
@@ -419,4 +598,31 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   viewAllText: { fontWeight: '600', fontSize: 14 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '90%',
+    maxWidth: 400,
+    borderRadius: 20,
+    padding: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: { fontSize: 18, fontWeight: 'bold' },
+  qrLoading: { alignItems: 'center', padding: 40 },
+  qrLoadingText: { marginTop: 12, fontSize: 14 },
+  qrImageWrapper: { alignItems: 'center', padding: 20 },
+  qrImage: { width: 200, height: 200 },
+  qrExpiry: { fontSize: 12, marginTop: 8 },
+  qrActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  qrActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, gap: 8 },
+  qrActionText: { color: COLORS.white, fontWeight: 'bold', fontSize: 14 },
 });

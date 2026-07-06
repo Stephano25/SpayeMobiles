@@ -1,5 +1,5 @@
 // app/(user)/UserHome.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -153,6 +153,24 @@ export default function UserHome() {
               </View>
             )}
           </View>
+
+          {/* ✅ Actions Utilisateur - Scanner QR Code */}
+          <View style={styles.userActionsRow}>
+            <TouchableOpacity
+              style={[styles.userActionBtn, { backgroundColor: COLORS.success }]}
+              onPress={() => navigation.navigate('ScanPay' as never, { type: 'deposit' })}
+            >
+              <Ionicons name="qr-code" size={20} color={COLORS.white} />
+              <Text style={styles.userActionText}>Scanner Dépôt</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.userActionBtn, { backgroundColor: COLORS.error }]}
+              onPress={() => navigation.navigate('ScanPay' as never, { type: 'withdraw' })}
+            >
+              <Ionicons name="qr-code" size={20} color={COLORS.white} />
+              <Text style={styles.userActionText}>Scanner Retrait</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Menu Grid */}
@@ -263,6 +281,25 @@ const styles = StyleSheet.create({
   balanceContainer: { alignItems: 'center' },
   balanceLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   balanceAmount: { fontSize: 32, fontWeight: 'bold', color: COLORS.success, marginTop: 4 },
+  userActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  userActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  userActionText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
   menuGrid: { paddingHorizontal: 12, marginBottom: 8 },
   menuGridInner: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   menuCard: {

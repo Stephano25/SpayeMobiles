@@ -5,41 +5,51 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  TextInput,
   ActivityIndicator,
   Alert,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { COLORS } from '../../src/config/colors';
-import { useTranslation } from '../../src/services/TranslationService';
+import { AdminService } from '../../src/services/AdminService';
+import { WalletService } from '../../src/services/WalletService';
+import { COLORS, formatAmount } from '../../src/config/colors';
 import { SafeScreen } from '../../src/components/SafeScreen';
+import { useTranslation } from '../../src/services/TranslationService';
 
 // ✅ Importer CameraView conditionnellement
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
 export default function ScanPayScreen() {
   const { colors } = useTheme();
-  const { showError, showSuccess } = useNotification();
+  const { showSuccess, showError } = useNotification();
   const { t } = useTranslation();
   const navigation = useNavigation();
+  const route = useRoute();
+  
+  // ✅ Récupérer le type depuis les params
+  const scanType = (route.params as any)?.type || 'payment';
+  
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [isWeb, setIsWeb] = useState(false);
+  const [scannedData, setScannedData] = useState<any>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    // ✅ Vérifier si on est sur web
     setIsWeb(Platform.OS === 'web');
-    
-    // ✅ Demander la permission seulement sur mobile
     if (Platform.OS !== 'web') {
       checkPermission();
     } else {
-      // ✅ Sur web, simuler une permission pour l'UI
       setHasPermission(true);
     }
   }, []);
@@ -53,23 +63,38 @@ export default function ScanPayScreen() {
     }
   };
 
+  // ✅ Traitement du QR Code scanné
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     if (scanned || loading) return;
     setScanned(true);
     setLoading(true);
-    
+
     try {
-      // ✅ Traiter le QR code scanné
       console.log('📱 QR Code scanné:', data);
       
-      // ✅ Simuler un traitement
-      setTimeout(() => {
+      // ✅ Parser le QR Code
+      let parsedData;
+      try {
+        parsedData = JSON.parse(data);
+      } catch {
+        // Si ce n'est pas du JSON, traiter comme une chaîne
+        parsedData = { qrCode: data, type: 'simple' };
+      }
+
+      setScannedData(parsedData);
+      
+      // ✅ Vérifier le type de QR Code
+      if (parsedData.type === 'admin_transaction') {
+        // ✅ QR Code Admin (Dépôt/Retrait)
+        const action = parsedData.action || 'deposit';
         Alert.alert(
-          t('scan_qr_code'),
-          `QR Code détecté: ${data.substring(0, 20)}...`,
+          action === 'deposit' ? '💰 Dépôt' : '💸 Retrait',
+          `QR Code ${action === 'deposit' ? 'de dépôt' : 'de retrait'} détecté\n\n` +
+          `Admin: ${parsedData.adminName || 'Administrateur'}\n` +
+          `Utilisateur: ${parsedData.userName || 'Non spécifié'}`,
           [
             { 
-              text: t('cancel'), 
+              text: 'Annuler', 
               style: 'cancel',
               onPress: () => {
                 setScanned(false);
@@ -77,26 +102,140 @@ export default function ScanPayScreen() {
               }
             },
             {
-              text: t('send'),
+              text: 'Continuer',
               onPress: () => {
-                showSuccess(t('success'));
-                navigation.goBack();
+                setShowForm(true);
+                setLoading(false);
+                if (parsedData.amount) {
+                  setAmount(String(parsedData.amount));
+                }
+              }
+            }
+          ]
+        );
+      } else if (parsedData.type === 'payment' || parsedData.type === 'payment_request') {
+        // ✅ QR Code de paiement simple
+        Alert.alert(
+          '💳 Paiement',
+          `Paiement détecté\n\nDestinataire: ${parsedData.receiverName || 'Utilisateur SPaye'}`,
+          [
+            { 
+              text: 'Annuler', 
+              style: 'cancel',
+              onPress: () => {
+                setScanned(false);
+                setLoading(false);
+              }
+            },
+            {
+              text: 'Payer',
+              onPress: () => {
+                setShowForm(true);
+                setLoading(false);
+                if (parsedData.amount) {
+                  setAmount(String(parsedData.amount));
+                }
+              }
+            }
+          ]
+        );
+      } else {
+        // ✅ QR Code simple
+        Alert.alert(
+          'QR Code scanné',
+          `Données: ${data.substring(0, 50)}...`,
+          [
+            { 
+              text: 'Annuler', 
+              style: 'cancel',
+              onPress: () => {
+                setScanned(false);
+                setLoading(false);
               }
             }
           ]
         );
         setLoading(false);
-      }, 1000);
+      }
     } catch (error) {
-      showError(t('error'));
+      console.error('Erreur traitement QR:', error);
+      showError('QR Code invalide');
       setScanned(false);
       setLoading(false);
     }
   };
 
+  // ✅ Simulation pour le web
   const handleSimulateScan = () => {
-    // ✅ Simulation pour le web
-    handleBarCodeScanned({ data: 'SPAYE-USER-12345' });
+    const simulatedData = {
+      type: 'admin_transaction',
+      action: scanType === 'deposit' ? 'deposit' : scanType === 'withdraw' ? 'withdraw' : 'payment',
+      adminName: 'Admin SPaye',
+      userName: 'Utilisateur Test',
+      userId: 'user-123',
+      qrCode: 'SPAYE-' + Math.random().toString(36).substring(2, 10).toUpperCase(),
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+    };
+    handleBarCodeScanned({ data: JSON.stringify(simulatedData) });
+  };
+
+  // ✅ Traitement du formulaire (Dépôt/Retrait)
+  const handleSubmit = async () => {
+    const amountNum = parseFloat(amount);
+    if (!amountNum || amountNum < 100) {
+      showError('Montant minimum: 100 Ar');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const action = scannedData?.action || 'deposit';
+      const userId = scannedData?.userId;
+
+      if (!userId) {
+        showError('ID utilisateur non trouvé');
+        setIsProcessing(false);
+        return;
+      }
+
+      if (action === 'deposit') {
+        // ✅ Dépôt
+        await AdminService.depositMoney(
+          userId,
+          amountNum,
+          description || `Dépôt via QR Code`
+        );
+        showSuccess(`Dépôt de ${formatAmount(amountNum)} Ar effectué`);
+      } else if (action === 'withdraw') {
+        // ✅ Retrait
+        await AdminService.withdrawMoney(
+          userId,
+          amountNum,
+          description || `Retrait via QR Code`
+        );
+        showSuccess(`Retrait de ${formatAmount(amountNum)} Ar effectué`);
+      } else {
+        // ✅ Paiement simple
+        await WalletService.sendMoney({
+          receiverId: userId || scannedData?.receiverId,
+          amount: amountNum,
+          description: description || 'Paiement via QR Code',
+        });
+        showSuccess(`Paiement de ${formatAmount(amountNum)} Ar effectué`);
+      }
+
+      // ✅ Réinitialiser
+      setShowForm(false);
+      setScannedData(null);
+      setAmount('');
+      setDescription('');
+      setIsProcessing(false);
+      navigation.goBack();
+    } catch (error: any) {
+      showError(error?.message || 'Erreur lors de la transaction');
+      setIsProcessing(false);
+    }
   };
 
   // ✅ Rendu pour le web
@@ -107,27 +246,95 @@ export default function ScanPayScreen() {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={24} color={COLORS.white} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('scan_qr_code')}</Text>
+          <Text style={styles.headerTitle}>
+            {scanType === 'deposit' ? 'Dépôt' : scanType === 'withdraw' ? 'Retrait' : t('scan_qr_code')}
+          </Text>
           <View style={{ width: 40 }} />
         </View>
 
-        <View style={styles.webContainer}>
-          <View style={[styles.webCard, { backgroundColor: colors.card }]}>
-            <Ionicons name="camera-outline" size={64} color={COLORS.primary} />
-            <Text style={[styles.webTitle, { color: colors.text }]}>
-              {t('scan_qr_code')}
+        {showForm ? (
+          <View style={[styles.formContainer, { backgroundColor: colors.card }]}>
+            <Text style={[styles.formTitle, { color: colors.text }]}>
+              {scannedData?.action === 'deposit' ? 'Dépôt' : scannedData?.action === 'withdraw' ? 'Retrait' : 'Paiement'}
             </Text>
-            <Text style={[styles.webSubtitle, { color: colors.textSecondary }]}>
-              La caméra n'est pas disponible sur le navigateur web.
-            </Text>
-            <TouchableOpacity
-              style={[styles.simulateBtn, { backgroundColor: COLORS.primary }]}
-              onPress={handleSimulateScan}
-            >
-              <Text style={styles.simulateBtnText}>Simuler un scan</Text>
-            </TouchableOpacity>
+            
+            {scannedData?.userName && (
+              <Text style={[styles.userNameText, { color: colors.text }]}>
+                Utilisateur: {scannedData.userName}
+              </Text>
+            )}
+
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+              placeholder="Montant (Ar)"
+              placeholderTextColor={COLORS.gray400}
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="numeric"
+            />
+
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+              placeholder="Description (optionnelle)"
+              placeholderTextColor={COLORS.gray400}
+              value={description}
+              onChangeText={setDescription}
+            />
+
+            <View style={styles.formActions}>
+              <TouchableOpacity
+                style={[styles.formBtn, styles.cancelBtn]}
+                onPress={() => {
+                  setShowForm(false);
+                  setScannedData(null);
+                  setAmount('');
+                  setDescription('');
+                  setScanned(false);
+                }}
+              >
+                <Text style={styles.cancelBtnText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.formBtn, styles.confirmBtn, { backgroundColor: COLORS.primary }]}
+                onPress={handleSubmit}
+                disabled={isProcessing || !amount || parseFloat(amount) < 100}
+              >
+                {isProcessing ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Text style={styles.confirmBtnText}>
+                    {scannedData?.action === 'deposit' ? 'Déposer' : 
+                     scannedData?.action === 'withdraw' ? 'Retirer' : 'Payer'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.webContainer}>
+            <View style={[styles.webCard, { backgroundColor: colors.card }]}>
+              <Ionicons name="camera-outline" size={64} color={COLORS.primary} />
+              <Text style={[styles.webTitle, { color: colors.text }]}>
+                {scanType === 'deposit' ? 'Dépôt par QR Code' : 
+                 scanType === 'withdraw' ? 'Retrait par QR Code' : 
+                 t('scan_qr_code')}
+              </Text>
+              <Text style={[styles.webSubtitle, { color: colors.textSecondary }]}>
+                La caméra n'est pas disponible sur le navigateur web.
+              </Text>
+              <TouchableOpacity
+                style={[styles.simulateBtn, { backgroundColor: COLORS.primary }]}
+                onPress={handleSimulateScan}
+              >
+                <Text style={styles.simulateBtnText}>
+                  {scanType === 'deposit' ? 'Simuler un dépôt' : 
+                   scanType === 'withdraw' ? 'Simuler un retrait' : 
+                   'Simuler un scan'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </SafeScreen>
     );
   }
@@ -160,54 +367,106 @@ export default function ScanPayScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeScreen backgroundColor={colors.background}>
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('scan_qr_code')}</Text>
+        <Text style={styles.headerTitle}>
+          {scanType === 'deposit' ? 'Dépôt' : scanType === 'withdraw' ? 'Retrait' : t('scan_qr_code')}
+        </Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={styles.cameraContainer}>
-        <CameraView
-          style={styles.camera}
-          facing="back"
-          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-          barcodeScannerSettings={{
-            barcodeTypes: ['qr'],
-          }}
-        >
-          <View style={styles.overlay}>
-            <View style={styles.scanFrame}>
-              <View style={[styles.scanCorner, styles.scanCornerTL]} />
-              <View style={[styles.scanCorner, styles.scanCornerTR]} />
-              <View style={[styles.scanCorner, styles.scanCornerBL]} />
-              <View style={[styles.scanCorner, styles.scanCornerBR]} />
-              <View style={styles.scanLine} />
-            </View>
-          </View>
-        </CameraView>
-      </View>
+      {showForm ? (
+        <ScrollView style={[styles.formContainer, { backgroundColor: colors.card }]}>
+          <Text style={[styles.formTitle, { color: colors.text }]}>
+            {scannedData?.action === 'deposit' ? '💰 Dépôt' : 
+             scannedData?.action === 'withdraw' ? '💸 Retrait' : 
+             '💳 Paiement'}
+          </Text>
+          
+          {scannedData?.userName && (
+            <Text style={[styles.userNameText, { color: colors.text }]}>
+              Utilisateur: {scannedData.userName}
+            </Text>
+          )}
 
-      <View style={styles.bottomBar}>
-        {loading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color={COLORS.white} />
-            <Text style={styles.loadingText}>Traitement...</Text>
+          <TextInput
+            style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+            placeholder="Montant (Ar)"
+            placeholderTextColor={COLORS.gray400}
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="numeric"
+          />
+
+          <TextInput
+            style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+            placeholder="Description (optionnelle)"
+            placeholderTextColor={COLORS.gray400}
+            value={description}
+            onChangeText={setDescription}
+          />
+
+          <View style={styles.formActions}>
+            <TouchableOpacity
+              style={[styles.formBtn, styles.cancelBtn]}
+              onPress={() => {
+                setShowForm(false);
+                setScannedData(null);
+                setAmount('');
+                setDescription('');
+                setScanned(false);
+              }}
+            >
+              <Text style={styles.cancelBtnText}>Annuler</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.formBtn, styles.confirmBtn, { backgroundColor: COLORS.primary }]}
+              onPress={handleSubmit}
+              disabled={isProcessing || !amount || parseFloat(amount) < 100}
+            >
+              {isProcessing ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Text style={styles.confirmBtnText}>
+                  {scannedData?.action === 'deposit' ? 'Déposer' : 
+                   scannedData?.action === 'withdraw' ? 'Retirer' : 
+                   'Payer'}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
-        )}
-        <Text style={[styles.hintText, { color: colors.textSecondary }]}>
-          {t('scan_hint')}
-        </Text>
-        <TouchableOpacity
-          style={[styles.cancelBtn, { backgroundColor: COLORS.error }]}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+        </ScrollView>
+      ) : (
+        <View style={styles.cameraContainer}>
+          <CameraView
+            style={styles.camera}
+            facing="back"
+            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr'],
+            }}
+          >
+            <View style={styles.overlay}>
+              <View style={styles.scanFrame}>
+                <View style={[styles.scanCorner, styles.scanCornerTL]} />
+                <View style={[styles.scanCorner, styles.scanCornerTR]} />
+                <View style={[styles.scanCorner, styles.scanCornerBL]} />
+                <View style={[styles.scanCorner, styles.scanCornerBR]} />
+                <View style={styles.scanLine} />
+              </View>
+              <Text style={styles.scanHint}>
+                {scanType === 'deposit' ? 'Scannez le QR Code de dépôt' : 
+                 scanType === 'withdraw' ? 'Scannez le QR Code de retrait' : 
+                 'Placez le QR code dans le cadre'}
+              </Text>
+            </View>
+          </CameraView>
+        </View>
+      )}
+    </SafeScreen>
   );
 }
 
@@ -222,17 +481,13 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
-  cameraContainer: { flex: 1, position: 'relative' },
+  cameraContainer: { flex: 1 },
   camera: { flex: 1 },
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
   scanFrame: {
-    position: 'absolute',
-    top: '25%',
-    left: '15%',
-    right: '15%',
-    bottom: '25%',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 250,
+    height: 250,
+    position: 'relative',
   },
   scanCorner: {
     position: 'absolute',
@@ -251,105 +506,39 @@ const styles = StyleSheet.create({
     left: '10%',
     right: '10%',
     height: 3,
-    backgroundColor: 'rgba(99, 102, 241, 0.6)',
+    backgroundColor: 'rgba(99,102,241,0.6)',
     shadowColor: '#6366f1',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 8,
     elevation: 4,
   },
-  bottomBar: {
-    padding: 20,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    alignItems: 'center',
-  },
-  hintText: {
+  scanHint: {
+    color: COLORS.white,
     fontSize: 14,
-    color: COLORS.white,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  cancelBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    borderRadius: 12,
-  },
-  cancelBtnText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 12,
-  },
-  loadingText: {
-    color: COLORS.white,
-    marginTop: 12,
-    fontSize: 14,
-  },
-  permissionText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 16,
-    marginHorizontal: 32,
-  },
-  permissionBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 12,
     marginTop: 20,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
-  permissionBtnText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  // Styles web
-  webContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  webCard: {
-    width: '100%',
-    maxWidth: 400,
-    padding: 32,
-    borderRadius: 20,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  webTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginTop: 16,
-  },
-  webSubtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 24,
-  },
-  simulateBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-  },
-  simulateBtnText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
+  permissionText: { fontSize: 16, textAlign: 'center', marginTop: 16, marginHorizontal: 32 },
+  permissionBtn: { paddingVertical: 12, paddingHorizontal: 32, borderRadius: 12, marginTop: 20 },
+  permissionBtnText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
+  formContainer: { margin: 16, padding: 20, borderRadius: 16 },
+  formTitle: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
+  userNameText: { fontSize: 14, textAlign: 'center', marginBottom: 16 },
+  input: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12 },
+  formActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  formBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },
+  cancelBtn: { backgroundColor: COLORS.gray100 },
+  cancelBtnText: { color: COLORS.gray600, fontWeight: '600' },
+  confirmBtn: { backgroundColor: COLORS.primary },
+  confirmBtnText: { color: COLORS.white, fontWeight: 'bold' },
+  // Web styles
+  webContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  webCard: { width: '100%', maxWidth: 400, padding: 32, borderRadius: 20, alignItems: 'center' },
+  webTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 16 },
+  webSubtitle: { fontSize: 14, textAlign: 'center', marginTop: 8, marginBottom: 24 },
+  simulateBtn: { paddingVertical: 12, paddingHorizontal: 32, borderRadius: 12 },
+  simulateBtnText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
 });

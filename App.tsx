@@ -36,6 +36,8 @@ import AdminCreateScreen from './app/(admin)/admins/create';
 import AdminSettingsScreen from './app/(admin)/settings';
 import AdminStatsScreen from './app/(admin)/stats';
 import AdminProfileScreen from './app/(admin)/profile';
+import AdminDepositScreen from './app/(admin)/deposit';
+import AdminWithdrawScreen from './app/(admin)/withdraw';
 
 const Stack = createNativeStackNavigator();
 
@@ -116,6 +118,8 @@ function RootNavigator() {
         <Stack.Screen name="AdminSettings" component={AdminSettingsScreen} />
         <Stack.Screen name="AdminStats" component={AdminStatsScreen} />
         <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
+        <Stack.Screen name="AdminDeposit" component={AdminDepositScreen} />
+        <Stack.Screen name="AdminWithdraw" component={AdminWithdrawScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
