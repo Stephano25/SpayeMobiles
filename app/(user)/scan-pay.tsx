@@ -1,3 +1,4 @@
+// app/(user)/scan-pay.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -76,7 +77,7 @@ export default function ScanPayScreen() {
               setStep('success');
               showSuccess(`Paiement de ${formatAmount(numAmount)} Ar effectué !`);
               setTimeout(() => {
-                navigation.navigate('Wallet');
+                navigation.navigate('Wallet' as never);
               }, 2000);
             } catch (e: any) {
               showError(e?.response?.data?.message || 'Erreur lors du paiement');

@@ -1,7 +1,7 @@
 // src/services/api.ts
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApiUrl } from '../config/api';
-import { storage } from '../utils/storage';
 
 let apiInstance: any = null;
 
@@ -17,7 +17,7 @@ export const getApi = async () => {
   });
 
   apiInstance.interceptors.request.use(async (config: any) => {
-    const token = await storage.getItem<string>('token');
+    const token = await AsyncStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -28,8 +28,8 @@ export const getApi = async () => {
     (response: any) => response,
     async (error: any) => {
       if (error.response?.status === 401) {
-        await storage.removeItem('token');
-        await storage.removeItem('user');
+        await AsyncStorage.removeItem('token');
+        await AsyncStorage.removeItem('user');
       }
       return Promise.reject(error);
     }

@@ -1,3 +1,4 @@
+// app/(user)/mobile-money.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -96,7 +97,7 @@ export default function MobileMoneyScreen() {
               setStep('success');
               showSuccess(`Transfert de ${formatAmount(numAmount)} Ar vers ${operator.name} réussi !`);
               setTimeout(() => {
-                navigation.navigate('Wallet');
+                navigation.navigate('Wallet' as never);
               }, 2000);
             } catch (e: any) {
               showError(e?.response?.data?.message || 'Erreur lors du transfert');

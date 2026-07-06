@@ -68,27 +68,3 @@ export {
   resetBackendIp,
   detectBackendIP,
 } from './api';
-
-export default {
-  formatAmount,
-  formatDate,
-  formatTime,
-  formatDateTime,
-  formatRelativeTime,
-  getInitials,
-  getAvatarColor,
-  getApiUrl,
-  getSocketUrl,
-  setBackendIp,
-  getStoredIp,
-  resetBackendIp,
-  detectBackendIP,
-  COLORS,
-  RADIUS,
-  SPACING,
-  FONT,
-  SHADOW,
-  NAVIGATION_BAR,
-  TAB_BAR_HEIGHT,
-  BOTTOM_BUTTON_PADDING,
-};

@@ -1,3 +1,4 @@
+// app/(user)/profile.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -88,21 +89,21 @@ export default function ProfileScreen() {
             <TextInput
               style={[styles.input, { color: colors.text, borderColor: colors.border }]}
               value={form.firstName}
-              onChangeText={(t) => setForm({ ...form, firstName: t })}
+              onChangeText={(text) => setForm({ ...form, firstName: text })}
               placeholder={t('first_name')}
               placeholderTextColor={COLORS.gray400}
             />
             <TextInput
               style={[styles.input, { color: colors.text, borderColor: colors.border }]}
               value={form.lastName}
-              onChangeText={(t) => setForm({ ...form, lastName: t })}
+              onChangeText={(text) => setForm({ ...form, lastName: text })}
               placeholder={t('last_name')}
               placeholderTextColor={COLORS.gray400}
             />
             <TextInput
               style={[styles.input, { color: colors.text, borderColor: colors.border }]}
               value={form.email}
-              onChangeText={(t) => setForm({ ...form, email: t })}
+              onChangeText={(text) => setForm({ ...form, email: text })}
               placeholder={t('email')}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -111,7 +112,7 @@ export default function ProfileScreen() {
             <TextInput
               style={[styles.input, { color: colors.text, borderColor: colors.border }]}
               value={form.phoneNumber}
-              onChangeText={(t) => setForm({ ...form, phoneNumber: t })}
+              onChangeText={(text) => setForm({ ...form, phoneNumber: text })}
               placeholder={t('phone')}
               keyboardType="phone-pad"
               placeholderTextColor={COLORS.gray400}

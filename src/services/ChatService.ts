@@ -1,5 +1,6 @@
 // src/services/ChatService.ts
 import api from './api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Conversation, Message } from '../types';
 import { getSocketUrl } from '../config/api';
 import { io, Socket } from 'socket.io-client';
@@ -30,19 +31,16 @@ export const ChatService = {
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 20000,
+        forceNew: true,
       });
 
       socket.on('connect', () => {
         console.log('✅ Socket connecté');
+        socket?.emit('getOnlineUsers');
       });
 
       socket.on('disconnect', (reason: string) => {
         console.log('❌ Socket déconnecté:', reason);
-        if (reason === 'io server disconnect') {
-          setTimeout(() => {
-            if (socket) socket.connect();
-          }, 1000);
-        }
       });
 
       socket.on('connect_error', (error: Error) => {
@@ -80,12 +78,6 @@ export const ChatService = {
         });
       });
 
-      socket.on('callRejected', (data: any) => {
-        callCallbacks.forEach((cb) => {
-          try { cb({ ...data, accepted: false }); } catch (e) { console.error(e); }
-        });
-      });
-
       socket.on('error', (data: any) => {
         errorCallbacks.forEach((cb) => {
           try { cb(data); } catch (e) { console.error(e); }
@@ -113,7 +105,7 @@ export const ChatService = {
   getConversations: async (): Promise<Conversation[]> => {
     try {
       const res = await api.get('/chat/conversations');
-      return res.data;
+      return res.data || [];
     } catch {
       return [];
     }
@@ -122,7 +114,7 @@ export const ChatService = {
   getMessages: async (otherUserId: string, page = 1, limit = 20): Promise<Message[]> => {
     try {
       const res = await api.get(`/chat/messages/${otherUserId}`, { params: { page, limit } });
-      return res.data;
+      return res.data || [];
     } catch {
       return [];
     }
@@ -139,14 +131,10 @@ export const ChatService = {
     moneyTransfer?: { amount: number };
   }) => {
     try {
-      console.log('📤 Envoi message via HTTP:', data);
       const response = await api.post('/chat/send', data);
-
       if (socket?.connected) {
-        console.log('📤 Envoi message via socket:', data);
         socket.emit('sendMessage', data);
       }
-
       return response.data;
     } catch (error: any) {
       console.error('❌ Erreur envoi message:', error);
@@ -158,7 +146,7 @@ export const ChatService = {
     }
   },
 
-  markAsRead: async (senderId: string) => {
+  markAsRead: async (senderId: string): Promise<any> => {
     try {
       const res = await api.post(`/chat/read/${senderId}`);
       return res.data;
@@ -167,59 +155,39 @@ export const ChatService = {
     }
   },
 
-  updateMessage: async (messageId: string, content: string) => {
-    try {
-      const res = await api.put(`/chat/message/${messageId}`, { content });
-      return res.data;
-    } catch {
-      throw new Error('Erreur modification');
-    }
+  updateMessage: async (messageId: string, content: string): Promise<Message> => {
+    const res = await api.put(`/chat/message/${messageId}`, { content });
+    return res.data;
   },
 
-  deleteMessage: async (messageId: string) => {
-    try {
-      const res = await api.delete(`/chat/message/${messageId}`);
-      return res.data;
-    } catch {
-      throw new Error('Erreur suppression');
-    }
+  deleteMessage: async (messageId: string): Promise<Message> => {
+    const res = await api.delete(`/chat/message/${messageId}`);
+    return res.data;
   },
 
-  removeReaction: async (messageId: string) => {
-    try {
-      const res = await api.delete(`/chat/message/${messageId}/react`);
-      return res.data;
-    } catch {
-      throw new Error('Erreur suppression réaction');
-    }
+  reactToMessage: async (messageId: string, emoji: string): Promise<Message> => {
+    const res = await api.post(`/chat/message/${messageId}/react`, { emoji });
+    return res.data;
   },
 
-  reactToMessage: async (messageId: string, emoji: string) => {
-    try {
-      const res = await api.post(`/chat/message/${messageId}/react`, { emoji });
-      return res.data;
-    } catch {
-      throw new Error('Erreur réaction');
-    }
+  removeReaction: async (messageId: string): Promise<Message> => {
+    const res = await api.delete(`/chat/message/${messageId}/react`);
+    return res.data;
   },
 
-  uploadFile: async (file: { uri: string; name: string; type: string }) => {
-    try {
-      const formData = new FormData();
-      formData.append('file', {
-        uri: file.uri,
-        name: file.name,
-        type: file.type,
-      } as any);
+  uploadFile: async (file: { uri: string; name: string; type: string }): Promise<{ url: string; fileName: string; fileSize: number }> => {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: file.uri,
+      name: file.name,
+      type: file.type,
+    } as any);
 
-      const res = await api.post('/chat/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 60000,
-      });
-      return res.data;
-    } catch {
-      throw new Error('Erreur upload');
-    }
+    const res = await api.post('/chat/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+    return res.data;
   },
 
   startCall: (receiverId: string, type: 'audio' | 'video') => {

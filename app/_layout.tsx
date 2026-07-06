@@ -1,3 +1,4 @@
+// app/_layout.tsx
 import React, { useEffect } from 'react';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -7,29 +8,21 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, setNavigateTo } from '../src/context/AuthContext';
 import { ThemeProvider } from '../src/context/ThemeContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
-import { COLORS } from '../src/config';
-import { TranslationService } from '../src/services/TranslationService';
+import { COLORS } from '../src/config/colors';
+import { detectBackendIP } from '../src/config/api';
 
-// Import des Layouts
+// Layouts
 import AuthLayout from './(auth)/_layout';
 import UserLayout from './(user)/_layout';
 import AdminLayout from './(admin)/_layout';
 
 const Stack = createNativeStackNavigator();
 
-function TranslationInit() {
-  useEffect(() => {
-    TranslationService.getInstance().init();
-  }, []);
-  return null;
-}
-
 function RootNavigator() {
   const navigationRef = useNavigationContainerRef();
 
   useEffect(() => {
     if (navigationRef) {
-      // ✅ Enregistrer la fonction de navigation
       setNavigateTo((routeName: string) => {
         navigationRef.navigate(routeName as never);
       });
@@ -54,13 +47,16 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    detectBackendIP().catch(console.error);
+  }, []);
+
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
           <NotificationProvider>
             <AuthProvider>
-              <TranslationInit />
               <StatusBar style="light" backgroundColor={COLORS.primary} />
               <RootNavigator />
             </AuthProvider>

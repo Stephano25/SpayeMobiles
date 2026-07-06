@@ -1,3 +1,4 @@
+// app/(user)/send-money.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -11,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, CommonActions } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { FriendService } from '../../src/services/FriendService';
@@ -67,12 +68,11 @@ export default function SendMoneyScreen() {
         description || undefined
       );
       setStep('success');
-      // ✅ Navigation corrigée
       setTimeout(() => {
         navigation.dispatch(
           CommonActions.reset({
             index: 0,
-            routes: [{ name: 'Wallet' }],
+            routes: [{ name: 'Wallet' as never }],
           })
         );
       }, 1800);

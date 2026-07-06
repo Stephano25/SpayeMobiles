@@ -1,7 +1,6 @@
 // src/context/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { storage } from '../utils/storage';
-import api from '../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthService } from '../services/AuthService';
 import { User } from '../types';
 
@@ -18,7 +17,8 @@ interface AuthContextType {
   }) => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
-  getToken: () => string | null;
+  getToken: () => Promise<string | null>;
+  getCurrentUser: () => User | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,10 +46,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUser = async () => {
     try {
-      const storedToken = await storage.getItem<string>('token');
-      const userData = await storage.getItem<User>('user');
+      const storedToken = await AsyncStorage.getItem('token');
+      const userData = await AsyncStorage.getItem('user');
       if (storedToken && userData) {
-        setUser(userData);
+        setUser(JSON.parse(userData));
         setToken(storedToken);
       }
     } catch (error) {
@@ -59,6 +59,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const getCurrentUser = (): User | null => {
+    return user;
+  };
+
   const login = async (email: string, password: string) => {
     try {
       const res = await AuthService.login(email, password);
@@ -66,6 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await AuthService.saveSession(access_token, userData);
       setToken(access_token);
       setUser(userData);
+      
       const isAdmin = userData.role === 'admin' || userData.role === 'super_admin';
       if (navigateTo) {
         navigateTo(isAdmin ? 'Admin' : 'User');
@@ -110,11 +115,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(updatedUser);
   };
 
-  const getToken = () => token;
+  const getToken = async () => {
+    return token || await AsyncStorage.getItem('token');
+  };
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, login, register, logout, updateProfile, getToken }}
+      value={{ 
+        user, 
+        isLoading, 
+        login, 
+        register, 
+        logout, 
+        updateProfile, 
+        getToken,
+        getCurrentUser,
+      }}
     >
       {children}
     </AuthContext.Provider>

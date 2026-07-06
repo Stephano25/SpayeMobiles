@@ -1,8 +1,15 @@
 // src/services/FriendService.ts
 import api from './api';
+import { Friend, FriendRequest, SearchUser } from '../types';
+
+export interface BlockStatus {
+  isBlocked: boolean;
+  blockedBy?: string;
+  canMessage: boolean;
+}
 
 export const FriendService = {
-  getFriends: async (): Promise<any[]> => {
+  getFriends: async (): Promise<Friend[]> => {
     try {
       const res = await api.get('/friends');
       return res.data || [];
@@ -11,7 +18,7 @@ export const FriendService = {
     }
   },
 
-  getFriendRequests: async (): Promise<any[]> => {
+  getFriendRequests: async (): Promise<FriendRequest[]> => {
     try {
       const res = await api.get('/friends/requests');
       return res.data || [];
@@ -20,7 +27,7 @@ export const FriendService = {
     }
   },
 
-  getSuggestions: async (): Promise<any[]> => {
+  getSuggestions: async (): Promise<SearchUser[]> => {
     try {
       const res = await api.get('/friends/suggestions');
       return res.data || [];
@@ -29,7 +36,7 @@ export const FriendService = {
     }
   },
 
-  getBlockedUsers: async (): Promise<any[]> => {
+  getBlockedUsers: async (): Promise<Friend[]> => {
     try {
       const res = await api.get('/friends/blocked');
       return res.data || [];
@@ -38,7 +45,7 @@ export const FriendService = {
     }
   },
 
-  searchUsers: async (query: string): Promise<any[]> => {
+  searchUsers: async (query: string): Promise<SearchUser[]> => {
     try {
       const res = await api.get('/friends/search', { params: { q: query } });
       return res.data || [];
@@ -48,56 +55,50 @@ export const FriendService = {
   },
 
   sendFriendRequest: async (friendId: string): Promise<any> => {
-    try {
-      const res = await api.post(`/friends/request/${friendId}`);
-      return res.data;
-    } catch {
-      throw new Error('Erreur envoi demande');
-    }
+    const res = await api.post(`/friends/request/${friendId}`);
+    return res.data;
   },
 
   acceptFriendRequest: async (requestId: string): Promise<any> => {
-    try {
-      const res = await api.post(`/friends/accept/${requestId}`);
-      return res.data;
-    } catch {
-      throw new Error('Erreur acceptation');
-    }
+    const res = await api.post(`/friends/accept/${requestId}`);
+    return res.data;
   },
 
   declineFriendRequest: async (requestId: string): Promise<any> => {
-    try {
-      const res = await api.post(`/friends/decline/${requestId}`);
-      return res.data;
-    } catch {
-      throw new Error('Erreur refus');
-    }
-  },
-
-  blockUser: async (userId: string): Promise<any> => {
-    try {
-      const res = await api.post(`/friends/block/${userId}`);
-      return res.data;
-    } catch {
-      throw new Error('Erreur blocage');
-    }
-  },
-
-  unblockUser: async (userId: string): Promise<any> => {
-    try {
-      const res = await api.post(`/friends/unblock/${userId}`);
-      return res.data;
-    } catch {
-      throw new Error('Erreur déblocage');
-    }
+    const res = await api.post(`/friends/decline/${requestId}`);
+    return res.data;
   },
 
   removeFriend: async (friendId: string): Promise<any> => {
+    const res = await api.delete(`/friends/${friendId}`);
+    return res.data;
+  },
+
+  blockUser: async (userId: string): Promise<any> => {
+    const res = await api.post(`/friends/block/${userId}`);
+    return res.data;
+  },
+
+  unblockUser: async (userId: string): Promise<any> => {
+    const res = await api.post(`/friends/unblock/${userId}`);
+    return res.data;
+  },
+
+  checkBlockStatus: async (userId: string): Promise<BlockStatus> => {
     try {
-      const res = await api.delete(`/friends/${friendId}`);
+      const res = await api.get(`/friends/block-status/${userId}`);
       return res.data;
     } catch {
-      throw new Error('Erreur suppression');
+      return { isBlocked: false, canMessage: true };
+    }
+  },
+
+  findUsersByPhones: async (phones: string[]): Promise<SearchUser[]> => {
+    try {
+      const res = await api.post('/friends/find-by-phones', { phones });
+      return res.data || [];
+    } catch {
+      return [];
     }
   },
 };

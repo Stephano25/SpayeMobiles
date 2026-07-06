@@ -1,8 +1,8 @@
 // src/services/AuthService.ts
 import api from './api';
-import { storage } from '../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, LoginResponse } from '../types';
-import { getApiUrl, setBackendIp } from '../config/api';
+import { getApiUrl } from '../config/api';
 
 export const AuthService = {
   getApiUrl: async (): Promise<string> => {
@@ -35,21 +35,27 @@ export const AuthService = {
   },
 
   async logout(): Promise<void> {
-    await storage.removeItem('token');
-    await storage.removeItem('user');
+    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem('user');
   },
 
   async saveSession(token: string, user: User): Promise<void> {
-    await storage.setItem('token', token);
-    await storage.setItem('user', user);
+    await AsyncStorage.setItem('token', token);
+    await AsyncStorage.setItem('user', JSON.stringify(user));
   },
 
   async getToken(): Promise<string | null> {
-    return storage.getItem<string>('token');
+    return await AsyncStorage.getItem('token');
   },
 
   async getUser(): Promise<User | null> {
-    return storage.getItem<User>('user');
+    const userJson = await AsyncStorage.getItem('user');
+    if (!userJson) return null;
+    try {
+      return JSON.parse(userJson);
+    } catch {
+      return null;
+    }
   },
 
   async isAuthenticated(): Promise<boolean> {
@@ -65,7 +71,7 @@ export const AuthService = {
   async updateProfile(data: Partial<User>): Promise<User> {
     const response = await api.put('/users/profile', data);
     const updatedUser = response.data;
-    await storage.setItem('user', updatedUser);
+    await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
     return updatedUser;
   },
 
@@ -81,21 +87,22 @@ export const AuthService = {
     const user = await this.getUser();
     if (user) {
       user.profilePicture = undefined;
-      await storage.setItem('user', user);
+      await AsyncStorage.setItem('user', JSON.stringify(user));
     }
   },
 
   async refreshUser(): Promise<User> {
     const user = await this.getProfile();
-    await storage.setItem('user', user);
+    await AsyncStorage.setItem('user', JSON.stringify(user));
     return user;
   },
 
-  async handleGoogleCallback(token: string): Promise<void> {
-    await this.saveSession(token, {} as User);
+  async handleGoogleCallback(token: string): Promise<User> {
+    await AsyncStorage.setItem('token', token);
     try {
       const user = await this.getProfile();
-      await this.saveSession(token, user);
+      await AsyncStorage.setItem('user', JSON.stringify(user));
+      return user;
     } catch (error) {
       console.error('Erreur récupération profil Google:', error);
       throw error;

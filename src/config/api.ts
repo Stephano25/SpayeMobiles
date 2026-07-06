@@ -1,39 +1,34 @@
 // src/config/api.ts
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 let cachedApiUrl: string | null = null;
 let cachedSocketUrl: string | null = null;
+let cachedBaseUrl: string | null = null;
 
-const DEFAULT_DOCKER_IP = 'host.docker.internal';
+const DEFAULT_IP = '192.168.188.135';
 
-// ✅ Utiliser AsyncStorage directement au lieu de storage
-const getItem = async (key: string): Promise<any> => {
+export const getStoredIp = async (): Promise<string | null> => {
   try {
-    const value = await AsyncStorage.getItem(key);
-    return value ? JSON.parse(value) : null;
+    return await AsyncStorage.getItem('backend_ip');
   } catch {
     return null;
   }
 };
 
-const setItem = async (key: string, value: any): Promise<void> => {
+export const setBackendIp = async (ip: string): Promise<void> => {
   try {
-    await AsyncStorage.setItem(key, JSON.stringify(value));
+    await AsyncStorage.setItem('backend_ip', ip);
+    cachedApiUrl = null;
+    cachedSocketUrl = null;
+    cachedBaseUrl = null;
   } catch {}
 };
 
-const removeItem = async (key: string): Promise<void> => {
-  try {
-    await AsyncStorage.removeItem(key);
-  } catch {}
-};
-
-const testConnection = async (ip: string): Promise<boolean> => {
+export const testConnection = async (ip: string): Promise<boolean> => {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
     
     const response = await fetch(`http://${ip}:3000/api/health`, {
       signal: controller.signal,
@@ -50,48 +45,29 @@ const testConnection = async (ip: string): Promise<boolean> => {
 
 export const detectBackendIP = async (): Promise<string | null> => {
   try {
-    const savedIp = await getItem('backend_ip');
+    const savedIp = await getStoredIp();
     if (savedIp && savedIp.trim()) {
       const isValid = await testConnection(savedIp.trim());
       if (isValid) {
-        console.log(`📡 IP stockée valide: ${savedIp}`);
+        console.log(`✅ IP stockée valide: ${savedIp}`);
         return savedIp.trim();
       }
     }
 
     const ipsToTest = [
-      DEFAULT_DOCKER_IP,
-      '10.0.2.2',
-      '10.0.3.2',
-      'localhost',
-      '127.0.0.1',
       '192.168.188.135',
-      '192.168.188.1',
       '192.168.1.100',
       '192.168.1.101',
-      '192.168.1.102',
-      '192.168.1.103',
-      '192.168.1.104',
-      '192.168.1.105',
-      '192.168.1.106',
-      '192.168.1.107',
-      '192.168.1.108',
-      '192.168.1.109',
-      '192.168.1.110',
-      '192.168.0.100',
-      '192.168.0.101',
-      '192.168.0.102',
-      '10.0.0.100',
-      '10.0.0.101',
-      '172.20.10.1',
-      '172.20.10.2',
+      '10.0.2.2',
+      'localhost',
+      '127.0.0.1',
     ];
 
     for (const testIP of ipsToTest) {
       const isValid = await testConnection(testIP);
       if (isValid) {
         console.log(`✅ Backend trouvé à l'IP: ${testIP}`);
-        await setItem('backend_ip', testIP);
+        await setBackendIp(testIP);
         return testIP;
       }
     }
@@ -108,7 +84,7 @@ export const getApiUrl = async (): Promise<string> => {
   if (cachedApiUrl) return cachedApiUrl;
 
   try {
-    const savedIp = await getItem('backend_ip');
+    const savedIp = await getStoredIp();
     if (savedIp && savedIp.trim()) {
       const isValid = await testConnection(savedIp.trim());
       if (isValid) {
@@ -123,24 +99,17 @@ export const getApiUrl = async (): Promise<string> => {
       return cachedApiUrl;
     }
 
-    if (Platform.OS === 'android' && !Constants.isDevice) {
+    if (Platform.OS === 'android') {
       cachedApiUrl = 'http://10.0.2.2:3000/api';
-      return cachedApiUrl;
+    } else {
+      cachedApiUrl = `http://${DEFAULT_IP}:3000/api`;
     }
-
-    if (Platform.OS === 'ios' && !Constants.isDevice) {
-      cachedApiUrl = 'http://localhost:3000/api';
-      return cachedApiUrl;
-    }
-
-    cachedApiUrl = `http://${DEFAULT_DOCKER_IP}:3000/api`;
     return cachedApiUrl;
-  } catch (error) {
-    console.error('❌ Erreur getApiUrl:', error);
+  } catch {
     if (Platform.OS === 'android') {
       return 'http://10.0.2.2:3000/api';
     }
-    return `http://${DEFAULT_DOCKER_IP}:3000/api`;
+    return `http://${DEFAULT_IP}:3000/api`;
   }
 };
 
@@ -148,43 +117,29 @@ export const getSocketUrl = async (): Promise<string> => {
   if (cachedSocketUrl) return cachedSocketUrl;
   try {
     const apiUrl = await getApiUrl();
-    cachedSocketUrl = apiUrl ? apiUrl.replace('/api', '') : '';
+    cachedSocketUrl = apiUrl.replace('/api', '');
     return cachedSocketUrl;
   } catch {
-    cachedSocketUrl = '';
+    cachedSocketUrl = 'http://localhost:3000';
     return cachedSocketUrl;
   }
 };
 
-export const setBackendIp = async (ip: string): Promise<void> => {
-  if (!ip || !ip.trim()) {
-    await removeItem('backend_ip');
-  } else {
-    await setItem('backend_ip', ip.trim());
-  }
-  cachedApiUrl = null;
-  cachedSocketUrl = null;
-};
-
-export const getStoredIp = async (): Promise<string | null> => {
+export const getBaseUrl = async (): Promise<string> => {
+  if (cachedBaseUrl) return cachedBaseUrl;
   try {
-    return await getItem('backend_ip');
+    const socketUrl = await getSocketUrl();
+    cachedBaseUrl = socketUrl;
+    return cachedBaseUrl;
   } catch {
-    return null;
+    cachedBaseUrl = 'http://localhost:3000';
+    return cachedBaseUrl;
   }
 };
 
 export const resetBackendIp = async (): Promise<void> => {
-  await removeItem('backend_ip');
+  await AsyncStorage.removeItem('backend_ip');
   cachedApiUrl = null;
   cachedSocketUrl = null;
-};
-
-export const ApiService = {
-  getApiUrl,
-  getSocketUrl,
-  setBackendIp,
-  getStoredIp,
-  resetBackendIp,
-  detectBackendIP,
+  cachedBaseUrl = null;
 };

@@ -28,7 +28,7 @@ import { useTranslation } from '../../src/services/TranslationService';
 
 const { width } = Dimensions.get('window');
 
-// ─── Design tokens (calqués sur le CSS Angular) ───────────────
+// ─── Design tokens ─────────────────────────────────────────────
 const T = {
   bg:        '#0f0f14',
   surface:   '#16161e',
@@ -79,7 +79,7 @@ const fileKind = (url = '', name = '') => {
   return 'document';
 };
 
-// ─── Quick emojis (comme Angular) ─────────────────────────────
+// ─── Quick emojis ─────────────────────────────────────────────
 const QUICK_REACTIONS = ['👍','❤️','😆','😮','😢','🙏'];
 const EMOJIS = [
   '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰',
@@ -97,7 +97,7 @@ const EMOJIS = [
 interface CallData { from: string; type: 'audio'|'video'; fromName?: string; }
 
 // ═══════════════════════════════════════════════════════════════
-//  Composant Avatar (comme .av Angular)
+//  Composant Avatar
 // ═══════════════════════════════════════════════════════════════
 const Avatar = ({ name = '', size = 40, online = false }: { name?: string; size?: number; online?: boolean }) => (
   <View style={[avStyles.wrap, { width: size, height: size, borderRadius: size / 2, backgroundColor: avatarColor(name) }]}>
@@ -112,7 +112,7 @@ const avStyles = StyleSheet.create({
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  IconBtn (comme .icon-btn Angular)
+//  IconBtn
 // ═══════════════════════════════════════════════════════════════
 const IconBtn = ({ name, size = 22, color = T.text3, onPress, recording = false, style }: any) => (
   <TouchableOpacity
@@ -183,7 +183,7 @@ const MediaMessage = React.memo(({ item, isOwn }: { item: any; isOwn: boolean })
     </View>
   );
 
-  // ── Audio (like .audio-wrap Angular) ──
+  // ── Audio ──
   if (kind === 'audio') return (
     <View style={[mm.audioWrap, { backgroundColor: isOwn ? 'rgba(255,255,255,0.12)' : T.surface2 }]}>
       <TouchableOpacity onPress={playAudio} style={mm.audioBtn}>
@@ -201,7 +201,7 @@ const MediaMessage = React.memo(({ item, isOwn }: { item: any; isOwn: boolean })
     </View>
   );
 
-  // ── Document (like .doc-wrap Angular) ──
+  // ── Document ──
   return (
     <TouchableOpacity onPress={() => Linking.openURL(url)}
       style={[mm.docWrap, { backgroundColor: isOwn ? 'rgba(255,255,255,0.1)' : T.surface2 }]}>
@@ -239,7 +239,7 @@ const mm = StyleSheet.create({
 });
 
 // ═══════════════════════════════════════════════════════════════
-//  MoneyCard (like .money-card Angular)
+//  MoneyCard
 // ═══════════════════════════════════════════════════════════════
 const MoneyCard = ({ item, isOwn }: { item: any; isOwn: boolean }) => {
   const status = item.moneyTransfer?.status || 'pending';
@@ -304,21 +304,16 @@ export default function ChatScreen() {
   const [isSending, setIsSending]                 = useState(false);
   const [loading, setLoading]                     = useState(true);
   const [refreshing, setRefreshing]               = useState(false);
-  // Mobile: liste ou chat
   const [view, setView]                           = useState<'list'|'chat'>('list');
   const [isRecording, setIsRecording]             = useState(false);
   const [recordingTime, setRecordingTime]         = useState(0);
-  // Transfert argent
   const [showTransfer, setShowTransfer]           = useState(false);
   const [transferAmount, setTransferAmount]       = useState('');
   const QUICK_AMOUNTS = [500, 1000, 2000, 5000, 10000, 20000];
-  // Actions message (ctx menu)
   const [activeCtxId, setActiveCtxId]             = useState<string|null>(null);
   const [editingId, setEditingId]                 = useState<string|null>(null);
   const [editContent, setEditContent]             = useState('');
-  // Réactions
   const [reactPickerId, setReactPickerId]         = useState<string|null>(null);
-  // Appels
   const [incomingCall, setIncomingCall]           = useState<CallData|null>(null);
   const [callStatus, setCallStatus]               = useState<'idle'|'calling'|'connected'|'ended'>('idle');
   const [callType, setCallType]                   = useState<'audio'|'video'>('audio');
@@ -338,20 +333,33 @@ export default function ChatScreen() {
     setCurrentUserId(user?.id || '');
     const init = async () => {
       try {
-        const token = getToken();
-        if (token) await ChatService.connect(token);
+        const token = await getToken();
+        if (token) {
+          await ChatService.connect(token);
+        }
         await loadAll();
         setupSockets();
-      } catch { showError(t('error_loading')); }
-      finally   { setLoading(false); }
+      } catch (error) {
+        showError(t('error_loading'));
+      } finally {
+        setLoading(false);
+      }
     };
     init();
-    const sub = AppState.addEventListener('change', state => {
+
+    const sub = AppState.addEventListener('change', async (state) => {
       if (state === 'active') {
-        const tk = getToken();
-        if (tk && !ChatService.isConnected()) ChatService.connect(tk).catch(console.error);
+        try {
+          const token = await getToken();
+          if (token && !ChatService.isConnected()) {
+            await ChatService.connect(token);
+          }
+        } catch (error) {
+          console.error('Erreur reconnexion socket:', error);
+        }
       }
-    });
+   });
+
     return () => {
       sub.remove();
       unsubMsg.current?.();
@@ -360,7 +368,7 @@ export default function ChatScreen() {
       unsubCall.current?.();
       unsubErr.current?.();
       if (recordInterval.current) clearInterval(recordInterval.current);
-      if (typingTimeout.current)  clearTimeout(typingTimeout.current);
+      if (typingTimeout.current) clearTimeout(typingTimeout.current);
     };
   }, []);
 
@@ -704,7 +712,6 @@ export default function ChatScreen() {
       && Date.now() - new Date(item.createdAt).getTime() < 15 * 60 * 1000;
     const canDel  = isOwn && !item.isDeleted;
 
-    // Réactions groupées
     const reactions: Record<string, { count: number; mine: boolean }> = {};
     (item.reactions || []).forEach((r: any) => {
       reactions[r.emoji] = reactions[r.emoji] || { count: 0, mine: false };
@@ -715,8 +722,6 @@ export default function ChatScreen() {
     return (
       <View style={[s.msgRow, isOwn ? s.rowR : s.rowL]}>
         <View style={s.msgWrap}>
-
-          {/* ── Édition inline ── */}
           {isEditing ? (
             <View style={s.editWrap}>
               <TextInput
@@ -737,7 +742,6 @@ export default function ChatScreen() {
               onLongPress={() => { setActiveCtxId(item.id === activeCtxId ? null : item.id); setReactPickerId(null); }}
               onPress={() => { setActiveCtxId(null); setReactPickerId(null); }}
             >
-              {/* ── Message supprimé ── */}
               {item.isDeleted ? (
                 <View style={s.deletedBubble}>
                   <Ionicons name="remove-circle-outline" size={14} color={T.text4} />
@@ -749,24 +753,19 @@ export default function ChatScreen() {
                   isOwn ? s.bubbleOwn : s.bubbleOther,
                   item.type === 'emoji' && s.emojiBubble,
                 ]}>
-                  {/* Texte */}
                   {item.type === 'text' && (
                     <Text style={[s.bubbleText, isOwn && { color: T.white }]}>{item.content}</Text>
                   )}
-                  {/* Emoji géant */}
                   {item.type === 'emoji' && <Text style={s.bigEmoji}>{item.emoji}</Text>}
-                  {/* Médias */}
                   {['image','video','audio','file'].includes(item.type) && (
                     <MediaMessage item={item} isOwn={isOwn} />
                   )}
-                  {/* Argent */}
                   {item.type === 'money' && <MoneyCard item={item} isOwn={isOwn} />}
                 </View>
               )}
             </TouchableOpacity>
           )}
 
-          {/* ── Réactions bar ── */}
           {Object.keys(reactions).length > 0 && (
             <View style={s.reactBar}>
               {Object.entries(reactions).map(([emoji, v]) => (
@@ -779,7 +778,6 @@ export default function ChatScreen() {
             </View>
           )}
 
-          {/* ── Heure + lu ── */}
           {!isEditing && (
             <View style={[s.msgMeta, isOwn && { alignSelf: 'flex-end' }]}>
               <Text style={s.msgTime}>{formatTime(item.createdAt)}</Text>
@@ -791,7 +789,6 @@ export default function ChatScreen() {
             </View>
           )}
 
-          {/* ── Ctx actions ── */}
           {showCtx && !item.isDeleted && (
             <View style={[s.ctxMenu, isOwn ? s.ctxMenuR : s.ctxMenuL]}>
               <TouchableOpacity style={s.ctxBtn} onPress={() => {
@@ -812,7 +809,6 @@ export default function ChatScreen() {
             </View>
           )}
 
-          {/* ── Reaction picker ── */}
           {showReact && (
             <View style={[s.reactPicker, isOwn ? s.reactPickerR : s.reactPickerL]}>
               {QUICK_REACTIONS.map(e => (
@@ -822,14 +818,13 @@ export default function ChatScreen() {
               ))}
             </View>
           )}
-
         </View>
       </View>
     );
   };
 
   // ─────────────────────────────────────────────────────────
-  //  RENDU CONVERSATION (sidebar)
+  //  RENDU CONVERSATION
   // ─────────────────────────────────────────────────────────
   const renderConv = ({ item }: { item: any }) => (
     <TouchableOpacity
@@ -916,19 +911,17 @@ export default function ChatScreen() {
   );
 
   // ─────────────────────────────────────────────────────────
-  //  VUE LISTE (conversations + amis en ligne)
+  //  VUE LISTE
   // ─────────────────────────────────────────────────────────
   if (view === 'list') return (
     <View style={[s.root, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" backgroundColor={T.bg} />
 
-      {/* Header liste */}
       <View style={s.sidebarTop}>
         <Text style={s.brand}>Messages</Text>
-        <IconBtn name="create-outline" color={T.violet} onPress={() => navigation.navigate('Friends')} />
+        <IconBtn name="create-outline" color={T.violet} onPress={() => navigation.navigate('Friends' as never)} />
       </View>
 
-      {/* Recherche */}
       <View style={s.searchBox}>
         <Ionicons name="search" size={16} color={T.text4} />
         <TextInput
@@ -938,7 +931,6 @@ export default function ChatScreen() {
         />
       </View>
 
-      {/* Amis en ligne */}
       {onlineFriends.length > 0 && (
         <View style={s.onlineSection}>
           <View style={s.onlineHdr}>
@@ -957,7 +949,6 @@ export default function ChatScreen() {
         </View>
       )}
 
-      {/* Liste conversations */}
       <FlatList
         data={filteredConvs}
         keyExtractor={item => item.userId}
@@ -972,7 +963,7 @@ export default function ChatScreen() {
             <View style={s.emptyIcon}><Ionicons name="chatbubbles-outline" size={36} color={T.primary} /></View>
             <Text style={s.emptyTitle}>Vos messages</Text>
             <Text style={s.emptyDesc}>Sélectionnez une conversation ou démarrez-en une nouvelle</Text>
-            <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.navigate('Friends')}>
+            <TouchableOpacity style={s.emptyBtn} onPress={() => navigation.navigate('Friends' as never)}>
               <Ionicons name="add" size={17} color={T.white} />
               <Text style={s.emptyBtnTxt}>Nouvelle discussion</Text>
             </TouchableOpacity>
@@ -992,10 +983,10 @@ export default function ChatScreen() {
         style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        {/* ── Chat Header (like .chat-header Angular) ── */}
         <View style={s.chatHeader}>
           <IconBtn name="arrow-back" onPress={() => { setView('list'); setSelectedContact(null); setMessages([]); }} />
-          <TouchableOpacity style={s.contactMeta} onPress={() => navigation.navigate('Profile', { userId: selectedContact?.userId })}>
+          <TouchableOpacity style={s.contactMeta} onPress={() => 
+            navigation.navigate('Profile' as never)}>
             <Avatar name={`${selectedContact?.firstName} ${selectedContact?.lastName}`} size={38} online={selectedContact?.isOnline} />
             <View style={{ marginLeft: 10 }}>
               <Text style={s.contactName}>{selectedContact?.firstName} {selectedContact?.lastName}</Text>
@@ -1017,7 +1008,7 @@ export default function ChatScreen() {
             <IconBtn name="ellipsis-vertical" color={T.text3} onPress={() => Alert.alert(
               t('settings'), t('confirm'),
               [
-                { text: 'Voir le profil', onPress: () => navigation.navigate('Profile', { userId: selectedContact?.userId }) },
+                { text: 'Voir le profil', onPress: () => navigation.navigate('Profile' as never)},
                 { text: 'Envoyer de l\'argent', onPress: () => setShowTransfer(true) },
                 { text: 'Bloquer', style: 'destructive', onPress: async () => {
                   try { await FriendService.blockUser(selectedContact.userId); showSuccess('Utilisateur bloqué'); }
@@ -1029,7 +1020,6 @@ export default function ChatScreen() {
           </View>
         </View>
 
-        {/* ── Panneau transfert (like .transfer-panel Angular) ── */}
         {showTransfer && (
           <View style={s.transferPanel}>
             <View style={s.transferBar}>
@@ -1064,7 +1054,6 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {/* ── Messages ── */}
         <FlatList
           ref={flatListRef} data={messages}
           keyExtractor={item => item.id}
@@ -1074,7 +1063,6 @@ export default function ChatScreen() {
           onTouchStart={() => { setActiveCtxId(null); setReactPickerId(null); if (showEmojiPicker) setShowEmojiPicker(false); }}
         />
 
-        {/* ── Composer (like .composer Angular) ── */}
         <View style={[s.composer, { paddingBottom: insets.bottom > 0 ? insets.bottom + 4 : 12 }]}>
           <IconBtn name="happy-outline"   onPress={() => setShowEmojiPicker(p => !p)} />
           <IconBtn name="attach-outline"  onPress={uploadFile} />
@@ -1102,7 +1090,6 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ── Emoji picker (like .emoji-panel Angular) ── */}
         {showEmojiPicker && (
           <View style={s.emojiPanel}>
             <FlatList
@@ -1126,15 +1113,13 @@ export default function ChatScreen() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  STYLES — design system calqué sur le CSS Angular
+//  STYLES
 // ═══════════════════════════════════════════════════════════════
 const s = StyleSheet.create({
-  // Root
   root:       { flex: 1, backgroundColor: T.bg },
   loadWrap:   { flex: 1, backgroundColor: T.bg, alignItems: 'center', justifyContent: 'center' },
   loadTxt:    { color: T.text3, marginTop: 12, fontSize: 14 },
 
-  // ── Sidebar / Liste ──────────────────────────────────────
   sidebarTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: T.border, backgroundColor: T.surface },
   brand:      { fontSize: 18, fontWeight: '800', color: T.violet, letterSpacing: -0.3 },
 
@@ -1169,7 +1154,6 @@ const s = StyleSheet.create({
   emptyBtn:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: T.primary, borderRadius: 24, paddingVertical: 10, paddingHorizontal: 18 },
   emptyBtnTxt:{ color: T.white, fontWeight: '600', fontSize: 14 },
 
-  // ── Chat ─────────────────────────────────────────────────
   chatHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, paddingHorizontal: 12, backgroundColor: T.surface, borderBottomWidth: 1, borderBottomColor: T.border },
   contactMeta:{ flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 4 },
   contactName:{ fontSize: 15, fontWeight: '700', color: T.text },
@@ -1179,7 +1163,6 @@ const s = StyleSheet.create({
   offlineTxt: { color: T.text4 },
   chatActions:{ flexDirection: 'row', gap: 2 },
 
-  // ── Transfer panel ────────────────────────────────────────
   transferPanel:{ backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: T.border, padding: 14 },
   transferBar:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   transferTitle:{ fontSize: 15, fontWeight: '600', color: T.text },
@@ -1191,7 +1174,6 @@ const s = StyleSheet.create({
   sendMoneyBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: T.success, borderRadius: 24, paddingVertical: 10, paddingHorizontal: 16 },
   sendMoneyTxt: { color: T.white, fontWeight: '600', fontSize: 14 },
 
-  // ── Messages ──────────────────────────────────────────────
   msgList:    { padding: 12, paddingBottom: 8, flexGrow: 1 },
   msgRow:     { marginVertical: 3 },
   rowR:       { alignItems: 'flex-end' },
@@ -1228,13 +1210,11 @@ const s = StyleSheet.create({
   reactPickerL: { left: 0 },
   reactPickerEmoji: { fontSize: 22 },
 
-  // ── Edit inline ──────────────────────────────────────────
   editWrap:   { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: T.surface, borderWidth: 1.5, borderColor: T.primary, borderRadius: 18, padding: 4, paddingLeft: 12 },
   editInput:  { flex: 1, color: T.text, fontSize: 14, minWidth: 120 },
   editOk:     { width: 28, height: 28, borderRadius: 14, backgroundColor: T.success, alignItems: 'center', justifyContent: 'center' },
   editCancel: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
 
-  // ── Composer ──────────────────────────────────────────────
   composer:   { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, paddingHorizontal: 12, borderTopWidth: 1, borderTopColor: T.border, backgroundColor: T.surface },
   recPill:    { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(239,68,68,0.12)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
   recDot:     { width: 6, height: 6, borderRadius: 3, backgroundColor: T.error },
@@ -1243,14 +1223,12 @@ const s = StyleSheet.create({
   sendBtn:    { width: 40, height: 40, borderRadius: 20, backgroundColor: T.primary, alignItems: 'center', justifyContent: 'center' },
   sendBtnOff: { opacity: 0.4 },
 
-  // ── Emoji panel ──────────────────────────────────────────
   emojiPanel: { backgroundColor: T.surface, borderTopWidth: 1, borderTopColor: T.border, padding: 12, maxHeight: 280 },
   emojiItem:  { width: (width - 24) / 8, height: 38, alignItems: 'center', justifyContent: 'center' },
   emojiTxt:   { fontSize: 22 },
   emojiClose: { marginTop: 8, paddingVertical: 7, backgroundColor: T.primaryLt, borderRadius: 20, alignItems: 'center' },
   emojiCloseTxt: { color: T.violet, fontWeight: '600', fontSize: 13 },
 
-  // ── Call modal ────────────────────────────────────────────
   callOverlay:{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', alignItems: 'center', justifyContent: 'center' },
   callCard:   { backgroundColor: T.surface, borderRadius: 24, padding: 32, alignItems: 'center', width: width * 0.85, borderWidth: 1, borderColor: T.border },
   callAvatar: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },

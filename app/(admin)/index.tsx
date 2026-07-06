@@ -1,3 +1,4 @@
+// app/(admin)/index.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -12,10 +13,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
+import { useNotification } from '../../src/context/NotificationContext';
 import { AdminService } from '../../src/services/AdminService';
-import { COLORS, formatAmount } from '../../src/config';
-import { useTranslation } from '../../src/services/TranslationService';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../../src/context/AuthContext';
+import { COLORS, formatAmount } from '../../src/config/colors';
 
 const { width } = Dimensions.get('window');
 
@@ -50,13 +51,12 @@ function AnimatedStatCard({ label, value, icon, colors: cardColors, route, delay
 
   return (
     <Animated.View style={{ opacity, transform: [{ translateY }], width: '47%' }}>
-      <TouchableOpacity onPress={() => navigation.navigate(route as never)} activeOpacity={0.85}>
-        <LinearGradient
-          colors={cardColors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradientCard}
-        >
+      <TouchableOpacity 
+        onPress={() => navigation.navigate(route as never)} 
+        activeOpacity={0.85}
+        style={styles.gradientCard}
+      >
+        <View style={[styles.gradientCard, { backgroundColor: cardColors[0] }]}>
           <View style={styles.cardIconWrap}>
             <Ionicons name={icon as any} size={22} color="rgba(255,255,255,0.95)" />
           </View>
@@ -65,7 +65,7 @@ function AnimatedStatCard({ label, value, icon, colors: cardColors, route, delay
           <View style={styles.cardArrow}>
             <Ionicons name="arrow-forward" size={14} color="rgba(255,255,255,0.7)" />
           </View>
-        </LinearGradient>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -73,17 +73,26 @@ function AnimatedStatCard({ label, value, icon, colors: cardColors, route, delay
 
 export default function AdminDashboard() {
   const { colors, isDark } = useTheme();
-  const { t } = useTranslation();
+  const { showError } = useNotification();
+  const { getCurrentUser } = useAuth();
   const navigation = useNavigation();
   const [stats, setStats] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const headerOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    setIsSuperAdmin(user?.role === 'super_admin');
+  }, []);
 
   const load = async () => {
     try {
       const data = await AdminService.getDashboardStats();
       setStats(data);
-    } catch {}
+    } catch (error) {
+      showError('Erreur chargement du tableau de bord');
+    }
   };
 
   useEffect(() => {
@@ -103,34 +112,46 @@ export default function AdminDashboard() {
 
   const cards = [
     {
-      label: t('total_users'),
+      label: 'Utilisateurs',
       value: stats?.totalUsers ?? '—',
       icon: 'people',
       colors: ['#6366f1', '#8b5cf6'] as [string, string],
       route: 'AdminUsers',
     },
     {
-      label: t('total_transactions'),
+      label: 'Transactions',
       value: stats?.totalTransactions ?? '—',
       icon: 'swap-horizontal',
       colors: ['#10b981', '#059669'] as [string, string],
       route: 'AdminTransactions',
     },
     {
-      label: t('total_volume'),
+      label: 'Volume total',
       value: stats ? `${formatAmount(stats.totalVolume)} Ar` : '—',
       icon: 'wallet',
       colors: ['#f59e0b', '#d97706'] as [string, string],
       route: 'AdminStats',
     },
     {
-      label: t('settings'),
+      label: 'Paramètres',
       value: '',
       icon: 'settings',
       colors: ['#3b82f6', '#2563eb'] as [string, string],
       route: 'AdminSettings',
     },
   ];
+
+  const menuItems = [
+    { icon: 'person', label: 'Mon Profil', route: 'AdminProfile' },
+    { icon: 'people', label: 'Utilisateurs', route: 'AdminUsers' },
+    { icon: 'receipt', label: 'Transactions', route: 'AdminTransactions' },
+    { icon: 'bar-chart', label: 'Statistiques', route: 'AdminStats' },
+    { icon: 'settings', label: 'Paramètres', route: 'AdminSettings' },
+  ];
+
+  if (isSuperAdmin) {
+    menuItems.push({ icon: 'shield', label: 'Administrateurs', route: 'AdminAdmins' });
+  }
 
   return (
     <ScrollView
@@ -146,40 +167,35 @@ export default function AdminDashboard() {
       }
     >
       {/* Header */}
-      <LinearGradient
-        colors={['#4f46e5', '#7c3aed']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
+      <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <Animated.View style={{ opacity: headerOpacity }}>
           <View style={styles.headerBadge}>
             <View style={styles.headerDot} />
             <Text style={styles.headerBadgeText}>Admin Panel</Text>
           </View>
-          <Text style={styles.headerTitle}>{t('dashboard')}</Text>
-          <Text style={styles.headerSubtitle}>{t('overview')}</Text>
+          <Text style={styles.headerTitle}>Tableau de bord</Text>
+          <Text style={styles.headerSubtitle}>Vue d'ensemble</Text>
 
           {stats && (
             <View style={styles.quickStats}>
               <View style={styles.quickStat}>
                 <Text style={styles.quickStatValue}>{stats.activeUsers ?? 0}</Text>
-                <Text style={styles.quickStatLabel}>{t('active_users')}</Text>
+                <Text style={styles.quickStatLabel}>Actifs</Text>
               </View>
               <View style={styles.quickStatDivider} />
               <View style={styles.quickStat}>
                 <Text style={styles.quickStatValue}>{stats.totalTransactions ?? 0}</Text>
-                <Text style={styles.quickStatLabel}>{t('transactions')}</Text>
+                <Text style={styles.quickStatLabel}>Transactions</Text>
               </View>
               <View style={styles.quickStatDivider} />
               <View style={styles.quickStat}>
                 <Text style={styles.quickStatValue}>{formatAmount(stats.totalVolume ?? 0)}</Text>
-                <Text style={styles.quickStatLabel}>Ar</Text>
+                <Text style={styles.quickStatLabel}>Volume</Text>
               </View>
             </View>
           )}
         </Animated.View>
-      </LinearGradient>
+      </View>
 
       {/* Cards Grid */}
       <View style={styles.grid}>
@@ -188,12 +204,30 @@ export default function AdminDashboard() {
         ))}
       </View>
 
+      {/* Menu Grid */}
+      <View style={styles.menuSection}>
+        <Text style={[styles.menuTitle, { color: colors.text }]}>Gestion rapide</Text>
+        <View style={styles.menuGrid}>
+          {menuItems.map((item, index) => (
+            <TouchableOpacity
+              key={item.label}
+              style={[styles.menuCard, { backgroundColor: colors.card }]}
+              onPress={() => navigation.navigate(item.route as never)}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuIcon, { backgroundColor: COLORS.primary + '18' }]}>
+                <Ionicons name={item.icon as any} size={24} color={COLORS.primary} />
+              </View>
+              <Text style={[styles.menuLabel, { color: colors.text }]}>{item.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
       {/* Recent Activity */}
       {stats?.recentTransactions && stats.recentTransactions.length > 0 && (
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            {t('recent_activity')}
-          </Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Activité récente</Text>
           {stats.recentTransactions.slice(0, 3).map((tx: any) => (
             <View key={tx.id || tx._id} style={[styles.activityRow, { backgroundColor: colors.card }]}>
               <View style={[styles.activityIcon, { backgroundColor: COLORS.primary + '15' }]}>
@@ -201,7 +235,7 @@ export default function AdminDashboard() {
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={[styles.activityDesc, { color: colors.text }]}>
-                  {tx.type || 'transaction'}
+                  {tx.type || 'Transaction'}
                 </Text>
                 <Text style={[styles.activityDate, { color: colors.textSecondary }]}>
                   {new Date(tx.createdAt).toLocaleDateString('fr-MG')}
@@ -214,9 +248,9 @@ export default function AdminDashboard() {
           ))}
           <TouchableOpacity
             style={[styles.viewAllBtn, { backgroundColor: colors.card }]}
-            onPress={() => navigation.navigate('AdminTransactions')}
+            onPress={() => navigation.navigate('AdminTransactions' as never)}
           >
-            <Text style={styles.viewAllText}>{t('view_all')}</Text>
+            <Text style={[styles.viewAllText, { color: COLORS.primary }]}>Voir tout</Text>
             <Ionicons name="arrow-forward" size={16} color={COLORS.primary} />
           </TouchableOpacity>
         </View>
@@ -324,6 +358,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  menuSection: { paddingHorizontal: 20, marginTop: 28 },
+  menuTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
+  menuGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  menuCard: {
+    width: (width - 60) / 3,
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  menuIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  menuLabel: { fontSize: 12, fontWeight: '500', textAlign: 'center' },
   section: { paddingHorizontal: 20, marginTop: 28 },
   sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
   activityRow: {
@@ -357,5 +418,5 @@ const styles = StyleSheet.create({
     marginTop: 4,
     gap: 8,
   },
-  viewAllText: { color: COLORS.primary, fontWeight: '600', fontSize: 14 },
+  viewAllText: { fontWeight: '600', fontSize: 14 },
 });
