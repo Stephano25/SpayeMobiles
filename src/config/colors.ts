@@ -114,21 +114,9 @@ export function getInitials(firstName?: string, lastName?: string): string {
 
 // ✅ AVATAR COLORS
 const AVATAR_COLORS = [
-  '#6366f1', // Indigo
-  '#8b5cf6', // Violet
-  '#10b981', // Emerald
-  '#f59e0b', // Amber
-  '#3b82f6', // Blue
-  '#ec4899', // Pink
-  '#ef4444', // Red
-  '#06b6d4', // Cyan
-  '#14b8a6', // Teal
-  '#84cc16', // Lime
-  '#f97316', // Orange
-  '#8b5cf6', // Purple
-  '#6b7280', // Gray
-  '#d946ef', // Fuchsia
-  '#0ea5e9', // Sky
+  '#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#3b82f6',
+  '#ec4899', '#ef4444', '#06b6d4', '#14b8a6', '#84cc16',
+  '#f97316', '#8b5cf6', '#6b7280', '#d946ef', '#0ea5e9',
 ];
 
 export function getAvatarColor(name: string): string {
@@ -156,4 +144,15 @@ export function formatDateTime(date: string | Date): string {
     hour: '2-digit',
     minute: '2-digit',
   })}`;
+}
+
+// ✅ TIME FORMAT - AJOUTÉ
+export function formatTime(date: string | Date): string {
+  if (!date) return '';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('fr-MG', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }

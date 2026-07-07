@@ -1,5 +1,6 @@
 // src/services/AdminService.ts
 import api from './api';
+import { Platform } from 'react-native';
 
 export interface AdminDashboardStats {
   totalUsers: number;
@@ -17,6 +18,13 @@ export interface AdminDashboardStats {
   myAdminTransactions?: number;
   myAdminVolume?: number;
   userRole?: string;
+  // ✅ Commissions
+  totalCommission?: number;
+  commissionTransactions?: number;
+  recentCommissions?: any[];
+  commissionRate?: number;
+  myCommission?: number;
+  myCommissionTransactions?: number;
 }
 
 export interface SystemSettings {
@@ -79,6 +87,31 @@ export const AdminService = {
         myAdminTransactions: 0,
         myAdminVolume: 0,
         userRole: 'admin',
+        totalCommission: 0,
+        commissionTransactions: 0,
+        recentCommissions: [],
+        commissionRate: 0.5,
+        myCommission: 0,
+        myCommissionTransactions: 0,
+      };
+    }
+  },
+
+  // ✅ NOUVEAU : Commissions
+  getCommissionStats: async (): Promise<any> => {
+    try {
+      const data = await api.get('/admin/dashboard/commissions');
+      return data;
+    } catch (error) {
+      console.error('Erreur getCommissionStats:', error);
+      return {
+        totalCommission: 0,
+        commissionTransactions: 0,
+        recentCommissions: [],
+        commissionRate: 0.5,
+        myCommission: 0,
+        myCommissionTransactions: 0,
+        userRole: 'admin',
       };
     }
   },
@@ -110,19 +143,20 @@ export const AdminService = {
     return api.delete(`/admin/users/${userId}`);
   },
 
-  // Admin Actions
+  // Admin Actions - Dépôt
   depositMoney: async (userId: string, amount: number, description?: string, qrCode?: string): Promise<any> => {
     return api.post(`/admin/users/${userId}/deposit`, { amount, description, qrCode });
   },
 
+  // Admin Actions - Retrait
   withdrawMoney: async (userId: string, amount: number, description?: string, qrCode?: string): Promise<any> => {
     return api.post(`/admin/users/${userId}/withdraw`, { amount, description, qrCode });
   },
 
-  // QR Code
+  // QR Code - Génération
   generateQRCode: async (type: 'deposit' | 'withdraw', amount?: number): Promise<any> => {
     try {
-    const response = await api.post('/admin/generate-qr', { type, amount });
+      const response = await api.post('/admin/generate-qr', { type, amount });
       return response;
     } catch (error) {
       console.error('❌ Erreur génération QR:', error);
@@ -130,6 +164,7 @@ export const AdminService = {
     }
   },
 
+  // QR Code - Scan
   scanQRCode: async (qrData: string): Promise<any> => {
     try {
       const response = await api.post('/admin/scan-qr', { qrData });
@@ -174,12 +209,14 @@ export const AdminService = {
     return api.get(`/admin/transactions/${transactionId}`);
   },
 
-  // Paramètres
+  // Paramètres - ✅ CORRIGÉ POUR RENVOYER TOUTES LES DONNÉES
   getSettings: async (): Promise<SystemSettings> => {
     try {
-      return await api.get<SystemSettings>('/admin/settings');
+      const response = await api.get<SystemSettings>('/admin/settings');
+      return response;
     } catch (error) {
       console.error('Erreur getSettings:', error);
+      // ✅ Valeurs par défaut complètes
       return {
         general: {
           siteName: 'SPaye',

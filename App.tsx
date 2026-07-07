@@ -38,6 +38,10 @@ import AdminStatsScreen from './app/(admin)/stats';
 import AdminProfileScreen from './app/(admin)/profile';
 import AdminDepositScreen from './app/(admin)/deposit';
 import AdminWithdrawScreen from './app/(admin)/withdraw';
+import AdminWalletScreen from './app/(admin)/wallet';
+import AdminChatScreen from './app/(admin)/chat';
+import AdminFriendsScreen from './app/(admin)/friends';
+import AdminMobileMoneyScreen from './app/(admin)/mobile-money';
 
 const Stack = createNativeStackNavigator();
 
@@ -120,6 +124,11 @@ function RootNavigator() {
         <Stack.Screen name="AdminProfile" component={AdminProfileScreen} />
         <Stack.Screen name="AdminDeposit" component={AdminDepositScreen} />
         <Stack.Screen name="AdminWithdraw" component={AdminWithdrawScreen} />
+        <Stack.Screen name="AdminWallet" component={AdminWalletScreen} />
+        <Stack.Screen name="AdminChat" component={AdminChatScreen} />
+        <Stack.Screen name="AdminFriends" component={AdminFriendsScreen} />
+        <Stack.Screen name="AdminMobileMoney" component={AdminMobileMoneyScreen} />
+
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -7,19 +7,45 @@ export interface Message {
   id: string;
   senderId: string;
   receiverId: string;
-  content: string;
-  type: 'text' | 'image' | 'file' | 'emoji';
-  createdAt: string;
-  read: boolean;
-  reactions?: Record<string, string[]>;
+  content?: string;
+  type: 'text' | 'image' | 'file' | 'emoji' | 'money' | 'audio' | 'video';
+  createdAt: Date | string;
+  isRead: boolean;
+  isDelivered: boolean;
+  isEdited?: boolean;
+  isDeleted?: boolean;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  emoji?: string;
+  moneyTransfer?: {
+    amount: number;
+    status: 'pending' | 'completed' | 'failed';
+    transactionId?: string;
+    failReason?: string;
+  };
+  reactions?: { userId: string; emoji: string }[];
+  sender?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    profilePicture?: string;
+  };
 }
 
 export interface Conversation {
-  id: string;
-  participants: string[];
-  lastMessage?: Message;
+  userId: string;
+  firstName: string;
+  lastName: string;
+  profilePicture?: string;
+  lastMessage?: {
+    content: string;
+    type: string;
+    createdAt: Date;
+  };
+  lastMessageTime: Date;
   unreadCount: number;
-  updatedAt: string;
+  isOnline?: boolean;
 }
 
 let socket: Socket | null = null;

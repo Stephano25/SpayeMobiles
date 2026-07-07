@@ -1,5 +1,5 @@
 // app/(admin)/index.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  Platform,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -22,6 +24,7 @@ import { AdminService } from '../../src/services/AdminService';
 import { useAuth } from '../../src/context/AuthContext';
 import { COLORS, formatAmount } from '../../src/config/colors';
 import * as Clipboard from 'expo-clipboard';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 
 const { width } = Dimensions.get('window');
 
@@ -86,7 +89,7 @@ export default function AdminDashboard() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const headerOpacity = useRef(new Animated.Value(0)).current;
 
-  // États pour QR Code
+  // États pour QR Code - Génération
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
   const [qrCodeData, setQrCodeData] = useState<string>('');
@@ -94,19 +97,58 @@ export default function AdminDashboard() {
   const [generatingQR, setGeneratingQR] = useState(false);
   const [qrExpiresAt, setQrExpiresAt] = useState<string>('');
 
+  // États pour Scanner QR - Admin peut scanner aussi !
+  const [showScanner, setShowScanner] = useState(false);
+  const [scannerType, setScannerType] = useState<'deposit' | 'withdraw'>('deposit');
+  const [scanned, setScanned] = useState(false);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [isWeb, setIsWeb] = useState(false);
+  const [scannedData, setScannedData] = useState<any>(null);
+  const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [processing, setProcessing] = useState(false);
+
   useEffect(() => {
     const user = getCurrentUser();
     setIsSuperAdmin(user?.role === 'super_admin');
+    setIsWeb(Platform.OS === 'web');
+    if (Platform.OS !== 'web') {
+      checkCameraPermission();
+    } else {
+      setHasPermission(true);
+    }
   }, []);
 
   const load = async () => {
     try {
       const data = await AdminService.getDashboardStats();
       setStats(data);
+      // Charger les commissions
+      await loadCommissions();
     } catch (error) {
       showError('Erreur chargement du tableau de bord');
     }
   };
+
+  // ✅ Chargement des commissions
+  const loadCommissions = useCallback(async () => {
+    try {
+      const data = await AdminService.getCommissionStats();
+      setStats(prev => ({
+        ...prev,
+        totalCommission: data.totalCommission || 0,
+        commissionTransactions: data.commissionTransactions || 0,
+        recentCommissions: data.recentCommissions || [],
+        commissionRate: data.commissionRate || 0.5,
+        myCommission: data.myCommission || 0,
+        myCommissionTransactions: data.myCommissionTransactions || 0,
+      }));
+    } catch (error) {
+      console.error('Erreur chargement commissions:', error);
+    }
+  }, []);
 
   useEffect(() => {
     load();
@@ -121,6 +163,16 @@ export default function AdminDashboard() {
     setRefreshing(true);
     await load();
     setRefreshing(false);
+  };
+
+  // ✅ Vérification permission caméra
+  const checkCameraPermission = async () => {
+    if (cameraPermission?.status === 'granted') {
+      setHasPermission(true);
+    } else {
+      const { status } = await requestCameraPermission();
+      setHasPermission(status === 'granted');
+    }
   };
 
   // ✅ Génération de QR Code
@@ -148,6 +200,132 @@ export default function AdminDashboard() {
     }
   };
 
+  // ✅ Ouvrir le scanner
+  const openScanner = (type: 'deposit' | 'withdraw') => {
+    if (isWeb) {
+      showError('Le scanner n\'est pas disponible sur le web');
+      return;
+    }
+    setScannerType(type);
+    setScanned(false);
+    setShowScanner(true);
+    setScannedData(null);
+    setShowTransactionForm(false);
+    setAmount('');
+    setDescription('');
+  };
+
+  // ✅ Traitement du QR Code scanné
+  const handleBarCodeScanned = ({ data }: { data: string }) => {
+    if (scanned || processing) return;
+    setScanned(true);
+
+    try {
+      console.log('📱 QR Code scanné par Admin:', data);
+      
+      let parsedData;
+      try {
+        parsedData = JSON.parse(data);
+      } catch {
+        parsedData = { qrCode: data, type: 'simple' };
+      }
+
+      setScannedData(parsedData);
+
+      if (parsedData.type === 'admin_transaction' || parsedData.action) {
+        const action = parsedData.action || scannerType;
+        Alert.alert(
+          action === 'deposit' ? '💰 Dépôt' : '💸 Retrait',
+          `QR Code ${action === 'deposit' ? 'de dépôt' : 'de retrait'} détecté\n\n` +
+          `Utilisateur: ${parsedData.userName || parsedData.adminName || 'Non spécifié'}`,
+          [
+            { 
+              text: 'Annuler', 
+              style: 'cancel',
+              onPress: () => {
+                setScanned(false);
+                setShowScanner(false);
+              }
+            },
+            {
+              text: 'Continuer',
+              onPress: () => {
+                setShowScanner(false);
+                setShowTransactionForm(true);
+                if (parsedData.amount) {
+                  setAmount(String(parsedData.amount));
+                }
+                if (parsedData.userId) {
+                  // Stocker l'userId pour la transaction
+                  setScannedData({ ...parsedData, userId: parsedData.userId });
+                }
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'QR Code scanné',
+          `Données: ${data.substring(0, 50)}...`,
+          [
+            { 
+              text: 'Fermer', 
+              onPress: () => {
+                setScanned(false);
+                setShowScanner(false);
+              }
+            }
+          ]
+        );
+        setShowScanner(false);
+      }
+    } catch (error) {
+      console.error('Erreur traitement QR:', error);
+      showError('QR Code invalide');
+      setScanned(false);
+      setShowScanner(false);
+    }
+  };
+
+  // ✅ Traitement de la transaction (Dépôt/Retrait Admin)
+  const handleTransaction = async () => {
+    const amountNum = parseFloat(amount);
+    if (!amountNum || amountNum < 100) {
+      showError('Montant minimum: 100 Ar');
+      return;
+    }
+
+    const userId = scannedData?.userId;
+    if (!userId) {
+      showError('ID utilisateur non trouvé');
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const action = scannedData?.action || scannerType;
+      const qrData = scannedData?.qrCode || JSON.stringify(scannedData);
+
+      if (action === 'deposit') {
+        await AdminService.depositMoney(userId, amountNum, description || 'Dépôt via QR Code Admin', qrData);
+        showSuccess(`Dépôt de ${formatAmount(amountNum)} Ar effectué`);
+      } else {
+        await AdminService.withdrawMoney(userId, amountNum, description || 'Retrait via QR Code Admin', qrData);
+        showSuccess(`Retrait de ${formatAmount(amountNum)} Ar effectué`);
+      }
+
+      setShowTransactionForm(false);
+      setScannedData(null);
+      setAmount('');
+      setDescription('');
+      load();
+    } catch (error: any) {
+      showError(error?.message || 'Erreur lors de la transaction');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const copyQRCode = async () => {
     try {
       await Clipboard.setStringAsync(qrCodeData);
@@ -159,7 +337,6 @@ export default function AdminDashboard() {
 
   const shareQRCode = async () => {
     try {
-      // Implémentation de partage
       showSuccess('QR Code partagé');
     } catch {
       showError('Erreur lors du partage');
@@ -198,15 +375,19 @@ export default function AdminDashboard() {
   ];
 
   const menuItems = [
-    { icon: 'person', label: 'Mon Profil', route: 'AdminProfile' },
+    { icon: 'wallet-outline', label: 'Portefeuille', route: 'AdminWallet' },
     { icon: 'people', label: 'Utilisateurs', route: 'AdminUsers' },
+    { icon: 'people-outline', label: 'Amis', route: 'AdminFriends' },
+    { icon: 'chatbubble-outline', label: 'Messages', route: 'AdminChat' },
     { icon: 'receipt', label: 'Transactions', route: 'AdminTransactions' },
+    { icon: 'phone-portrait-outline', label: 'Mobile Money', route: 'AdminMobileMoney' },
     { icon: 'bar-chart', label: 'Statistiques', route: 'AdminStats' },
+    { icon: 'person', label: 'Mon Profil', route: 'AdminProfile' },
     { icon: 'settings', label: 'Paramètres', route: 'AdminSettings' },
   ];
 
   if (isSuperAdmin) {
-    menuItems.push({ icon: 'shield', label: 'Administrateurs', route: 'AdminAdmins' });
+    menuItems.splice(2, 0, { icon: 'shield', label: 'Administrateurs', route: 'AdminAdmins' });
   }
 
   return (
@@ -260,7 +441,7 @@ export default function AdminDashboard() {
         ))}
       </View>
 
-      {/* ✅ Actions Admin - Génération QR Code */}
+      {/* ✅ Actions Admin - Génération QR Code + Scanner */}
       <View style={styles.actionsContainer}>
         <Text style={[styles.actionsTitle, { color: colors.text }]}>Opérations rapides</Text>
         <View style={styles.actionsRow}>
@@ -286,7 +467,95 @@ export default function AdminDashboard() {
             <Text style={[styles.actionSub, { color: colors.textSecondary }]}>Retrait</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ✅ Scanner QR pour Admin */}
+        <View style={styles.scannerRow}>
+          <TouchableOpacity
+            style={[styles.scannerCard, { backgroundColor: colors.card }]}
+            onPress={() => openScanner('deposit')}
+          >
+            <View style={[styles.scannerIcon, { backgroundColor: COLORS.success + '18' }]}>
+              <Ionicons name="scan" size={28} color={COLORS.success} />
+            </View>
+            <Text style={[styles.scannerLabel, { color: colors.text }]}>Scanner Dépôt</Text>
+            <Text style={[styles.scannerSub, { color: colors.textSecondary }]}>Scanner QR pour dépôt</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.scannerCard, { backgroundColor: colors.card }]}
+            onPress={() => openScanner('withdraw')}
+          >
+            <View style={[styles.scannerIcon, { backgroundColor: COLORS.error + '18' }]}>
+              <Ionicons name="scan" size={28} color={COLORS.error} />
+            </View>
+            <Text style={[styles.scannerLabel, { color: colors.text }]}>Scanner Retrait</Text>
+            <Text style={[styles.scannerSub, { color: colors.textSecondary }]}>Scanner QR pour retrait</Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* ✅ COMMISSIONS - ADMIN */}
+      {stats && (isSuperAdmin) && (
+        <View style={styles.commissionSection}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="receipt-long" size={20} color={COLORS.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Commissions perçues
+            </Text>
+            <Text style={[styles.sectionSub, { color: colors.textSecondary }]}>
+              Taux: {stats.commissionRate || 0.5}%
+            </Text>
+          </View>
+
+          <View style={styles.commissionGrid}>
+            <View style={[styles.commissionCard, { backgroundColor: colors.card }]}>
+              <Ionicons name="cash" size={24} color={COLORS.success} />
+              <Text style={[styles.commissionValue, { color: colors.text }]}>
+                {formatAmount(stats.totalCommission || 0)} Ar
+              </Text>
+              <Text style={[styles.commissionLabel, { color: colors.textSecondary }]}>
+                Total commissions
+              </Text>
+            </View>
+
+            <View style={[styles.commissionCard, { backgroundColor: colors.card }]}>
+              <Ionicons name="receipt" size={24} color={COLORS.primary} />
+              <Text style={[styles.commissionValue, { color: colors.text }]}>
+                {stats.commissionTransactions || 0}
+              </Text>
+              <Text style={[styles.commissionLabel, { color: colors.textSecondary }]}>
+                Transactions avec commission
+              </Text>
+            </View>
+          </View>
+
+          {stats.recentCommissions && stats.recentCommissions.length > 0 && (
+            <View style={[styles.recentCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.recentTitle, { color: colors.text }]}>
+                <Ionicons name="history" size={16} color={COLORS.primary} /> Dernières commissions
+              </Text>
+              {stats.recentCommissions.slice(0, 3).map((c: any) => (
+                <View key={c.id} style={styles.commissionItem}>
+                  <View style={styles.commissionItemIcon}>
+                    <Ionicons name="payments" size={16} color={COLORS.success} />
+                  </View>
+                  <View style={styles.commissionItemInfo}>
+                    <Text style={[styles.commissionItemName, { color: colors.text }]}>
+                      {c.userName || 'Utilisateur'}
+                    </Text>
+                    <Text style={[styles.commissionItemSub, { color: colors.textSecondary }]}>
+                      Commission: {formatAmount(c.commission)} Ar sur {formatAmount(c.amount)} Ar
+                    </Text>
+                  </View>
+                  <Text style={[styles.commissionItemDate, { color: colors.textSecondary }]}>
+                    {new Date(c.createdAt).toLocaleDateString('fr-MG')}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Menu Grid */}
       <View style={styles.menuSection}>
@@ -340,7 +609,7 @@ export default function AdminDashboard() {
         </View>
       )}
 
-      {/* ✅ Modal QR Code */}
+      {/* ✅ Modal QR Code - Génération */}
       <Modal
         visible={showQRModal}
         transparent
@@ -391,6 +660,151 @@ export default function AdminDashboard() {
                 </View>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ✅ Modal Scanner */}
+      <Modal
+        visible={showScanner}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowScanner(false);
+          setScanned(false);
+        }}
+      >
+        <View style={styles.scannerContainer}>
+          <View style={[styles.scannerHeader, { backgroundColor: COLORS.primary }]}>
+            <TouchableOpacity onPress={() => {
+              setShowScanner(false);
+              setScanned(false);
+            }}>
+              <Ionicons name="close" size={28} color={COLORS.white} />
+            </TouchableOpacity>
+            <Text style={styles.scannerTitle}>
+              {scannerType === 'deposit' ? 'Scanner Dépôt' : 'Scanner Retrait'}
+            </Text>
+            <View style={{ width: 28 }} />
+          </View>
+
+          <View style={styles.scannerWrapper}>
+            {hasPermission ? (
+              <CameraView
+                style={StyleSheet.absoluteFillObject}
+                facing="back"
+                onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                barcodeScannerSettings={{
+                  barcodeTypes: ['qr'],
+                }}
+              />
+            ) : (
+              <View style={styles.scannerPermissionView}>
+                <Ionicons name="camera-outline" size={64} color={COLORS.gray400} />
+                <Text style={styles.scannerPermissionText}>
+                  Permission caméra requise pour scanner
+                </Text>
+                <TouchableOpacity 
+                  style={styles.scannerPermissionBtn}
+                  onPress={checkCameraPermission}
+                >
+                  <Text style={styles.scannerPermissionBtnText}>Autoriser</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            
+            <View style={styles.scanFrame}>
+              <View style={[styles.scanCorner, styles.scanCornerTL]} />
+              <View style={[styles.scanCorner, styles.scanCornerTR]} />
+              <View style={[styles.scanCorner, styles.scanCornerBL]} />
+              <View style={[styles.scanCorner, styles.scanCornerBR]} />
+              <View style={styles.scanLine} />
+            </View>
+          </View>
+
+          <Text style={styles.scannerHint}>
+            {scannerType === 'deposit' ? 'Scannez le QR Code de dépôt' : 'Scannez le QR Code de retrait'}
+          </Text>
+        </View>
+      </Modal>
+
+      {/* ✅ Modal Formulaire Transaction */}
+      <Modal
+        visible={showTransactionForm}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowTransactionForm(false);
+          setScannedData(null);
+          setAmount('');
+          setDescription('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                {scannerType === 'deposit' ? '💰 Dépôt' : '💸 Retrait'}
+              </Text>
+              <TouchableOpacity onPress={() => {
+                setShowTransactionForm(false);
+                setScannedData(null);
+                setAmount('');
+                setDescription('');
+              }}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {scannedData?.userName && (
+              <Text style={[styles.userInfoText, { color: colors.text }]}>
+                Utilisateur: {scannedData.userName}
+              </Text>
+            )}
+
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+              placeholder="Montant (Ar)"
+              placeholderTextColor={COLORS.gray400}
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="numeric"
+            />
+
+            <TextInput
+              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
+              placeholder="Description (optionnelle)"
+              placeholderTextColor={COLORS.gray400}
+              value={description}
+              onChangeText={setDescription}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnCancel]}
+                onPress={() => {
+                  setShowTransactionForm(false);
+                  setScannedData(null);
+                  setAmount('');
+                  setDescription('');
+                }}
+              >
+                <Text style={styles.modalBtnCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.modalBtnConfirm]}
+                onPress={handleTransaction}
+                disabled={processing || !amount || parseFloat(amount) < 100}
+              >
+                {processing ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Text style={styles.modalBtnConfirmText}>
+                    {scannerType === 'deposit' ? 'Déposer' : 'Retirer'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -509,6 +923,7 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: 'row',
     gap: 14,
+    marginBottom: 12,
   },
   actionCard: {
     flex: 1,
@@ -537,6 +952,55 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
+  scannerRow: {
+    flexDirection: 'row',
+    gap: 14,
+  },
+  scannerCard: {
+    flex: 1,
+    padding: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  scannerIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  scannerLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  scannerSub: {
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  // ✅ Section Commissions
+  commissionSection: { marginTop: 16, paddingHorizontal: 20 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', flex: 1 },
+  sectionSub: { fontSize: 12, marginLeft: 'auto' },
+  commissionGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  commissionCard: { flex: 1, padding: 16, borderRadius: 16, alignItems: 'center' },
+  commissionValue: { fontSize: 20, fontWeight: 'bold', marginTop: 4 },
+  commissionLabel: { fontSize: 11, marginTop: 2 },
+  recentCard: { padding: 16, borderRadius: 16 },
+  recentTitle: { fontSize: 14, fontWeight: '600', marginBottom: 12 },
+  commissionItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: COLORS.gray100 },
+  commissionItemIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.successLight, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  commissionItemInfo: { flex: 1 },
+  commissionItemName: { fontSize: 13, fontWeight: '500' },
+  commissionItemSub: { fontSize: 11 },
+  commissionItemDate: { fontSize: 11 },
+  // Menu
   menuSection: { paddingHorizontal: 20, marginTop: 28 },
   menuTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
   menuGrid: {
@@ -625,4 +1089,120 @@ const styles = StyleSheet.create({
   qrActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   qrActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, gap: 8 },
   qrActionText: { color: COLORS.white, fontWeight: 'bold', fontSize: 14 },
+  // Scanner styles
+  scannerContainer: { flex: 1, backgroundColor: '#000' },
+  scannerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+  },
+  scannerTitle: { color: COLORS.white, fontSize: 18, fontWeight: 'bold' },
+  scannerWrapper: { flex: 1, position: 'relative' },
+  scannerPermissionView: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1a1a2e',
+    padding: 20,
+  },
+  scannerPermissionText: {
+    color: COLORS.white,
+    fontSize: 16,
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  scannerPermissionBtn: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  scannerPermissionBtnText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  scanFrame: {
+    position: 'absolute',
+    top: '20%',
+    left: '10%',
+    right: '10%',
+    bottom: '20%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanCorner: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderColor: COLORS.white,
+    borderWidth: 3,
+  },
+  scanCornerTL: {
+    top: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+    borderRadius: 4,
+  },
+  scanCornerTR: {
+    top: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+    borderRadius: 4,
+  },
+  scanCornerBL: {
+    bottom: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderTopWidth: 0,
+    borderRadius: 4,
+  },
+  scanCornerBR: {
+    bottom: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
+    borderRadius: 4,
+  },
+  scanLine: {
+    position: 'absolute',
+    top: '50%',
+    left: '10%',
+    right: '10%',
+    height: 3,
+    backgroundColor: 'rgba(99,102,241,0.6)',
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  scannerHint: {
+    color: 'rgba(255,255,255,0.7)',
+    textAlign: 'center',
+    fontSize: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  userInfoText: { fontSize: 14, textAlign: 'center', marginBottom: 12 },
+  input: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  modalBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },
+  modalBtnCancel: { backgroundColor: COLORS.gray100 },
+  modalBtnCancelText: { color: COLORS.gray600, fontWeight: '600' },
+  modalBtnConfirm: { backgroundColor: COLORS.primary },
+  modalBtnConfirmText: { color: COLORS.white, fontWeight: 'bold' },
 });
