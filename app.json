@@ -28,28 +28,6 @@
     "web": {
       "favicon": "./assets/image02.png"
     },
-    "plugins": [
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "SPaye a besoin d'accéder à la caméra pour scanner les QR codes."
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "SPaye a besoin d'accéder à votre galerie pour partager des images."
-        }
-      ],
-      [
-        "expo-av",
-        {
-          "microphonePermission": "SPaye a besoin d'accéder au microphone pour les messages vocaux."
-        }
-      ],
-      "expo-sharing",
-      "expo-web-browser"
-    ],
     "scheme": "spaye"
   }
 }

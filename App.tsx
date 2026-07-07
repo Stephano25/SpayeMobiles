@@ -1,7 +1,7 @@
 // App.tsx
 import 'react-native-gesture-handler';
 import React, { useEffect } from 'react';
-import { View } from 'react-native';
+import { View, Platform, LogBox } from 'react-native';
 import * as Linking from 'expo-linking';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -14,7 +14,19 @@ import { NotificationProvider } from './src/context/NotificationContext';
 import { COLORS } from './src/config/colors';
 import { detectBackendIP } from './src/config/api';
 
-// ✅ Import des écrans directement (sans layouts)
+// ✅ Importer les polyfills
+import './src/polyfills';
+
+// ✅ Ignorer les warnings
+LogBox.ignoreLogs([
+  'TurboModuleRegistry.getEnforcing',
+  'Require cycle:',
+  'ViewPropTypes will be removed',
+  'VirtualizedList',
+  'node:sea',
+]);
+
+// ✅ Import des écrans
 import LoginScreen from './app/(auth)/login';
 import RegisterScreen from './app/(auth)/register';
 import UserHome from './app/(user)/UserHome';
@@ -128,7 +140,6 @@ function RootNavigator() {
         <Stack.Screen name="AdminChat" component={AdminChatScreen} />
         <Stack.Screen name="AdminFriends" component={AdminFriendsScreen} />
         <Stack.Screen name="AdminMobileMoney" component={AdminMobileMoneyScreen} />
-
       </Stack.Navigator>
     </NavigationContainer>
   );

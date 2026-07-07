@@ -24,7 +24,7 @@ import { AdminService } from '../../src/services/AdminService';
 import { useAuth } from '../../src/context/AuthContext';
 import { COLORS, formatAmount } from '../../src/config/colors';
 import * as Clipboard from 'expo-clipboard';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { QRScanner } from '../../src/components/QRScanner';
 
 const { width } = Dimensions.get('window');
 
@@ -97,35 +97,26 @@ export default function AdminDashboard() {
   const [generatingQR, setGeneratingQR] = useState(false);
   const [qrExpiresAt, setQrExpiresAt] = useState<string>('');
 
-  // États pour Scanner QR - Admin peut scanner aussi !
+  // États pour Scanner QR - Utilise QRScanner
   const [showScanner, setShowScanner] = useState(false);
   const [scannerType, setScannerType] = useState<'deposit' | 'withdraw'>('deposit');
-  const [scanned, setScanned] = useState(false);
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [isWeb, setIsWeb] = useState(false);
   const [scannedData, setScannedData] = useState<any>(null);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [isWeb, setIsWeb] = useState(false);
 
   useEffect(() => {
     const user = getCurrentUser();
     setIsSuperAdmin(user?.role === 'super_admin');
     setIsWeb(Platform.OS === 'web');
-    if (Platform.OS !== 'web') {
-      checkCameraPermission();
-    } else {
-      setHasPermission(true);
-    }
   }, []);
 
   const load = async () => {
     try {
       const data = await AdminService.getDashboardStats();
       setStats(data);
-      // Charger les commissions
       await loadCommissions();
     } catch (error) {
       showError('Erreur chargement du tableau de bord');
@@ -165,16 +156,6 @@ export default function AdminDashboard() {
     setRefreshing(false);
   };
 
-  // ✅ Vérification permission caméra
-  const checkCameraPermission = async () => {
-    if (cameraPermission?.status === 'granted') {
-      setHasPermission(true);
-    } else {
-      const { status } = await requestCameraPermission();
-      setHasPermission(status === 'granted');
-    }
-  };
-
   // ✅ Génération de QR Code
   const generateQRCode = async (type: 'deposit' | 'withdraw') => {
     setQrAction(type);
@@ -202,24 +183,18 @@ export default function AdminDashboard() {
 
   // ✅ Ouvrir le scanner
   const openScanner = (type: 'deposit' | 'withdraw') => {
-    if (isWeb) {
-      showError('Le scanner n\'est pas disponible sur le web');
-      return;
-    }
     setScannerType(type);
-    setScanned(false);
-    setShowScanner(true);
     setScannedData(null);
     setShowTransactionForm(false);
     setAmount('');
     setDescription('');
+    setShowScanner(true);
   };
 
   // ✅ Traitement du QR Code scanné
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
-    if (scanned || processing) return;
-    setScanned(true);
-
+  const handleScanResult = (data: string) => {
+    setShowScanner(false);
+    
     try {
       console.log('📱 QR Code scanné par Admin:', data);
       
@@ -243,20 +218,17 @@ export default function AdminDashboard() {
               text: 'Annuler', 
               style: 'cancel',
               onPress: () => {
-                setScanned(false);
-                setShowScanner(false);
+                setScannedData(null);
               }
             },
             {
               text: 'Continuer',
               onPress: () => {
-                setShowScanner(false);
                 setShowTransactionForm(true);
                 if (parsedData.amount) {
                   setAmount(String(parsedData.amount));
                 }
                 if (parsedData.userId) {
-                  // Stocker l'userId pour la transaction
                   setScannedData({ ...parsedData, userId: parsedData.userId });
                 }
               }
@@ -271,19 +243,16 @@ export default function AdminDashboard() {
             { 
               text: 'Fermer', 
               onPress: () => {
-                setScanned(false);
-                setShowScanner(false);
+                setScannedData(null);
               }
             }
           ]
         );
-        setShowScanner(false);
       }
     } catch (error) {
       console.error('Erreur traitement QR:', error);
       showError('QR Code invalide');
-      setScanned(false);
-      setShowScanner(false);
+      setScannedData(null);
     }
   };
 
@@ -477,8 +446,12 @@ export default function AdminDashboard() {
             <View style={[styles.scannerIcon, { backgroundColor: COLORS.success + '18' }]}>
               <Ionicons name="scan" size={28} color={COLORS.success} />
             </View>
-            <Text style={[styles.scannerLabel, { color: colors.text }]}>Scanner Dépôt</Text>
-            <Text style={[styles.scannerSub, { color: colors.textSecondary }]}>Scanner QR pour dépôt</Text>
+            <Text style={[styles.scannerLabel, { color: colors.text }]}>
+              {isWeb ? 'Simuler Dépôt' : 'Scanner Dépôt'}
+            </Text>
+            <Text style={[styles.scannerSub, { color: colors.textSecondary }]}>
+              {isWeb ? 'Simuler QR pour dépôt' : 'Scanner QR pour dépôt'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -488,14 +461,18 @@ export default function AdminDashboard() {
             <View style={[styles.scannerIcon, { backgroundColor: COLORS.error + '18' }]}>
               <Ionicons name="scan" size={28} color={COLORS.error} />
             </View>
-            <Text style={[styles.scannerLabel, { color: colors.text }]}>Scanner Retrait</Text>
-            <Text style={[styles.scannerSub, { color: colors.textSecondary }]}>Scanner QR pour retrait</Text>
+            <Text style={[styles.scannerLabel, { color: colors.text }]}>
+              {isWeb ? 'Simuler Retrait' : 'Scanner Retrait'}
+            </Text>
+            <Text style={[styles.scannerSub, { color: colors.textSecondary }]}>
+              {isWeb ? 'Simuler QR pour retrait' : 'Scanner QR pour retrait'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* ✅ COMMISSIONS - ADMIN */}
-      {stats && (isSuperAdmin) && (
+      {/* ✅ COMMISSIONS - SUPER ADMIN */}
+      {stats && isSuperAdmin && (
         <View style={styles.commissionSection}>
           <View style={styles.sectionHeader}>
             <Ionicons name="receipt-long" size={20} color={COLORS.primary} />
@@ -664,68 +641,25 @@ export default function AdminDashboard() {
         </View>
       </Modal>
 
-      {/* ✅ Modal Scanner */}
+      {/* ✅ Modal Scanner - Utilise QRScanner */}
       <Modal
         visible={showScanner}
         transparent
         animationType="slide"
         onRequestClose={() => {
           setShowScanner(false);
-          setScanned(false);
         }}
       >
-        <View style={styles.scannerContainer}>
-          <View style={[styles.scannerHeader, { backgroundColor: COLORS.primary }]}>
-            <TouchableOpacity onPress={() => {
-              setShowScanner(false);
-              setScanned(false);
-            }}>
-              <Ionicons name="close" size={28} color={COLORS.white} />
-            </TouchableOpacity>
-            <Text style={styles.scannerTitle}>
-              {scannerType === 'deposit' ? 'Scanner Dépôt' : 'Scanner Retrait'}
-            </Text>
-            <View style={{ width: 28 }} />
-          </View>
-
-          <View style={styles.scannerWrapper}>
-            {hasPermission ? (
-              <CameraView
-                style={StyleSheet.absoluteFillObject}
-                facing="back"
-                onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-                barcodeScannerSettings={{
-                  barcodeTypes: ['qr'],
-                }}
-              />
-            ) : (
-              <View style={styles.scannerPermissionView}>
-                <Ionicons name="camera-outline" size={64} color={COLORS.gray400} />
-                <Text style={styles.scannerPermissionText}>
-                  Permission caméra requise pour scanner
-                </Text>
-                <TouchableOpacity 
-                  style={styles.scannerPermissionBtn}
-                  onPress={checkCameraPermission}
-                >
-                  <Text style={styles.scannerPermissionBtnText}>Autoriser</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-            
-            <View style={styles.scanFrame}>
-              <View style={[styles.scanCorner, styles.scanCornerTL]} />
-              <View style={[styles.scanCorner, styles.scanCornerTR]} />
-              <View style={[styles.scanCorner, styles.scanCornerBL]} />
-              <View style={[styles.scanCorner, styles.scanCornerBR]} />
-              <View style={styles.scanLine} />
-            </View>
-          </View>
-
-          <Text style={styles.scannerHint}>
-            {scannerType === 'deposit' ? 'Scannez le QR Code de dépôt' : 'Scannez le QR Code de retrait'}
-          </Text>
-        </View>
+        <QRScanner
+          onScan={(data) => {
+            handleScanResult(data);
+          }}
+          onClose={() => {
+            setShowScanner(false);
+          }}
+          title={scannerType === 'deposit' ? 'Scanner Dépôt' : 'Scanner Retrait'}
+          scannerType={scannerType}
+        />
       </Modal>
 
       {/* ✅ Modal Formulaire Transaction */}
@@ -983,7 +917,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
   },
-  // ✅ Section Commissions
   commissionSection: { marginTop: 16, paddingHorizontal: 20 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', flex: 1 },
@@ -1000,7 +933,6 @@ const styles = StyleSheet.create({
   commissionItemName: { fontSize: 13, fontWeight: '500' },
   commissionItemSub: { fontSize: 11 },
   commissionItemDate: { fontSize: 11 },
-  // Menu
   menuSection: { paddingHorizontal: 20, marginTop: 28 },
   menuTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
   menuGrid: {
@@ -1089,108 +1021,6 @@ const styles = StyleSheet.create({
   qrActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   qrActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, gap: 8 },
   qrActionText: { color: COLORS.white, fontWeight: 'bold', fontSize: 14 },
-  // Scanner styles
-  scannerContainer: { flex: 1, backgroundColor: '#000' },
-  scannerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  scannerTitle: { color: COLORS.white, fontSize: 18, fontWeight: 'bold' },
-  scannerWrapper: { flex: 1, position: 'relative' },
-  scannerPermissionView: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1a1a2e',
-    padding: 20,
-  },
-  scannerPermissionText: {
-    color: COLORS.white,
-    fontSize: 16,
-    marginTop: 12,
-    textAlign: 'center',
-  },
-  scannerPermissionBtn: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  scannerPermissionBtnText: {
-    color: COLORS.white,
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  scanFrame: {
-    position: 'absolute',
-    top: '20%',
-    left: '10%',
-    right: '10%',
-    bottom: '20%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scanCorner: {
-    position: 'absolute',
-    width: 24,
-    height: 24,
-    borderColor: COLORS.white,
-    borderWidth: 3,
-  },
-  scanCornerTL: {
-    top: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
-    borderRadius: 4,
-  },
-  scanCornerTR: {
-    top: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
-    borderRadius: 4,
-  },
-  scanCornerBL: {
-    bottom: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-    borderRadius: 4,
-  },
-  scanCornerBR: {
-    bottom: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    borderRadius: 4,
-  },
-  scanLine: {
-    position: 'absolute',
-    top: '50%',
-    left: '10%',
-    right: '10%',
-    height: 3,
-    backgroundColor: 'rgba(99,102,241,0.6)',
-    shadowColor: '#6366f1',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  scannerHint: {
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-    fontSize: 14,
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
   userInfoText: { fontSize: 14, textAlign: 'center', marginBottom: 12 },
   input: {
     borderWidth: 1,
