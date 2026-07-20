@@ -1,70 +1,56 @@
 // src/services/WalletService.ts
-// ─────────────────────────────────────────────────────────────
-//  SPAYE — Wallet Service
-//  ✅ Correction : utilisation de apiGet, apiPost, etc.
-// ─────────────────────────────────────────────────────────────
-
-import { apiGet, apiPost, apiPut, apiDelete } from './api';
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api';
 
 export interface Wallet {
+  id: string;
+  userId: string;
   balance: number;
-  currency?: string;
-  userId?: string;
-  qrCode?: string;
-  dailyLimit?: number;
-  monthlyLimit?: number;
-  isActive?: boolean;
-  totalSent?: number;
-  totalReceived?: number;
-  totalTransactions?: number;
-  totalFees?: number;
-  remainingDailyLimit?: number;
-  remainingMonthlyLimit?: number;
-  recentTransactions?: any[];
+  totalReceived: number;
+  totalSent: number;
+  totalFees: number;
+  pendingBalance: number;
+  currency: string;
+  dailyLimit: number;
+  monthlyLimit: number;
+  todaySpent: number;
+  monthSpent: number;
+  isActive: boolean;
+  qrCode: string;
+  settings: {
+    autoSave: boolean;
+    notificationThreshold: number;
+  };
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const WalletService = {
+  // ============================================================
+  // WALLET
+  // ============================================================
   getWallet: async (): Promise<Wallet> => {
     try {
-      const response = await apiGet('/wallet');
-      return response || { balance: 0 };
+      const data = await apiGet('/wallet');
+      return data;
     } catch (error) {
       console.error('❌ Erreur getWallet:', error);
-      return { balance: 0 };
+      throw error;
     }
   },
 
-  getBalance: async (): Promise<{ balance: number; currency?: string }> => {
+  getBalance: async (): Promise<{ balance: number; currency: string }> => {
     try {
-      const response = await apiGet('/wallet/balance');
-      return response || { balance: 0 };
+      const data = await apiGet('/wallet/balance');
+      return data;
     } catch (error) {
       console.error('❌ Erreur getBalance:', error);
-      return { balance: 0 };
+      return { balance: 0, currency: 'Ar' };
     }
   },
 
-  generateReceiveQRCode: async (amount?: number): Promise<any> => {
-    try {
-      const body = amount ? { amount } : {};
-      const response = await apiPost('/wallet/generate-qr', body);
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur generateReceiveQRCode:', error);
-      throw error;
-    }
-  },
-
-  scanQRCode: async (qrData: string): Promise<any> => {
-    try {
-      const response = await apiPost('/wallet/scan-qr', { qrData });
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur scanQRCode:', error);
-      throw error;
-    }
-  },
-
+  // ============================================================
+  // TRANSACTIONS
+  // ============================================================
   sendMoney: async (data: { receiverId: string; amount: number; description?: string }): Promise<any> => {
     try {
       const response = await apiPost('/wallet/send-money', data);
@@ -73,10 +59,6 @@ export const WalletService = {
       console.error('❌ Erreur sendMoney:', error);
       throw error;
     }
-  },
-
-  transferMoney: async (data: { receiverId: string; amount: number; description?: string }): Promise<any> => {
-    return WalletService.sendMoney(data);
   },
 
   deposit: async (amount: number, paymentMethod: string = 'bank_card'): Promise<any> => {
@@ -99,9 +81,32 @@ export const WalletService = {
     }
   },
 
+  // ============================================================
+  // QR CODE
+  // ============================================================
+  generateQRCode: async (amount?: number): Promise<any> => {
+    try {
+      const response = await apiPost('/wallet/generate-qr', { amount });
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur generateQRCode:', error);
+      throw error;
+    }
+  },
+
+  scanQRCode: async (qrData: string): Promise<any> => {
+    try {
+      const response = await apiPost('/wallet/scan-qr', { qrData });
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur scanQRCode:', error);
+      throw error;
+    }
+  },
+
   syncWallet: async (): Promise<any> => {
     try {
-      const response = await apiPost('/wallet/sync');
+      const response = await apiPost('/wallet/sync', {});
       return response;
     } catch (error) {
       console.error('❌ Erreur syncWallet:', error);

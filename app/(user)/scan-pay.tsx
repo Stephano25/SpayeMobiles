@@ -1,4 +1,8 @@
 // app/(user)/scan-pay.tsx
+// ✅ Détection des QR Codes admin
+// ✅ Redirection vers le bon formulaire
+// ✅ Formulaire de dépôt/retrait selon le QR scanné
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -20,8 +24,6 @@ import { WalletService } from '../../src/services/WalletService';
 import { COLORS, formatAmount } from '../../src/config/colors';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
-
-// ✅ Importer CameraView conditionnellement
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
 export default function ScanPayScreen() {
@@ -31,7 +33,6 @@ export default function ScanPayScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   
-  // ✅ Récupérer le type depuis les params
   const scanType = (route.params as any)?.type || 'payment';
   
   const [scanned, setScanned] = useState(false);
@@ -44,6 +45,7 @@ export default function ScanPayScreen() {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isAdminQR, setIsAdminQR] = useState(false);
 
   useEffect(() => {
     setIsWeb(Platform.OS === 'web');
@@ -63,35 +65,43 @@ export default function ScanPayScreen() {
     }
   };
 
-  // ✅ Traitement du QR Code scanné
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     if (scanned || loading) return;
     setScanned(true);
     setLoading(true);
 
     try {
-      console.log('📱 QR Code scanné:', data);
+      console.log('📱 QR Code scanné (User):', data);
       
-      // ✅ Parser le QR Code
       let parsedData;
       try {
         parsedData = JSON.parse(data);
       } catch {
-        // Si ce n'est pas du JSON, traiter comme une chaîne
         parsedData = { qrCode: data, type: 'simple' };
       }
 
       setScannedData(parsedData);
       
-      // ✅ Vérifier le type de QR Code
-      if (parsedData.type === 'admin_transaction') {
-        // ✅ QR Code Admin (Dépôt/Retrait)
+      // ✅ DÉTECTER SI C'EST UN QR CODE ADMIN
+      const isAdmin = parsedData.type === 'admin_transaction' || 
+                      parsedData.adminId || 
+                      parsedData.adminName ||
+                      parsedData.action === 'deposit' ||
+                      parsedData.action === 'withdraw';
+      
+      setIsAdminQR(isAdmin);
+      
+      if (isAdmin) {
+        // ✅ QR CODE ADMIN - Rediriger vers le bon formulaire
         const action = parsedData.action || 'deposit';
+        const userId = parsedData.userId || parsedData.id || parsedData._id;
+        const userName = parsedData.userName || 'Utilisateur SPaye';
+        
         Alert.alert(
-          action === 'deposit' ? '💰 Dépôt' : '💸 Retrait',
+          action === 'deposit' ? '💰 Dépôt Admin' : '💸 Retrait Admin',
           `QR Code ${action === 'deposit' ? 'de dépôt' : 'de retrait'} détecté\n\n` +
-          `Admin: ${parsedData.adminName || 'Administrateur'}\n` +
-          `Utilisateur: ${parsedData.userName || 'Non spécifié'}`,
+          `Administrateur: ${parsedData.adminName || 'Administrateur'}\n` +
+          `Utilisateur: ${userName}`,
           [
             { 
               text: 'Annuler', 
@@ -109,12 +119,16 @@ export default function ScanPayScreen() {
                 if (parsedData.amount) {
                   setAmount(String(parsedData.amount));
                 }
+                // ✅ Stocker l'ID utilisateur
+                if (userId) {
+                  setScannedData({ ...parsedData, userId: userId });
+                }
               }
             }
           ]
         );
-      } else if (parsedData.type === 'payment' || parsedData.type === 'payment_request') {
-        // ✅ QR Code de paiement simple
+      } else {
+        // ✅ QR CODE NORMAL (paiement entre utilisateurs)
         Alert.alert(
           '💳 Paiement',
           `Paiement détecté\n\nDestinataire: ${parsedData.receiverName || 'Utilisateur SPaye'}`,
@@ -139,23 +153,6 @@ export default function ScanPayScreen() {
             }
           ]
         );
-      } else {
-        // ✅ QR Code simple
-        Alert.alert(
-          'QR Code scanné',
-          `Données: ${data.substring(0, 50)}...`,
-          [
-            { 
-              text: 'Annuler', 
-              style: 'cancel',
-              onPress: () => {
-                setScanned(false);
-                setLoading(false);
-              }
-            }
-          ]
-        );
-        setLoading(false);
       }
     } catch (error) {
       console.error('Erreur traitement QR:', error);
@@ -170,16 +167,18 @@ export default function ScanPayScreen() {
     const simulatedData = {
       type: 'admin_transaction',
       action: scanType === 'deposit' ? 'deposit' : scanType === 'withdraw' ? 'withdraw' : 'payment',
+      adminId: 'admin-simulated',
       adminName: 'Admin SPaye',
+      userId: '6a5d03030c081d897fe5a4f3',
       userName: 'Utilisateur Test',
-      userId: 'user-123',
+      amount: scanType === 'deposit' ? 5000 : 2000,
       qrCode: 'SPAYE-' + Math.random().toString(36).substring(2, 10).toUpperCase(),
       expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
     };
     handleBarCodeScanned({ data: JSON.stringify(simulatedData) });
   };
 
-  // ✅ Traitement du formulaire (Dépôt/Retrait)
+  // ✅ Traitement du formulaire
   const handleSubmit = async () => {
     const amountNum = parseFloat(amount);
     if (!amountNum || amountNum < 100) {
@@ -190,42 +189,50 @@ export default function ScanPayScreen() {
     setIsProcessing(true);
 
     try {
-      const action = scannedData?.action || 'deposit';
-      const userId = scannedData?.userId;
+      if (isAdminQR) {
+        // ✅ TRANSACTION ADMIN
+        const action = scannedData?.action || 'deposit';
+        const userId = scannedData?.userId;
+        
+        if (!userId) {
+          showError('ID utilisateur non trouvé');
+          setIsProcessing(false);
+          return;
+        }
 
-      if (!userId) {
-        showError('ID utilisateur non trouvé');
-        setIsProcessing(false);
-        return;
-      }
-
-      if (action === 'deposit') {
-        // ✅ Dépôt
-        await AdminService.depositMoney(
-          userId,
-          amountNum,
-          description || `Dépôt via QR Code`
-        );
-        showSuccess(`Dépôt de ${formatAmount(amountNum)} Ar effectué`);
-      } else if (action === 'withdraw') {
-        // ✅ Retrait
-        await AdminService.withdrawMoney(
-          userId,
-          amountNum,
-          description || `Retrait via QR Code`
-        );
-        showSuccess(`Retrait de ${formatAmount(amountNum)} Ar effectué`);
+        if (action === 'deposit') {
+          await AdminService.depositMoney(
+            userId,
+            amountNum,
+            description || `Dépôt via QR Code Admin`
+          );
+          showSuccess(`💰 Dépôt de ${formatAmount(amountNum)} Ar effectué`);
+        } else if (action === 'withdraw') {
+          await AdminService.withdrawMoney(
+            userId,
+            amountNum,
+            description || `Retrait via QR Code Admin`
+          );
+          showSuccess(`💸 Retrait de ${formatAmount(amountNum)} Ar effectué`);
+        } else {
+          // Paiement simple
+          await WalletService.sendMoney({
+            receiverId: userId,
+            amount: amountNum,
+            description: description || 'Paiement via QR Code',
+          });
+          showSuccess(`Paiement de ${formatAmount(amountNum)} Ar effectué`);
+        }
       } else {
-        // ✅ Paiement simple
+        // ✅ TRANSACTION NORMALE
         await WalletService.sendMoney({
-          receiverId: userId || scannedData?.receiverId,
+          receiverId: scannedData?.receiverId || scannedData?.userId,
           amount: amountNum,
           description: description || 'Paiement via QR Code',
         });
         showSuccess(`Paiement de ${formatAmount(amountNum)} Ar effectué`);
       }
 
-      // ✅ Réinitialiser
       setShowForm(false);
       setScannedData(null);
       setAmount('');
@@ -255,12 +262,17 @@ export default function ScanPayScreen() {
         {showForm ? (
           <View style={[styles.formContainer, { backgroundColor: colors.card }]}>
             <Text style={[styles.formTitle, { color: colors.text }]}>
-              {scannedData?.action === 'deposit' ? 'Dépôt' : scannedData?.action === 'withdraw' ? 'Retrait' : 'Paiement'}
+              {isAdminQR ? (scannedData?.action === 'deposit' ? '💰 Dépôt Admin' : '💸 Retrait Admin') : '💳 Paiement'}
             </Text>
             
             {scannedData?.userName && (
               <Text style={[styles.userNameText, { color: colors.text }]}>
                 Utilisateur: {scannedData.userName}
+              </Text>
+            )}
+            {scannedData?.adminName && (
+              <Text style={[styles.adminNameText, { color: colors.textSecondary }]}>
+                Admin: {scannedData.adminName}
               </Text>
             )}
 
@@ -303,8 +315,7 @@ export default function ScanPayScreen() {
                   <ActivityIndicator size="small" color={COLORS.white} />
                 ) : (
                   <Text style={styles.confirmBtnText}>
-                    {scannedData?.action === 'deposit' ? 'Déposer' : 
-                     scannedData?.action === 'withdraw' ? 'Retirer' : 'Payer'}
+                    {isAdminQR ? (scannedData?.action === 'deposit' ? 'Déposer' : 'Retirer') : 'Payer'}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -381,14 +392,17 @@ export default function ScanPayScreen() {
       {showForm ? (
         <ScrollView style={[styles.formContainer, { backgroundColor: colors.card }]}>
           <Text style={[styles.formTitle, { color: colors.text }]}>
-            {scannedData?.action === 'deposit' ? '💰 Dépôt' : 
-             scannedData?.action === 'withdraw' ? '💸 Retrait' : 
-             '💳 Paiement'}
+            {isAdminQR ? (scannedData?.action === 'deposit' ? '💰 Dépôt Admin' : '💸 Retrait Admin') : '💳 Paiement'}
           </Text>
           
           {scannedData?.userName && (
             <Text style={[styles.userNameText, { color: colors.text }]}>
               Utilisateur: {scannedData.userName}
+            </Text>
+          )}
+          {scannedData?.adminName && (
+            <Text style={[styles.adminNameText, { color: colors.textSecondary }]}>
+              Admin: {scannedData.adminName}
             </Text>
           )}
 
@@ -431,9 +445,7 @@ export default function ScanPayScreen() {
                 <ActivityIndicator size="small" color={COLORS.white} />
               ) : (
                 <Text style={styles.confirmBtnText}>
-                  {scannedData?.action === 'deposit' ? 'Déposer' : 
-                   scannedData?.action === 'withdraw' ? 'Retirer' : 
-                   'Payer'}
+                  {isAdminQR ? (scannedData?.action === 'deposit' ? 'Déposer' : 'Retirer') : 'Payer'}
                 </Text>
               )}
             </TouchableOpacity>
@@ -526,7 +538,8 @@ const styles = StyleSheet.create({
   permissionBtnText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
   formContainer: { margin: 16, padding: 20, borderRadius: 16 },
   formTitle: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
-  userNameText: { fontSize: 14, textAlign: 'center', marginBottom: 16 },
+  userNameText: { fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 4 },
+  adminNameText: { fontSize: 13, textAlign: 'center', marginBottom: 16, opacity: 0.7 },
   input: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12 },
   formActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   formBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },
@@ -534,7 +547,6 @@ const styles = StyleSheet.create({
   cancelBtnText: { color: COLORS.gray600, fontWeight: '600' },
   confirmBtn: { backgroundColor: COLORS.primary },
   confirmBtnText: { color: COLORS.white, fontWeight: 'bold' },
-  // Web styles
   webContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   webCard: { width: '100%', maxWidth: 400, padding: 32, borderRadius: 20, alignItems: 'center' },
   webTitle: { fontSize: 20, fontWeight: 'bold', marginTop: 16 },

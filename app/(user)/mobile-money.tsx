@@ -1,4 +1,11 @@
 // app/(user)/mobile-money.tsx
+// ─────────────────────────────────────────────────────────────
+//  SPAYE · Mobile Money Transfer (User)
+//  ✅ Saisie SIMPLE de 10 chiffres
+//  ✅ Affichage formaté avec espaces
+//  ✅ maxLength = 10
+// ─────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -27,6 +34,7 @@ const OPERATORS = [
 const MIN_AMOUNT = 100;
 const MINIMUM_FEE = 200;
 const FEE_PERCENT = 0.5;
+const PHONE_LENGTH = 10;
 
 export default function MobileMoneyScreen() {
   const { colors } = useTheme();
@@ -59,7 +67,7 @@ export default function MobileMoneyScreen() {
 
   const selectOperator = (op: typeof OPERATORS[number]) => {
     setOperator(op);
-    setPhone(op.prefix);
+    setPhone('');
     setStep('form');
   };
 
@@ -72,11 +80,20 @@ export default function MobileMoneyScreen() {
       showError(`Montant minimum : ${formatAmount(MIN_AMOUNT)} Ar`);
       return;
     }
+    
     const cleanPhone = phone.replace(/\s/g, '');
-    if (!/^[0-9]{9,10}$/.test(cleanPhone)) {
-      showError('Numéro invalide (9-10 chiffres)');
+    
+    if (cleanPhone.length !== PHONE_LENGTH) {
+      showError(`Le numéro doit contenir exactement ${PHONE_LENGTH} chiffres (actuellement ${cleanPhone.length})`);
       return;
     }
+    
+    const prefix = cleanPhone.substring(0, 3);
+    if (prefix !== operator.prefix) {
+      showError(`Le numéro doit commencer par ${operator.prefix} pour ${operator.name}`);
+      return;
+    }
+    
     if (total > balance) {
       showError(`Solde insuffisant. Total avec frais : ${formatAmount(total)} Ar`);
       return;
@@ -104,7 +121,8 @@ export default function MobileMoneyScreen() {
                 navigation.navigate('Wallet' as never);
               }, 2000);
             } catch (e: any) {
-              showError(e?.response?.data?.message || 'Erreur lors du transfert');
+              console.error('❌ Erreur transfert Mobile Money:', e);
+              showError(e?.message || e?.response?.data?.message || 'Erreur lors du transfert');
               setLoading(false);
             }
           },
@@ -123,6 +141,33 @@ export default function MobileMoneyScreen() {
       navigation.goBack();
     }
   };
+
+  // ✅ Formater l'affichage avec espaces pour la lisibilité
+  const formatPhoneDisplay = (text: string) => {
+    const clean = text.replace(/\s/g, '');
+    if (clean.length === 0) return '';
+    if (clean.length <= 3) return clean;
+    let formatted = clean.substring(0, 3);
+    const rest = clean.substring(3);
+    for (let i = 0; i < rest.length; i += 2) {
+      formatted += ' ' + rest.substring(i, i + 2);
+    }
+    return formatted.trim();
+  };
+
+  // ✅ Fonction pour gérer la saisie - STOCKER LES CHIFFRES BRUTS
+  const handlePhoneChange = (text: string) => {
+    // ✅ Garder uniquement les chiffres
+    const clean = text.replace(/\D/g, '');
+    // ✅ Limiter à 10 chiffres
+    if (clean.length <= PHONE_LENGTH) {
+      setPhone(clean);
+    }
+  };
+
+  const cleanPhone = phone.replace(/\s/g, '');
+  const isPhoneComplete = cleanPhone.length === PHONE_LENGTH;
+  const prefixError = cleanPhone.length >= 3 && operator && cleanPhone.substring(0, 3) !== operator.prefix;
 
   if (step === 'success') {
     return (
@@ -186,7 +231,7 @@ export default function MobileMoneyScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.operatorName}>{op.name}</Text>
-                <Text style={styles.operatorPrefix}>{op.prefix} XXX XXX</Text>
+                <Text style={styles.operatorPrefix}>{op.prefix} XX XXX XX (10 chiffres)</Text>
               </View>
               <Ionicons name="chevron-forward" size={22} color="rgba(255,255,255,0.8)" />
             </TouchableOpacity>
@@ -199,17 +244,59 @@ export default function MobileMoneyScreen() {
           <View style={[styles.operatorBadge, { backgroundColor: operator.color }]}>
             <Ionicons name="phone-portrait" size={18} color={COLORS.white} />
             <Text style={styles.operatorBadgeText}>{operator.name}</Text>
+            <TouchableOpacity 
+              style={styles.changeOperatorBtn}
+              onPress={() => {
+                setStep('operator');
+                setOperator(null);
+                setPhone('');
+              }}
+            >
+              <Text style={styles.changeOperatorText}>Changer</Text>
+            </TouchableOpacity>
           </View>
 
-          <Text style={[styles.label, { color: colors.text }]}>Numéro de téléphone</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Numéro de téléphone (10 chiffres)</Text>
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            Exemple : {operator.prefix} 04 311 05
+          </Text>
+          
+          {/* ✅ TextInput SIMPLE - sans formatage dans le value */}
           <TextInput
-            style={[styles.input, { color: colors.text, backgroundColor: colors.card }]}
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            placeholder="034 12 345 67"
+            style={[
+              styles.input, 
+              { 
+                color: colors.text, 
+                backgroundColor: colors.card,
+                borderColor: prefixError ? COLORS.error : (isPhoneComplete ? COLORS.success : colors.border),
+                borderWidth: prefixError ? 2 : 1,
+              }
+            ]}
+            value={formatPhoneDisplay(phone)} // ✅ Affichage formaté
+            onChangeText={handlePhoneChange} // ✅ Stockage des chiffres bruts
+            keyboardType="number-pad" // ✅ Clavier numérique pur
+            placeholder={`${operator.prefix} 04 311 05`}
             placeholderTextColor={COLORS.gray400}
+            maxLength={PHONE_LENGTH + 5} // ✅ Permet les espaces
           />
+          
+          {cleanPhone.length > 0 && cleanPhone.length < PHONE_LENGTH && (
+            <Text style={styles.errorHint}>
+              ⚠️ {cleanPhone.length}/{PHONE_LENGTH} chiffres saisis
+            </Text>
+          )}
+          
+          {prefixError && (
+            <Text style={styles.errorHint}>
+              ⚠️ Le numéro doit commencer par {operator.prefix}
+            </Text>
+          )}
+          
+          {isPhoneComplete && !prefixError && (
+            <Text style={styles.successHint}>
+              ✅ Numéro valide : {formatPhoneDisplay(phone)}
+            </Text>
+          )}
 
           <Text style={[styles.label, { color: colors.text }]}>Montant (Ar)</Text>
           <TextInput
@@ -251,7 +338,7 @@ export default function MobileMoneyScreen() {
           <TouchableOpacity
             style={[styles.primaryBtn, { backgroundColor: operator.color }]}
             onPress={submit}
-            disabled={loading || total > balance}
+            disabled={loading || total > balance || !isPhoneComplete || prefixError}
           >
             {loading ? (
               <ActivityIndicator color={COLORS.white} />
@@ -329,13 +416,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     marginBottom: SPACING.lg,
   },
-  operatorBadgeText: { color: COLORS.white, fontWeight: FONT.weight.bold, fontSize: FONT.size.sm },
+  operatorBadgeText: { color: COLORS.white, fontWeight: FONT.weight.bold, fontSize: FONT.size.sm, flex: 1 },
+  changeOperatorBtn: { paddingHorizontal: 8, paddingVertical: 2 },
+  changeOperatorText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, textDecorationLine: 'underline' },
   label: {
     fontSize: FONT.size.sm,
     fontWeight: FONT.weight.semibold,
     marginBottom: SPACING.xs,
     marginTop: SPACING.md,
   },
+  hint: { fontSize: 11, marginBottom: 6, color: COLORS.gray400 },
   input: {
     borderRadius: RADIUS.md,
     padding: SPACING.md,
@@ -373,6 +463,18 @@ const styles = StyleSheet.create({
     fontSize: FONT.size.xs,
     marginTop: SPACING.sm,
     fontWeight: FONT.weight.semibold,
+  },
+  errorHint: {
+    color: COLORS.error,
+    fontSize: FONT.size.xs,
+    marginTop: SPACING.sm,
+    textAlign: 'center',
+  },
+  successHint: {
+    color: COLORS.success,
+    fontSize: FONT.size.xs,
+    marginTop: SPACING.sm,
+    textAlign: 'center',
   },
   primaryBtn: {
     borderRadius: RADIUS.md,

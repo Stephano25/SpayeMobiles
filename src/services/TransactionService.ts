@@ -1,7 +1,8 @@
 // src/services/TransactionService.ts
 // ─────────────────────────────────────────────────────────────
 //  SPAYE — Transaction Service
-//  ✅ Correction : utilisation de apiGet, apiPost, etc.
+//  ✅ Correction : validation stricte du numéro (10 chiffres)
+//  ✅ Meilleure gestion des erreurs
 // ─────────────────────────────────────────────────────────────
 
 import { apiGet, apiPost, apiPut, apiDelete } from './api';
@@ -35,6 +36,14 @@ export interface Transaction {
     email: string;
   };
 }
+
+const PHONE_LENGTH = 10;
+const VALID_PREFIXES = ['033', '032', '034'];
+const OPERATOR_PREFIX_MAP: Record<string, string> = {
+  'airtel': '033',
+  'orange': '032',
+  'mvola': '034'
+};
 
 export const TransactionService = {
   getUserDashboardStats: async (): Promise<any> => {
@@ -82,13 +91,62 @@ export const TransactionService = {
     }
   },
 
-  mobileMoneyTransfer: async (data: { operator: string; phoneNumber: string; amount: number }): Promise<Transaction> => {
+  mobileMoneyTransfer: async (data: { 
+    operator: string; 
+    phoneNumber: string; 
+    amount: number 
+  }): Promise<Transaction> => {
     try {
-      const response = await apiPost('/transactions/mobile-money', data);
+      // ✅ Nettoyer le numéro (enlever espaces)
+      const cleanPhone = data.phoneNumber.replace(/\s/g, '');
+      
+      // ✅ Vérifier que le numéro a exactement 10 chiffres
+      if (cleanPhone.length !== PHONE_LENGTH) {
+        throw new Error(`Le numéro doit contenir exactement ${PHONE_LENGTH} chiffres (actuellement ${cleanPhone.length})`);
+      }
+      
+      // ✅ Vérifier que le numéro ne contient que des chiffres
+      if (!/^\d+$/.test(cleanPhone)) {
+        throw new Error('Le numéro ne doit contenir que des chiffres');
+      }
+      
+      // ✅ Vérifier que le préfixe est valide
+      const prefix = cleanPhone.substring(0, 3);
+      if (!VALID_PREFIXES.includes(prefix)) {
+        throw new Error('Le numéro doit commencer par 033 (Airtel), 032 (Orange) ou 034 (MVola)');
+      }
+      
+      // ✅ Vérifier que l'opérateur correspond au préfixe
+      const expectedPrefix = OPERATOR_PREFIX_MAP[data.operator];
+      if (!expectedPrefix) {
+        throw new Error('Opérateur Mobile Money invalide');
+      }
+      
+      if (prefix !== expectedPrefix) {
+        throw new Error(`Le numéro ${cleanPhone} ne correspond pas à l'opérateur sélectionné. Utilisez ${expectedPrefix}...`);
+      }
+      
+      const payload = {
+        operator: data.operator,
+        phoneNumber: cleanPhone,
+        amount: data.amount,
+      };
+      
+      console.log('📤 Envoi transfert Mobile Money:', payload);
+      
+      const response = await apiPost('/transactions/mobile-money', payload);
+      console.log('✅ Réponse transfert Mobile Money:', response);
+      
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erreur mobileMoneyTransfer:', error);
-      throw error;
+      
+      // ✅ Extraire le message d'erreur du backend
+      const errorMessage = error?.response?.data?.message || 
+                          error?.message || 
+                          'Erreur lors du transfert Mobile Money';
+      
+      throw new Error(errorMessage);
     }
   },
 

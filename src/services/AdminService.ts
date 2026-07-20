@@ -1,8 +1,6 @@
 // src/services/AdminService.ts
-// ─────────────────────────────────────────────────────────────
-//  SPAYE — Admin Service
-//  ✅ Correction : utilisation de apiGet, apiPost, etc.
-// ─────────────────────────────────────────────────────────────
+// ✅ Correction : utilisation de apiGet, apiPost, etc.
+// ✅ Ajout des méthodes pour les transactions admin depuis l'user
 
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api';
 
@@ -69,7 +67,9 @@ export interface SystemSettings {
 }
 
 export const AdminService = {
-  // Dashboard
+  // ============================================================
+  // DASHBOARD
+  // ============================================================
   getDashboardStats: async (): Promise<AdminDashboardStats> => {
     try {
       const data = await apiGet('/admin/dashboard/stats');
@@ -124,7 +124,9 @@ export const AdminService = {
     }
   },
 
-  // Utilisateurs
+  // ============================================================
+  // UTILISATEURS
+  // ============================================================
   getAllUsers: async (): Promise<any[]> => {
     try {
       const data = await apiGet('/admin/users');
@@ -151,17 +153,79 @@ export const AdminService = {
     return apiDelete(`/admin/users/${userId}`);
   },
 
-  // Admin Actions - Dépôt
+  // ============================================================
+  // ADMIN ACTIONS - DÉPÔT & RETRAIT (depuis admin)
+  // ============================================================
+  
+  // ✅ Dépôt par ADMIN vers un utilisateur
   depositMoney: async (userId: string, amount: number, description?: string, qrCode?: string): Promise<any> => {
-    return apiPost(`/admin/users/${userId}/deposit`, { amount, description, qrCode });
+    try {
+      const response = await apiPost(`/admin/users/${userId}/deposit`, { 
+        amount, 
+        description: description || 'Dépôt administrateur', 
+        qrCode 
+      });
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur depositMoney (admin):', error);
+      throw error;
+    }
   },
 
-  // Admin Actions - Retrait
+  // ✅ Retrait par ADMIN d'un utilisateur
   withdrawMoney: async (userId: string, amount: number, description?: string, qrCode?: string): Promise<any> => {
-    return apiPost(`/admin/users/${userId}/withdraw`, { amount, description, qrCode });
+    try {
+      const response = await apiPost(`/admin/users/${userId}/withdraw`, { 
+        amount, 
+        description: description || 'Retrait administrateur', 
+        qrCode 
+      });
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur withdrawMoney (admin):', error);
+      throw error;
+    }
   },
 
-  // QR Code
+  // ============================================================
+  // ADMIN ACTIONS - DÉPÔT & RETRAIT (depuis USER via QR Code)
+  // ============================================================
+  
+  // ✅ Dépôt par un UTILISATEUR (via QR Code admin)
+  depositMoneyByUser: async (userId: string, amount: number, description?: string, qrData?: string): Promise<any> => {
+    try {
+      const response = await apiPost('/admin/deposit', {
+        userId,
+        amount,
+        description: description || 'Dépôt via QR Code Admin',
+        qrData,
+      });
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur depositMoneyByUser:', error);
+      throw error;
+    }
+  },
+
+  // ✅ Retrait par un UTILISATEUR (via QR Code admin)
+  withdrawMoneyByUser: async (userId: string, amount: number, description?: string, qrData?: string): Promise<any> => {
+    try {
+      const response = await apiPost('/admin/withdraw', {
+        userId,
+        amount,
+        description: description || 'Retrait via QR Code Admin',
+        qrData,
+      });
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur withdrawMoneyByUser:', error);
+      throw error;
+    }
+  },
+
+  // ============================================================
+  // QR CODE
+  // ============================================================
   generateQRCode: async (type: 'deposit' | 'withdraw', amount?: number): Promise<any> => {
     try {
       const response = await apiPost('/admin/generate-qr', { type, amount });
@@ -182,7 +246,9 @@ export const AdminService = {
     }
   },
 
-  // Administrateurs
+  // ============================================================
+  // ADMINISTRATEURS
+  // ============================================================
   createAdmin: async (adminData: any): Promise<any> => {
     return apiPost('/admin/admins', adminData);
   },
@@ -201,7 +267,9 @@ export const AdminService = {
     return apiDelete(`/admin/admins/${adminId}`);
   },
 
-  // Transactions
+  // ============================================================
+  // TRANSACTIONS
+  // ============================================================
   getAllTransactions: async (): Promise<any[]> => {
     try {
       const data = await apiGet('/admin/transactions');
@@ -216,7 +284,9 @@ export const AdminService = {
     return apiGet(`/admin/transactions/${transactionId}`);
   },
 
-  // Paramètres
+  // ============================================================
+  // PARAMÈTRES
+  // ============================================================
   getSettings: async (): Promise<SystemSettings> => {
     try {
       const response = await apiGet('/admin/settings');
@@ -265,7 +335,9 @@ export const AdminService = {
     return apiPatch('/admin/settings', settings);
   },
 
-  // Système
+  // ============================================================
+  // SYSTÈME
+  // ============================================================
   getSystemLogs: async (): Promise<any[]> => {
     try {
       const data = await apiGet('/admin/system/logs');
@@ -283,7 +355,9 @@ export const AdminService = {
     }
   },
 
-  // Profil Admin
+  // ============================================================
+  // PROFIL ADMIN
+  // ============================================================
   getAdminProfile: async (): Promise<any> => {
     return apiGet('/admin/profile');
   },

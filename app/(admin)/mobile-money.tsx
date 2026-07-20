@@ -1,4 +1,11 @@
 // app/(admin)/mobile-money.tsx
+// ─────────────────────────────────────────────────────────────
+//  SPAYE · Mobile Money Transfer (Admin)
+//  ✅ L'admin saisit les 10 chiffres COMPLETS
+//  ✅ SUPPRESSION du champ "Utilisateur"
+//  ✅ maxLength = 10 pour 10 chiffres
+// ─────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -9,9 +16,7 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
-  Modal,
   RefreshControl,
-  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -20,8 +25,7 @@ import { useNotification } from '../../src/context/NotificationContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { WalletService } from '../../src/services/WalletService';
 import { TransactionService } from '../../src/services/TransactionService';
-import { AdminService } from '../../src/services/AdminService';
-import { COLORS, formatAmount } from '../../src/config/colors';
+import { COLORS, RADIUS, SPACING, FONT, SHADOW, formatAmount } from '../../src/config/colors';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
 
@@ -31,7 +35,6 @@ interface Operator {
   icon: string;
   color: string;
   code: string;
-  gradient: string;
 }
 
 export default function AdminMobileMoneyScreen() {
@@ -44,8 +47,6 @@ export default function AdminMobileMoneyScreen() {
   const isSuperAdmin = user?.role === 'super_admin';
 
   const [balance, setBalance] = useState(0);
-  const [users, setUsers] = useState<any[]>([]);
-  const [selectedUserId, setSelectedUserId] = useState('');
   const [amount, setAmount] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [description, setDescription] = useState('');
@@ -54,39 +55,17 @@ export default function AdminMobileMoneyScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [selectedOperator, setSelectedOperator] = useState<Operator | null>(null);
   const [step, setStep] = useState<'operator' | 'form' | 'confirm' | 'success'>('operator');
-  const [showUserModal, setShowUserModal] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
   const operators: Operator[] = [
-    { 
-      id: 'airtel', 
-      name: 'Airtel Money', 
-      icon: 'phone-portrait',
-      color: '#e60000',
-      code: '033',
-      gradient: 'linear-gradient(135deg, #e60000, #b30000)'
-    },
-    { 
-      id: 'orange', 
-      name: 'Orange Money', 
-      icon: 'phone-portrait',
-      color: '#ff7900',
-      code: '032',
-      gradient: 'linear-gradient(135deg, #ff7900, #cc6100)'
-    },
-    { 
-      id: 'mvola', 
-      name: 'MVola', 
-      icon: 'phone-portrait',
-      color: '#00a651',
-      code: '034',
-      gradient: 'linear-gradient(135deg, #00a651, #007a3d)'
-    }
+    { id: 'airtel', name: 'Airtel Money', icon: 'phone-portrait', color: '#e60000', code: '033' },
+    { id: 'orange', name: 'Orange Money', icon: 'phone-portrait', color: '#ff7900', code: '032' },
+    { id: 'mvola', name: 'MVola', icon: 'phone-portrait', color: '#00a651', code: '034' }
   ];
 
   const quickAmounts = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
   const MIN_AMOUNT = 100;
   const MINIMUM_FEE = 200;
+  const PHONE_LENGTH = 10;
 
   useEffect(() => {
     loadData();
@@ -94,12 +73,8 @@ export default function AdminMobileMoneyScreen() {
 
   const loadData = async () => {
     try {
-      const [balanceData, usersData] = await Promise.all([
-        WalletService.getBalance(),
-        AdminService.getAllUsers(),
-      ]);
+      const balanceData = await WalletService.getBalance();
       setBalance(balanceData.balance || 0);
-      setUsers(usersData || []);
     } catch (error) {
       showError('Erreur chargement des données');
     } finally {
@@ -122,7 +97,7 @@ export default function AdminMobileMoneyScreen() {
   const selectOperator = (operator: Operator) => {
     setSelectedOperator(operator);
     setStep('form');
-    setPhoneNumber(operator.code);
+    setPhoneNumber('');
   };
 
   const goToConfirm = () => {
@@ -131,12 +106,16 @@ export default function AdminMobileMoneyScreen() {
       showError(`Montant minimum: ${formatAmount(MIN_AMOUNT)} Ar`);
       return;
     }
-    if (!selectedUserId) {
-      showError('Veuillez sélectionner un utilisateur');
+    
+    const cleanPhone = phoneNumber.replace(/\s/g, '');
+    
+    if (cleanPhone.length !== PHONE_LENGTH) {
+      showError(`Le numéro doit contenir exactement ${PHONE_LENGTH} chiffres (actuellement ${cleanPhone.length})`);
       return;
     }
-    if (!phoneNumber || phoneNumber.length < 9) {
-      showError('Numéro de téléphone invalide');
+    
+    if (selectedOperator && !cleanPhone.startsWith(selectedOperator.code)) {
+      showError(`Le numéro doit commencer par ${selectedOperator.code} pour ${selectedOperator.name}`);
       return;
     }
 
@@ -175,24 +154,17 @@ export default function AdminMobileMoneyScreen() {
 
     setSubmitting(true);
     try {
+      const cleanPhone = phoneNumber.replace(/\s/g, '');
+      
       const transferData = {
         operator: selectedOperator!.id,
-        phoneNumber: phoneNumber.replace(/\s/g, ''),
+        phoneNumber: cleanPhone,
         amount: amountNum,
       };
 
-      const result = await TransactionService.mobileMoneyTransfer(transferData);
+      await TransactionService.mobileMoneyTransfer(transferData);
       
       setBalance((prev: number) => prev - totalWithFees);
-      
-      if (selectedUserId) {
-        await AdminService.depositMoney(
-          selectedUserId,
-          amountNum,
-          description || `Transfert Mobile Money ${selectedOperator?.name}`,
-          result.id
-        );
-      }
 
       setStep('success');
       showSuccess(`Transfert Mobile Money de ${formatAmount(amountNum)} Ar effectué avec succès`);
@@ -203,7 +175,8 @@ export default function AdminMobileMoneyScreen() {
         navigation.goBack();
       }, 3000);
     } catch (error: any) {
-      showError(error?.message || 'Erreur lors du transfert Mobile Money');
+      console.error('❌ Erreur transfert Mobile Money Admin:', error);
+      showError(error?.message || error?.response?.data?.message || 'Erreur lors du transfert Mobile Money');
       setSubmitting(false);
     }
   };
@@ -211,28 +184,40 @@ export default function AdminMobileMoneyScreen() {
   const resetForm = () => {
     setStep('operator');
     setSelectedOperator(null);
-    setSelectedUserId('');
     setAmount('');
     setPhoneNumber('');
     setDescription('');
     setSubmitting(false);
-    setSearchQuery('');
-    setShowUserModal(false);
   };
-
-  const getSelectedUser = () => users.find((u: any) => u.id === selectedUserId);
-
-  const filteredUsers = users.filter((user: any) =>
-    `${user.firstName} ${user.lastName} ${user.email}`
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase())
-  );
 
   const formatAmountWithSuffix = (amount: number): string => {
     if (amount >= 1000000) return (amount / 1000000).toFixed(1) + ' M';
     if (amount >= 1000) return (amount / 1000).toFixed(0) + ' k';
     return amount.toString();
   };
+
+  const formatPhoneDisplay = (text: string) => {
+    const clean = text.replace(/\s/g, '');
+    if (clean.length === 0) return '';
+    if (clean.length <= 3) return clean;
+    let formatted = clean.substring(0, 3);
+    const rest = clean.substring(3);
+    for (let i = 0; i < rest.length; i += 2) {
+      formatted += ' ' + rest.substring(i, i + 2);
+    }
+    return formatted.trim();
+  };
+
+  const handlePhoneChange = (text: string) => {
+    const clean = text.replace(/\D/g, '');
+    if (clean.length <= PHONE_LENGTH) {
+      setPhoneNumber(clean);
+    }
+  };
+
+  const cleanPhone = phoneNumber.replace(/\s/g, '');
+  const isPhoneComplete = cleanPhone.length === PHONE_LENGTH;
+  const prefixError = cleanPhone.length >= 3 && selectedOperator && cleanPhone.substring(0, 3) !== selectedOperator.code;
 
   if (loading) {
     return (
@@ -331,41 +316,45 @@ export default function AdminMobileMoneyScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.label, { color: colors.text }]}>Utilisateur *</Text>
-            <TouchableOpacity
-              style={[styles.userSelector, { borderColor: colors.border }]}
-              onPress={() => setShowUserModal(true)}
-            >
-              {selectedUserId ? (
-                <View style={styles.selectedUser}>
-                  <Text style={[styles.selectedUserName, { color: colors.text }]}>
-                    {getSelectedUser()?.firstName} {getSelectedUser()?.lastName}
-                  </Text>
-                  <Text style={[styles.selectedUserEmail, { color: colors.textSecondary }]}>
-                    {getSelectedUser()?.email}
-                  </Text>
-                </View>
-              ) : (
-                <Text style={[styles.userSelectorPlaceholder, { color: colors.textSecondary }]}>
-                  Sélectionner un utilisateur
-                </Text>
-              )}
-              <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-
-            <Text style={[styles.label, { color: colors.text }]}>Numéro de téléphone *</Text>
-            <View style={[styles.phoneInput, { borderColor: colors.border }]}>
-              <Text style={[styles.phonePrefix, { color: colors.text }]}>+261</Text>
-              <TextInput
-                style={[styles.phoneTextInput, { color: colors.text }]}
-                value={phoneNumber.replace(selectedOperator.code, '')}
-                onChangeText={(text) => setPhoneNumber(selectedOperator.code + text.replace(/\D/g, ''))}
-                placeholder="34 12 345 67"
-                placeholderTextColor={COLORS.gray400}
-                keyboardType="phone-pad"
-                maxLength={10}
-              />
-            </View>
+            <Text style={[styles.label, { color: colors.text }]}>Numéro de téléphone (10 chiffres) *</Text>
+            <Text style={[styles.hint, { color: colors.textSecondary }]}>
+              Saisissez les 10 chiffres (ex: {selectedOperator.code}0431105)
+            </Text>
+            <TextInput
+              style={[
+                styles.input, 
+                { 
+                  color: colors.text, 
+                  backgroundColor: colors.card,
+                  borderColor: prefixError ? COLORS.error : (isPhoneComplete ? COLORS.success : colors.border),
+                  borderWidth: prefixError ? 2 : 1,
+                }
+              ]}
+              value={formatPhoneDisplay(phoneNumber)}
+              onChangeText={handlePhoneChange}
+              keyboardType="number-pad"
+              placeholder={`${selectedOperator.code} 04 311 05`}
+              placeholderTextColor={COLORS.gray400}
+              maxLength={PHONE_LENGTH + 5}
+            />
+            
+            {cleanPhone.length > 0 && cleanPhone.length < PHONE_LENGTH && (
+              <Text style={styles.errorHint}>
+                ⚠️ {cleanPhone.length}/{PHONE_LENGTH} chiffres saisis
+              </Text>
+            )}
+            
+            {prefixError && (
+              <Text style={styles.errorHint}>
+                ⚠️ Le numéro doit commencer par {selectedOperator.code}
+              </Text>
+            )}
+            
+            {isPhoneComplete && !prefixError && (
+              <Text style={styles.successHint}>
+                ✅ Numéro valide : {formatPhoneDisplay(phoneNumber)}
+              </Text>
+            )}
 
             <Text style={[styles.label, { color: colors.text }]}>Montant (Ar) *</Text>
             <TextInput
@@ -422,7 +411,7 @@ export default function AdminMobileMoneyScreen() {
             <TouchableOpacity
               style={[styles.nextBtn, { backgroundColor: COLORS.primary }]}
               onPress={goToConfirm}
-              disabled={!selectedUserId || !amount || parseFloat(amount) < MIN_AMOUNT || !phoneNumber}
+              disabled={!amount || parseFloat(amount) < MIN_AMOUNT || !isPhoneComplete || prefixError}
             >
               <Text style={styles.nextBtnText}>Continuer</Text>
               <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
@@ -449,13 +438,7 @@ export default function AdminMobileMoneyScreen() {
               </View>
               <View style={styles.confirmRow}>
                 <Text style={[styles.confirmLabel, { color: colors.textSecondary }]}>Numéro</Text>
-                <Text style={[styles.confirmValue, { color: colors.text }]}>{phoneNumber}</Text>
-              </View>
-              <View style={styles.confirmRow}>
-                <Text style={[styles.confirmLabel, { color: colors.textSecondary }]}>Utilisateur</Text>
-                <Text style={[styles.confirmValue, { color: colors.text }]}>
-                  {getSelectedUser()?.firstName} {getSelectedUser()?.lastName}
-                </Text>
+                <Text style={[styles.confirmValue, { color: colors.text }]}>+261 {formatPhoneDisplay(phoneNumber)}</Text>
               </View>
               <View style={styles.confirmRow}>
                 <Text style={[styles.confirmLabel, { color: colors.textSecondary }]}>Montant</Text>
@@ -526,14 +509,8 @@ export default function AdminMobileMoneyScreen() {
               </Text>
               <View style={[styles.successDetails, { backgroundColor: colors.background }]}>
                 <View style={styles.successRow}>
-                  <Text style={[styles.successLabel, { color: colors.textSecondary }]}>Destinataire</Text>
-                  <Text style={[styles.successValue, { color: colors.text }]}>
-                    {getSelectedUser()?.firstName} {getSelectedUser()?.lastName}
-                  </Text>
-                </View>
-                <View style={styles.successRow}>
                   <Text style={[styles.successLabel, { color: colors.textSecondary }]}>Numéro</Text>
-                  <Text style={[styles.successValue, { color: colors.text }]}>{phoneNumber}</Text>
+                  <Text style={[styles.successValue, { color: colors.text }]}>+261 {formatPhoneDisplay(phoneNumber)}</Text>
                 </View>
                 <View style={styles.successRow}>
                   <Text style={[styles.successLabel, { color: colors.textSecondary }]}>Montant total</Text>
@@ -549,71 +526,6 @@ export default function AdminMobileMoneyScreen() {
           </View>
         )}
       </ScrollView>
-
-      <Modal
-        visible={showUserModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowUserModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Sélectionner un utilisateur</Text>
-              <TouchableOpacity onPress={() => setShowUserModal(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={[styles.modalSearch, { backgroundColor: colors.background }]}>
-              <Ionicons name="search" size={20} color={COLORS.gray400} />
-              <TextInput
-                style={[styles.modalSearchInput, { color: colors.text }]}
-                placeholder="Rechercher..."
-                placeholderTextColor={COLORS.gray400}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-            </View>
-
-            <FlatList
-              data={filteredUsers}
-              keyExtractor={(item: any) => item.id}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[styles.modalUserItem, { backgroundColor: colors.background }]}
-                  onPress={() => {
-                    setSelectedUserId(item.id);
-                    setShowUserModal(false);
-                    setSearchQuery('');
-                  }}
-                >
-                  <View style={styles.modalUserAvatar}>
-                    <Text style={styles.modalUserAvatarText}>
-                      {(item.firstName?.charAt(0) || '') + (item.lastName?.charAt(0) || '')}
-                    </Text>
-                  </View>
-                  <View style={styles.modalUserInfo}>
-                    <Text style={[styles.modalUserName, { color: colors.text }]}>
-                      {item.firstName} {item.lastName}
-                    </Text>
-                    <Text style={[styles.modalUserEmail, { color: colors.textSecondary }]}>{item.email}</Text>
-                  </View>
-                  <Text style={[styles.modalUserBalance, { color: COLORS.success }]}>
-                    {formatAmount(item.balance || 0)} Ar
-                  </Text>
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <Text style={[styles.modalEmpty, { color: colors.textSecondary }]}>
-                  Aucun utilisateur trouvé
-                </Text>
-              }
-            />
-          </View>
-        </View>
-      </Modal>
     </SafeScreen>
   );
 }
@@ -721,27 +633,15 @@ const styles = StyleSheet.create({
   },
   selectedOperatorName: { fontSize: 15, fontWeight: '600', flex: 1 },
   label: { fontSize: 14, fontWeight: '600', marginBottom: 6, marginTop: 12 },
-  userSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
+  hint: { fontSize: 11, marginBottom: 6, color: COLORS.gray400 },
+  input: {
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    fontSize: FONT.size.base,
+    ...SHADOW.sm,
   },
-  selectedUser: { flex: 1 },
-  selectedUserName: { fontSize: 14, fontWeight: '500' },
-  selectedUserEmail: { fontSize: 12 },
-  userSelectorPlaceholder: { fontSize: 14 },
-  phoneInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-  },
-  phonePrefix: { fontSize: 14, fontWeight: '600', marginRight: 8 },
-  phoneTextInput: { flex: 1, paddingVertical: 12, fontSize: 15 },
+  errorHint: { fontSize: 11, marginTop: 4, color: COLORS.error },
+  successHint: { fontSize: 11, marginTop: 4, color: COLORS.success },
   amountInput: {
     borderWidth: 1,
     borderRadius: 12,
@@ -831,54 +731,4 @@ const styles = StyleSheet.create({
   successValue: { fontSize: 13, fontWeight: '500' },
   successBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   successBtnText: { color: COLORS.white, fontWeight: 'bold', fontSize: 15 },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '90%',
-    maxWidth: 400,
-    maxHeight: '80%',
-    borderRadius: 20,
-    padding: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: { fontSize: 18, fontWeight: 'bold' },
-  modalSearch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  modalSearchInput: { flex: 1, paddingVertical: 10, fontSize: 15, marginLeft: 8 },
-  modalUserItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 6,
-  },
-  modalUserAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  modalUserAvatarText: { color: COLORS.white, fontWeight: 'bold', fontSize: 14 },
-  modalUserInfo: { flex: 1 },
-  modalUserName: { fontSize: 14, fontWeight: '500' },
-  modalUserEmail: { fontSize: 12 },
-  modalUserBalance: { fontSize: 13, fontWeight: 'bold' },
-  modalEmpty: { textAlign: 'center', padding: 20 },
 });
