@@ -1,5 +1,10 @@
 // app/(user)/settings.tsx
-import React, { useState, useEffect } from 'react';
+// ─────────────────────────────────────────────────────────────
+//  SPAYE · User Settings — Version corrigée
+//  ✅ Traduction complète avec useTranslation
+// ─────────────────────────────────────────────────────────────
+
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -105,7 +110,6 @@ export default function UserSettingsScreen() {
       </View>
 
       <ScrollView style={[styles.content, { backgroundColor: colors.background }]}>
-        {/* Profile Card */}
         <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
           <View style={styles.profileRow}>
             <View style={[styles.avatar, { backgroundColor: avatarGradient }]}>
@@ -120,7 +124,6 @@ export default function UserSettingsScreen() {
           </View>
         </View>
 
-        {/* Profile Edit */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>{t('profile')}</Text>
           {editMode ? (
@@ -196,7 +199,6 @@ export default function UserSettingsScreen() {
           )}
         </View>
 
-        {/* Language */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>{t('language')}</Text>
           <View style={styles.langRow}>
@@ -221,7 +223,6 @@ export default function UserSettingsScreen() {
           </View>
         </View>
 
-        {/* Theme */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>{t('theme')}</Text>
           <View style={styles.themeRow}>
@@ -245,7 +246,6 @@ export default function UserSettingsScreen() {
           </View>
         </View>
 
-        {/* Privacy */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>{t('privacy')}</Text>
           {[
@@ -265,7 +265,6 @@ export default function UserSettingsScreen() {
           ))}
         </View>
 
-        {/* Notifications */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>{t('notifications')}</Text>
           {[
@@ -287,7 +286,6 @@ export default function UserSettingsScreen() {
           ))}
         </View>
 
-        {/* Logout Button */}
         <TouchableOpacity style={[styles.logoutBtn, { backgroundColor: COLORS.error }]} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color="#fff" />
           <Text style={styles.logoutText}>{t('logout')}</Text>

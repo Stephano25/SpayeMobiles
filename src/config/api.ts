@@ -1,133 +1,205 @@
 // src/config/api.ts
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+// ─────────────────────────────────────────────────────────────
+//  SPAYE — Configuration API
+// ─────────────────────────────────────────────────────────────
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const STORAGE_KEY = 'backend_ip';
+const DEFAULT_IP = 'astonish-uneaten-either.ngrok-free.dev'; // ✅ Sans https://
+const DEFAULT_PORT = 3000;
+
+let cachedBaseUrl: string | null = null;
 let cachedApiUrl: string | null = null;
 let cachedSocketUrl: string | null = null;
 
-const DEFAULT_IP = '192.168.188.135';
+/**
+ * ✅ Nettoie une URL pour éviter les doubles protocoles
+ */
+const cleanUrl = (url: string): string => {
+  // Supprimer les espaces
+  let cleaned = url.trim();
+  
+  // Si l'URL commence déjà par http:// ou https://, la retourner telle quelle
+  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+    return cleaned;
+  }
+  
+  // Sinon, ajouter https:// par défaut
+  return `https://${cleaned}`;
+};
 
+/**
+ * ✅ Récupère l'URL de base de l'API
+ */
+export const getBaseUrl = async (): Promise<string> => {
+  if (cachedBaseUrl) return cachedBaseUrl;
+  
+  try {
+    const storedIp = await AsyncStorage.getItem(STORAGE_KEY);
+    if (storedIp) {
+      cachedBaseUrl = cleanUrl(storedIp);
+      console.log(`✅ Base URL depuis stockage: ${cachedBaseUrl}`);
+      return cachedBaseUrl;
+    }
+  } catch (error) {
+    console.warn('⚠️ Erreur lecture IP stockée:', error);
+  }
+  
+  // Utiliser l'URL ngrok par défaut
+  cachedBaseUrl = cleanUrl(DEFAULT_IP);
+  console.log(`✅ Base URL par défaut: ${cachedBaseUrl}`);
+  return cachedBaseUrl;
+};
+
+/**
+ * ✅ Récupère l'URL de l'API
+ */
+export const getApiUrl = async (): Promise<string> => {
+  if (cachedApiUrl) return cachedApiUrl;
+  
+  const baseUrl = await getBaseUrl();
+  cachedApiUrl = `${baseUrl}/api`;
+  console.log(`✅ API URL: ${cachedApiUrl}`);
+  return cachedApiUrl;
+};
+
+/**
+ * ✅ Récupère l'URL du socket
+ */
+export const getSocketUrl = async (): Promise<string> => {
+  if (cachedSocketUrl) return cachedSocketUrl;
+  
+  const baseUrl = await getBaseUrl();
+  cachedSocketUrl = baseUrl;
+  console.log(`✅ Socket URL: ${cachedSocketUrl}`);
+  return cachedSocketUrl;
+};
+
+/**
+ * ✅ Définit l'IP du backend
+ */
+export const setBackendIp = async (ip: string): Promise<void> => {
+  try {
+    const cleanIp = cleanUrl(ip);
+    await AsyncStorage.setItem(STORAGE_KEY, cleanIp);
+    cachedBaseUrl = null;
+    cachedApiUrl = null;
+    cachedSocketUrl = null;
+    console.log(`✅ IP backend définie: ${cleanIp}`);
+  } catch (error) {
+    console.error('❌ Erreur sauvegarde IP:', error);
+  }
+};
+
+/**
+ * ✅ Récupère l'IP stockée
+ */
 export const getStoredIp = async (): Promise<string | null> => {
   try {
-    return await AsyncStorage.getItem('backend_ip');
+    return await AsyncStorage.getItem(STORAGE_KEY);
   } catch {
     return null;
   }
 };
 
-export const setBackendIp = async (ip: string): Promise<void> => {
+/**
+ * ✅ Réinitialise l'IP du backend
+ */
+export const resetBackendIp = async (): Promise<void> => {
   try {
-    await AsyncStorage.setItem('backend_ip', ip);
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    cachedBaseUrl = null;
     cachedApiUrl = null;
     cachedSocketUrl = null;
-  } catch {}
+    console.log('✅ IP backend réinitialisée');
+  } catch (error) {
+    console.error('❌ Erreur réinitialisation IP:', error);
+  }
 };
 
-export const testConnection = async (ip: string): Promise<boolean> => {
+/**
+ * ✅ Détecte automatiquement l'IP du backend
+ */
+export const detectBackendIP = async (): Promise<string | null> => {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const storedIp = await getStoredIp();
+    if (storedIp) {
+      console.log(`✅ IP stockée trouvée: ${storedIp}`);
+      return storedIp;
+    }
     
-    // ✅ Correction: utiliser /api/health
-    const response = await fetch(`http://${ip}:3000/api/health`, {
-      signal: controller.signal,
-      headers: { 
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
+    // Essayer l'URL ngrok par défaut
+    const defaultUrl = cleanUrl(DEFAULT_IP);
+    try {
+      const response = await fetch(`${defaultUrl}/api/health`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (response.ok) {
+        await setBackendIp(DEFAULT_IP);
+        console.log(`✅ Backend détecté: ${defaultUrl}`);
+        return DEFAULT_IP;
+      }
+    } catch (e) {
+      console.warn('⚠️ Backend par défaut inaccessible:', e);
+    }
+    
+    // Essayer les IPs locales
+    const localIps = ['192.168.188.135', '192.168.1.100', 'localhost', '10.0.2.2'];
+    for (const ip of localIps) {
+      try {
+        const testUrl = `http://${ip}:${DEFAULT_PORT}/api/health`;
+        const response = await fetch(testUrl, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        
+        if (response.ok) {
+          await setBackendIp(ip);
+          console.log(`✅ Backend détecté: http://${ip}`);
+          return ip;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Détection IP automatique échouée:', error);
+  }
+  
+  return null;
+};
+
+/**
+ * ✅ Vérifie si le backend est accessible
+ */
+export const checkBackendHealth = async (baseUrl?: string): Promise<boolean> => {
+  try {
+    const url = baseUrl || await getBaseUrl();
+    const clean = cleanUrl(url);
+    const response = await fetch(`${clean}/api/health`, {
       method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
     });
-    
-    clearTimeout(timeoutId);
     return response.ok;
-  } catch {
+  } catch (error) {
+    console.warn('⚠️ Backend inaccessible:', error);
     return false;
   }
 };
 
-export const detectBackendIP = async (): Promise<string | null> => {
-  try {
-    const savedIp = await getStoredIp();
-    if (savedIp && savedIp.trim()) {
-      const isValid = await testConnection(savedIp.trim());
-      if (isValid) {
-        console.log(`✅ IP stockée valide: ${savedIp}`);
-        return savedIp.trim();
-      }
-    }
-
-    const ipsToTest = [
-      '192.168.188.135',
-      '192.168.1.100',
-      '192.168.1.101',
-      '192.168.0.100',
-      '10.0.2.2',
-      '10.0.3.2',
-      'localhost',
-      '127.0.0.1',
-    ];
-
-    for (const testIP of ipsToTest) {
-      const isValid = await testConnection(testIP);
-      if (isValid) {
-        console.log(`✅ Backend trouvé à l'IP: ${testIP}`);
-        await setBackendIp(testIP);
-        return testIP;
-      }
-    }
-
-    console.log('❌ Aucun backend trouvé');
-    return null;
-  } catch (error) {
-    console.error('❌ Erreur détection backend:', error);
-    return null;
-  }
-};
-
-export const getApiUrl = async (): Promise<string> => {
-  if (cachedApiUrl) return cachedApiUrl;
-
-  try {
-    const savedIp = await getStoredIp();
-    if (savedIp && savedIp.trim()) {
-      const isValid = await testConnection(savedIp.trim());
-      if (isValid) {
-        // ✅ Correction: URL complète avec /api
-        cachedApiUrl = `http://${savedIp.trim()}:3000/api`;
-        console.log(`📍 API URL: ${cachedApiUrl}`);
-        return cachedApiUrl;
-      }
-    }
-
-    const detectedIp = await detectBackendIP();
-    if (detectedIp) {
-      cachedApiUrl = `http://${detectedIp}:3000/api`;
-      return cachedApiUrl;
-    }
-
-    cachedApiUrl = `http://${DEFAULT_IP}:3000/api`;
-    console.log(`📍 API URL (fallback): ${cachedApiUrl}`);
-    return cachedApiUrl;
-  } catch (error) {
-    console.error('❌ Erreur getApiUrl:', error);
-    return `http://${DEFAULT_IP}:3000/api`;
-  }
-};
-
-export const getSocketUrl = async (): Promise<string> => {
-  if (cachedSocketUrl) return cachedSocketUrl;
-  try {
-    const apiUrl = await getApiUrl();
-    cachedSocketUrl = apiUrl.replace('/api', '');
-    return cachedSocketUrl;
-  } catch {
-    cachedSocketUrl = `http://${DEFAULT_IP}:3000`;
-    return cachedSocketUrl;
-  }
-};
-
-export const resetBackendIp = async (): Promise<void> => {
-  await AsyncStorage.removeItem('backend_ip');
-  cachedApiUrl = null;
-  cachedSocketUrl = null;
+// ============================================================
+// EXPORT PAR DÉFAUT
+// ============================================================
+export default {
+  getBaseUrl,
+  getApiUrl,
+  getSocketUrl,
+  setBackendIp,
+  getStoredIp,
+  resetBackendIp,
+  detectBackendIP,
+  checkBackendHealth,
 };

@@ -1,4 +1,10 @@
 // app/(user)/wallet.tsx
+// ─────────────────────────────────────────────────────────────
+//  SPAYE · User Wallet Screen
+//  ✅ Correction : clés uniques pour les transactions
+//  ✅ Utilisation de apiGet, apiPost
+// ─────────────────────────────────────────────────────────────
+
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -103,7 +109,6 @@ export default function WalletScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
         }
       >
-        {/* Balance Card */}
         <View style={[styles.balanceCard, { backgroundColor: '#1a1830' }]}>
           <Text style={styles.balanceLabel}>{t('balance')}</Text>
           <Text style={styles.balanceAmount}>{formatAmount(wallet?.balance || 0)} Ar</Text>
@@ -123,7 +128,6 @@ export default function WalletScreen() {
           </View>
         </View>
 
-        {/* Quick Actions */}
         <View style={styles.quickActions}>
           {[
             { icon: 'send', label: t('send'), route: 'SendMoney' },
@@ -142,7 +146,6 @@ export default function WalletScreen() {
           ))}
         </View>
 
-        {/* Stats */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.card }]}>
             <View style={[styles.statIcon, { backgroundColor: COLORS.successLight }]}>
@@ -167,7 +170,6 @@ export default function WalletScreen() {
           </View>
         </View>
 
-        {/* Recent Transactions */}
         <View style={[styles.txCard, { backgroundColor: colors.card }]}>
           <View style={styles.txHeader}>
             <Text style={[styles.txTitle, { color: colors.text }]}>{t('recent_activity')}</Text>
@@ -188,11 +190,11 @@ export default function WalletScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            transactions.map((tx) => {
+            transactions.map((tx, index) => {
               const expense = isExpense(tx.type);
               return (
                 <TouchableOpacity
-                  key={tx.id}
+                  key={tx.id || tx._id || `tx-${index}`}
                   style={styles.txItem}
                   onPress={() => navigation.navigate('Transactions' as never)}
                 >

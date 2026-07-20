@@ -55,6 +55,8 @@ interface SearchUser {
   email: string;
   isFriend: boolean;
   hasPendingRequest: boolean;
+  hasIncomingRequest?: boolean;
+  requestId?: string;
   isBlocked?: boolean;
 }
 
@@ -124,7 +126,14 @@ export default function AdminFriendsScreen() {
 
   const sendRequest = async (userId: string) => {
     try {
-      await FriendService.sendFriendRequest(userId);
+      const cleanId = String(userId).replace(/[{}"'\s]/g, '').trim();
+      
+      if (!/^[0-9a-fA-F]{24}$/.test(cleanId)) {
+        showError('ID utilisateur invalide');
+        return;
+      }
+      
+      await FriendService.sendFriendRequest(cleanId);
       showSuccess(t('send_request'));
       loadData();
       setSearchResults((prev: SearchUser[]) => prev.filter((u: SearchUser) => u.id !== userId));
@@ -185,6 +194,7 @@ export default function AdminFriendsScreen() {
     const friend = item.friend || { firstName: '', lastName: '', id: '' };
     return (
       <TouchableOpacity
+        key={item.id}
         style={[styles.friendItem, { backgroundColor: colors.card }]}
         onPress={() => chatWithFriend(friend.id)}
       >
@@ -215,7 +225,7 @@ export default function AdminFriendsScreen() {
   const renderRequest = ({ item }: { item: FriendRequest }) => {
     const sender = item.sender || { firstName: '', lastName: '', email: '' };
     return (
-      <View style={[styles.requestItem, { backgroundColor: colors.card }]}>
+      <View key={item.id} style={[styles.requestItem, { backgroundColor: colors.card }]}>
         <View style={[styles.requestAvatar, { backgroundColor: getAvatarColor(sender.firstName || '') }]}>
           <Text style={styles.requestAvatarText}>
             {getInitials(sender.firstName, sender.lastName)}
@@ -275,7 +285,6 @@ export default function AdminFriendsScreen() {
           {searching && <ActivityIndicator size="small" color={COLORS.primary} />}
         </View>
 
-        {/* Online Friends */}
         {onlineFriends.length > 0 && (
           <View style={styles.onlineSection}>
             <Text style={[styles.onlineTitle, { color: colors.text }]}>
@@ -287,6 +296,7 @@ export default function AdminFriendsScreen() {
               keyExtractor={(item: Friend) => item.id}
               renderItem={({ item }) => (
                 <TouchableOpacity
+                  key={item.id}
                   style={styles.onlineItem}
                   onPress={() => chatWithFriend(item.friend?.id || '')}
                 >
@@ -307,7 +317,6 @@ export default function AdminFriendsScreen() {
           </View>
         )}
 
-        {/* Search Results */}
         {searchResults.length > 0 && searchQuery.length >= 2 && (
           <View style={[styles.resultsCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.resultsTitle, { color: colors.text }]}>Résultats</Text>
@@ -344,7 +353,6 @@ export default function AdminFriendsScreen() {
           </View>
         )}
 
-        {/* Friend Requests */}
         {requests.length > 0 && (
           <View style={[styles.requestsCard, { backgroundColor: colors.card }]}>
             <Text style={[styles.requestsTitle, { color: colors.text }]}>
@@ -359,7 +367,6 @@ export default function AdminFriendsScreen() {
           </View>
         )}
 
-        {/* Friends List */}
         <View style={[styles.friendsCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.friendsTitle, { color: colors.text }]}>
             {t('my_friends')} ({friends.length})
@@ -383,7 +390,6 @@ export default function AdminFriendsScreen() {
           />
         </View>
 
-        {/* Admin Info */}
         <View style={[styles.adminInfoCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.adminInfoText, { color: colors.textSecondary }]}>
             <Ionicons name="shield-checkmark" size={16} color={COLORS.primary} /> 

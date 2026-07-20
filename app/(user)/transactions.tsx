@@ -83,7 +83,7 @@ export default function TransactionsScreen() {
   const renderItem = ({ item }: { item: any }) => {
     const isCredit = isCreditType(item.type);
     return (
-      <View style={[styles.item, { backgroundColor: colors.card }]}>
+      <View key={item.id} style={[styles.item, { backgroundColor: colors.card }]}>
         <View style={[styles.iconContainer, { backgroundColor: isCredit ? COLORS.successLight : COLORS.errorLight }]}>
           <Ionicons name={getTransactionTypeIcon(item.type)} size={20} color={isCredit ? COLORS.success : COLORS.error} />
         </View>

@@ -1,54 +1,78 @@
 // src/services/WalletService.ts
-import api from './api';
+// ─────────────────────────────────────────────────────────────
+//  SPAYE — Wallet Service
+//  ✅ Correction : utilisation de apiGet, apiPost, etc.
+// ─────────────────────────────────────────────────────────────
 
-// ✅ Définition du type Wallet localement
+import { apiGet, apiPost, apiPut, apiDelete } from './api';
+
 export interface Wallet {
   balance: number;
   currency?: string;
   userId?: string;
   qrCode?: string;
-  transactions?: any[];
+  dailyLimit?: number;
+  monthlyLimit?: number;
+  isActive?: boolean;
+  totalSent?: number;
+  totalReceived?: number;
+  totalTransactions?: number;
+  totalFees?: number;
+  remainingDailyLimit?: number;
+  remainingMonthlyLimit?: number;
+  recentTransactions?: any[];
 }
 
 export const WalletService = {
   getWallet: async (): Promise<Wallet> => {
     try {
-      const response = await api.get('/wallet');
-      // ✅ Vérifier que response a bien une propriété balance
-      if (response && typeof response === 'object' && 'balance' in response) {
-        return response as Wallet;
-      }
-      return { balance: 0 };
-    } catch {
+      const response = await apiGet('/wallet');
+      return response || { balance: 0 };
+    } catch (error) {
+      console.error('❌ Erreur getWallet:', error);
       return { balance: 0 };
     }
   },
 
-  getBalance: async (): Promise<{ balance: number }> => {
+  getBalance: async (): Promise<{ balance: number; currency?: string }> => {
     try {
-      const response = await api.get('/wallet/balance');
-      if (response && typeof response === 'object' && 'balance' in response) {
-        return response as { balance: number };
-      }
-      return { balance: 0 };
-    } catch {
+      const response = await apiGet('/wallet/balance');
+      return response || { balance: 0 };
+    } catch (error) {
+      console.error('❌ Erreur getBalance:', error);
       return { balance: 0 };
     }
   },
 
   generateReceiveQRCode: async (amount?: number): Promise<any> => {
-    const response = await api.post('/wallet/generate-qr', amount ? { amount } : {});
-    return response;
+    try {
+      const body = amount ? { amount } : {};
+      const response = await apiPost('/wallet/generate-qr', body);
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur generateReceiveQRCode:', error);
+      throw error;
+    }
   },
 
   scanQRCode: async (qrData: string): Promise<any> => {
-    const response = await api.post('/wallet/scan-qr', { qrData });
-    return response;
+    try {
+      const response = await apiPost('/wallet/scan-qr', { qrData });
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur scanQRCode:', error);
+      throw error;
+    }
   },
 
   sendMoney: async (data: { receiverId: string; amount: number; description?: string }): Promise<any> => {
-    const response = await api.post('/wallet/send-money', data);
-    return response;
+    try {
+      const response = await apiPost('/wallet/send-money', data);
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur sendMoney:', error);
+      throw error;
+    }
   },
 
   transferMoney: async (data: { receiverId: string; amount: number; description?: string }): Promise<any> => {
@@ -56,17 +80,34 @@ export const WalletService = {
   },
 
   deposit: async (amount: number, paymentMethod: string = 'bank_card'): Promise<any> => {
-    const response = await api.post('/wallet/deposit', { amount, paymentMethod });
-    return response;
+    try {
+      const response = await apiPost('/wallet/deposit', { amount, paymentMethod });
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur deposit:', error);
+      throw error;
+    }
   },
 
   withdraw: async (amount: number, paymentMethod: string = 'bank_card'): Promise<any> => {
-    const response = await api.post('/wallet/withdraw', { amount, paymentMethod });
-    return response;
+    try {
+      const response = await apiPost('/wallet/withdraw', { amount, paymentMethod });
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur withdraw:', error);
+      throw error;
+    }
   },
 
   syncWallet: async (): Promise<any> => {
-    const response = await api.post('/wallet/sync');
-    return response;
+    try {
+      const response = await apiPost('/wallet/sync');
+      return response;
+    } catch (error) {
+      console.error('❌ Erreur syncWallet:', error);
+      throw error;
+    }
   },
 };
+
+export default WalletService;

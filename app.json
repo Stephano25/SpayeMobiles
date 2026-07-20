@@ -16,18 +16,46 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.spaye.mobile"
+      "bundleIdentifier": "com.spaye.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "SPaye utilise la caméra pour les appels vidéo",
+        "NSMicrophoneUsageDescription": "SPaye utilise le microphone pour les appels audio et vidéo",
+        "UIBackgroundModes": ["audio"]
+      },
+      "deploymentTarget": "15.1"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/image02.png",
         "backgroundColor": "#6366f1"
       },
-      "package": "com.spaye.mobile"
+      "package": "com.spaye.mobile",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "INTERNET",
+        "MODIFY_AUDIO_SETTINGS"
+      ],
+      "minSdkVersion": 24
     },
     "web": {
       "favicon": "./assets/image02.png"
     },
-    "scheme": "spaye"
+    "scheme": "spaye",
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24,
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
+    ]
   }
 }

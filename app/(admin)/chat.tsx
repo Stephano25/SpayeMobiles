@@ -1,4 +1,10 @@
 // app/(admin)/chat.tsx
+// ─────────────────────────────────────────────────────────────
+//  SPAYE · Admin Chat Screen — Version corrigée
+//  ✅ Utilise le même ChatService que l'utilisateur
+//  ✅ Interface admin adaptée
+// ─────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -11,6 +17,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
+  StatusBar,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -18,18 +25,23 @@ import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
 import { useAuth } from '../../src/context/AuthContext';
 import { ChatService, Message, Conversation } from '../../src/services/ChatService';
-import { COLORS, formatTime, getInitials, getAvatarColor } from '../../src/config/colors';
+import {
+  COLORS,
+  formatTime,
+  getInitials,
+  getAvatarColor,
+} from '../../src/config';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
 
 export default function AdminChatScreen() {
   const { colors } = useTheme();
-  const { showError } = useNotification();
+  const { showError, showSuccess } = useNotification();
   const { t } = useTranslation();
   const { getCurrentUser } = useAuth();
   const navigation = useNavigation();
   const user = getCurrentUser();
-  
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedUser, setSelectedUser] = useState<Conversation | null>(null);
@@ -39,14 +51,19 @@ export default function AdminChatScreen() {
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+
   const flatListRef = useRef<FlatList>(null);
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
+  const unsubMsg = useRef<(() => void) | null>(null);
+  const unsubTyping = useRef<(() => void) | null>(null);
+  const unsubOnline = useRef<(() => void) | null>(null);
 
   const loadConversations = useCallback(async () => {
     try {
       const data = await ChatService.getConversations();
       setConversations(data || []);
     } catch (error) {
+      console.error('❌ Erreur chargement conversations:', error);
       showError(t('error_loading'));
     } finally {
       setLoading(false);
@@ -54,46 +71,59 @@ export default function AdminChatScreen() {
     }
   }, [showError, t]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadConversations();
-      setupSocketListeners();
-      return () => {
-        ChatService.reset();
-      };
-    }, [loadConversations])
-  );
+  const setupSocketListeners = useCallback(() => {
+    unsubMsg.current?.();
+    unsubTyping.current?.();
+    unsubOnline.current?.();
 
-  const setupSocketListeners = () => {
-    ChatService.onNewMessage((msg: Message) => {
+    unsubMsg.current = ChatService.onNewMessage((msg: Message) => {
       handleNewMessage(msg);
     });
-    ChatService.onTyping((data: { userId: string; isTyping: boolean }) => {
+
+    unsubTyping.current = ChatService.onTyping((data: { userId: string; isTyping: boolean }) => {
       if (selectedUser && data.userId === selectedUser.userId) {
         setIsTyping(data.isTyping);
       }
     });
-    ChatService.onOnlineStatus((data: { userId: string; isOnline: boolean }) => {
+
+    unsubOnline.current = ChatService.onOnlineStatus((data: { userId: string; isOnline: boolean }) => {
       updateOnlineStatus(data.userId, data.isOnline);
     });
-  };
+  }, [selectedUser]);
 
-  const handleNewMessage = (msg: Message) => {
+  useFocusEffect(
+    useCallback(() => {
+      loadConversations();
+      setupSocketListeners();
+
+      return () => {
+        unsubMsg.current?.();
+        unsubTyping.current?.();
+        unsubOnline.current?.();
+        ChatService.reset();
+      };
+    }, [loadConversations, setupSocketListeners])
+  );
+
+  const handleNewMessage = useCallback((msg: Message) => {
     if (selectedUser && msg.senderId === selectedUser.userId) {
-      setMessages((prev: Message[]) => [...prev, msg]);
+      setMessages((prev: Message[]) => {
+        if (prev.some(m => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
       scrollToBottom();
     }
     updateConversationLastMessage(msg);
-  };
+  }, [selectedUser]);
 
-  const updateConversationLastMessage = (msg: Message) => {
+  const updateConversationLastMessage = useCallback((msg: Message) => {
     setConversations((prev: Conversation[]) => {
       const updated = prev.map((conv: Conversation) => {
         if (conv.userId === msg.senderId || conv.userId === msg.receiverId) {
           return {
             ...conv,
             lastMessage: {
-              content: msg.content || 'Message',
+              content: msg.content || (msg.type === 'emoji' ? msg.emoji || '😊' : 'Message'),
               type: msg.type || 'text',
               createdAt: msg.createdAt || new Date(),
             },
@@ -102,13 +132,13 @@ export default function AdminChatScreen() {
         }
         return conv;
       });
-      return updated.sort((a: Conversation, b: Conversation) => 
+      return updated.sort((a: Conversation, b: Conversation) =>
         new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime()
       );
     });
-  };
+  }, []);
 
-  const updateOnlineStatus = (userId: string, isOnline: boolean) => {
+  const updateOnlineStatus = useCallback((userId: string, isOnline: boolean) => {
     setConversations((prev: Conversation[]) =>
       prev.map((conv: Conversation) =>
         conv.userId === userId ? { ...conv, isOnline } : conv
@@ -117,15 +147,15 @@ export default function AdminChatScreen() {
     if (selectedUser && selectedUser.userId === userId) {
       setSelectedUser({ ...selectedUser, isOnline });
     }
-  };
+  }, [selectedUser]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  };
+  }, []);
 
-  const selectConversation = async (conv: Conversation) => {
+  const selectConversation = useCallback(async (conv: Conversation) => {
     setSelectedUser(conv);
     setMessages([]);
     try {
@@ -133,18 +163,24 @@ export default function AdminChatScreen() {
       setMessages(data || []);
       scrollToBottom();
       await ChatService.markAsRead(conv.userId);
+      setConversations((prev: Conversation[]) =>
+        prev.map((c: Conversation) =>
+          c.userId === conv.userId ? { ...c, unreadCount: 0 } : c
+        )
+      );
     } catch (error) {
+      console.error('❌ Erreur sélection conversation:', error);
       showError(t('error_loading'));
     }
-  };
+  }, [scrollToBottom, showError, t]);
 
-  const sendMessage = async () => {
+  const sendMessage = useCallback(async () => {
     if (!newMessage.trim() || !selectedUser || sending) return;
-    
+
     setSending(true);
     const content = newMessage.trim();
-    const tempId = 'temp-' + Date.now();
-    
+    const tempId = 'temp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+
     const tempMessage: Message = {
       id: tempId,
       senderId: user?.id || '',
@@ -155,7 +191,7 @@ export default function AdminChatScreen() {
       isDelivered: false,
       createdAt: new Date(),
     };
-    
+
     setMessages((prev: Message[]) => [...prev, tempMessage]);
     setNewMessage('');
     scrollToBottom();
@@ -166,48 +202,51 @@ export default function AdminChatScreen() {
         type: 'text',
         content,
       });
+      ChatService.sendTyping(selectedUser.userId, false);
     } catch (error) {
+      console.error('❌ Erreur envoi:', error);
       showError(t('error'));
       setMessages((prev: Message[]) => prev.filter((msg: Message) => msg.id !== tempId));
     } finally {
       setSending(false);
     }
-  };
+  }, [newMessage, selectedUser, sending, user, scrollToBottom, showError, t]);
 
-  const onTyping = () => {
+  const onTyping = useCallback(() => {
     if (!selectedUser) return;
     ChatService.sendTyping(selectedUser.userId, true);
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
     typingTimeout.current = setTimeout(() => {
       if (selectedUser) ChatService.sendTyping(selectedUser.userId, false);
     }, 1500);
-  };
+  }, [selectedUser]);
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadConversations();
-  };
+  }, [loadConversations]);
 
   const filteredConversations = conversations.filter((conv: Conversation) =>
     `${conv.firstName} ${conv.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
     conv.lastMessage?.content?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const renderConversation = ({ item }: { item: Conversation }) => (
+  const renderConversation = useCallback(({ item }: { item: Conversation }) => (
     <TouchableOpacity
       style={[
         styles.convItem,
         { backgroundColor: selectedUser?.userId === item.userId ? COLORS.primary + '18' : 'transparent' }
       ]}
       onPress={() => selectConversation(item)}
+      activeOpacity={0.7}
     >
-      <View style={[styles.avatar, { backgroundColor: getAvatarColor(item.firstName + item.lastName) }]}>
+      <View style={[styles.avatar, { backgroundColor: getAvatarColor(item.firstName + ' ' + item.lastName) }]}>
         <Text style={styles.avatarText}>{getInitials(item.firstName, item.lastName)}</Text>
         {item.isOnline && <View style={styles.onlineDot} />}
       </View>
       <View style={styles.convInfo}>
         <View style={styles.convHeader}>
-          <Text style={[styles.convName, { color: colors.text }]}>
+          <Text style={[styles.convName, { color: colors.text }]} numberOfLines={1}>
             {item.firstName} {item.lastName}
           </Text>
           <Text style={[styles.convTime, { color: colors.textSecondary }]}>
@@ -218,7 +257,7 @@ export default function AdminChatScreen() {
           <Text style={[styles.convPreviewText, { color: colors.textSecondary }]} numberOfLines={1}>
             {item.lastMessage?.content || 'Nouvelle conversation'}
           </Text>
-          {item.unreadCount > 0 && (
+          {(item.unreadCount || 0) > 0 && (
             <View style={styles.unreadBadge}>
               <Text style={styles.unreadText}>{item.unreadCount}</Text>
             </View>
@@ -226,12 +265,17 @@ export default function AdminChatScreen() {
         </View>
       </View>
     </TouchableOpacity>
-  );
+  ), [selectedUser, colors, selectConversation]);
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isOwn = item.senderId === user?.id;
     return (
       <View style={[styles.msgRow, isOwn ? styles.msgRowOwn : styles.msgRowOther]}>
+        {!isOwn && (
+          <View style={[styles.msgAvatar, { backgroundColor: getAvatarColor('User') }]}>
+            <Text style={styles.msgAvatarText}>U</Text>
+          </View>
+        )}
         <View style={[
           styles.msgBubble,
           isOwn ? styles.msgBubbleOwn : styles.msgBubbleOther,
@@ -248,15 +292,24 @@ export default function AdminChatScreen() {
             { color: isOwn ? 'rgba(255,255,255,0.6)' : colors.textSecondary }
           ]}>
             {formatTime(item.createdAt)}
+            {isOwn && (
+              <Ionicons
+                name={item.isRead ? 'checkmark-done' : 'checkmark'}
+                size={12}
+                color={item.isRead ? COLORS.success : colors.textSecondary}
+                style={{ marginLeft: 4 }}
+              />
+            )}
           </Text>
         </View>
       </View>
     );
-  };
+  }, [user, colors]);
 
   if (loading) {
     return (
       <SafeScreen backgroundColor={colors.background}>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
         <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={{ marginTop: 12, color: colors.textSecondary }}>{t('loading')}</Text>
@@ -267,11 +320,13 @@ export default function AdminChatScreen() {
 
   return (
     <SafeScreen backgroundColor={colors.background}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('messages')}</Text>
+        <Text style={styles.headerTitle}>{t('messages')} (Admin)</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -287,6 +342,11 @@ export default function AdminChatScreen() {
                 value={searchQuery}
                 onChangeText={setSearchQuery}
               />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery('')}>
+                  <Ionicons name="close-circle" size={20} color={COLORS.gray400} />
+                </TouchableOpacity>
+              )}
             </View>
 
             <FlatList
@@ -301,7 +361,7 @@ export default function AdminChatScreen() {
                 <View style={styles.emptyContainer}>
                   <Ionicons name="chatbubbles-outline" size={48} color={COLORS.gray400} />
                   <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                    {t('no_conversations')}
+                    {searchQuery.length > 0 ? t('no_results') : t('no_conversations')}
                   </Text>
                 </View>
               }
@@ -313,18 +373,18 @@ export default function AdminChatScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
           >
-            <View style={[styles.chatHeader, { backgroundColor: colors.card }]}>
+            <View style={[styles.chatHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
               <TouchableOpacity onPress={() => setSelectedUser(null)} style={styles.chatBack}>
                 <Ionicons name="arrow-back" size={24} color={colors.text} />
               </TouchableOpacity>
-              <View style={[styles.chatAvatar, { backgroundColor: getAvatarColor(selectedUser.firstName + selectedUser.lastName) }]}>
+              <View style={[styles.chatAvatar, { backgroundColor: getAvatarColor(selectedUser.firstName + ' ' + selectedUser.lastName) }]}>
                 <Text style={styles.chatAvatarText}>
                   {getInitials(selectedUser.firstName, selectedUser.lastName)}
                 </Text>
                 {selectedUser.isOnline && <View style={styles.chatOnlineDot} />}
               </View>
               <View style={styles.chatUserInfo}>
-                <Text style={[styles.chatUserName, { color: colors.text }]}>
+                <Text style={[styles.chatUserName, { color: colors.text }]} numberOfLines={1}>
                   {selectedUser.firstName} {selectedUser.lastName}
                 </Text>
                 <Text style={[styles.chatUserStatus, { color: selectedUser.isOnline ? COLORS.success : colors.textSecondary }]}>
@@ -340,9 +400,10 @@ export default function AdminChatScreen() {
               renderItem={renderMessage}
               contentContainerStyle={styles.messagesList}
               onContentSizeChange={scrollToBottom}
+              onLayout={scrollToBottom}
             />
 
-            <View style={[styles.composer, { backgroundColor: colors.card }]}>
+            <View style={[styles.composer, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
               <TextInput
                 style={[styles.composerInput, { color: colors.text, backgroundColor: colors.background }]}
                 value={newMessage}
@@ -353,9 +414,10 @@ export default function AdminChatScreen() {
                 placeholder={t('type_message')}
                 placeholderTextColor={COLORS.gray400}
                 multiline
+                maxLength={500}
               />
               <TouchableOpacity
-                style={[styles.sendBtn, { backgroundColor: COLORS.primary }]}
+                style={[styles.sendBtn, { backgroundColor: COLORS.primary }, (!newMessage.trim() || sending) && styles.sendBtnDisabled]}
                 onPress={sendMessage}
                 disabled={!newMessage.trim() || sending}
               >
@@ -383,7 +445,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white, flex: 1, marginLeft: 8 },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: COLORS.white,
+    flex: 1,
+    marginLeft: 8,
+  },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -396,14 +464,23 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  searchInput: { flex: 1, paddingVertical: 10, fontSize: 15, marginLeft: 8 },
-  listContent: { paddingHorizontal: 12, paddingBottom: 20 },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 15,
+    marginLeft: 8,
+    height: 44,
+  },
+  listContent: {
+    paddingHorizontal: 12,
+    paddingBottom: 20,
+  },
   convItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     borderRadius: 12,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   avatar: {
     width: 48,
@@ -414,7 +491,11 @@ const styles = StyleSheet.create({
     marginRight: 12,
     position: 'relative',
   },
-  avatarText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
+  avatarText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
   onlineDot: {
     position: 'absolute',
     bottom: 0,
@@ -427,11 +508,31 @@ const styles = StyleSheet.create({
     borderColor: COLORS.white,
   },
   convInfo: { flex: 1 },
-  convHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  convName: { fontSize: 15, fontWeight: '600' },
-  convTime: { fontSize: 11 },
-  convPreview: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
-  convPreviewText: { fontSize: 13, flex: 1, marginRight: 8 },
+  convHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  convName: {
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+  },
+  convTime: {
+    fontSize: 11,
+    marginLeft: 8,
+  },
+  convPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  convPreviewText: {
+    fontSize: 13,
+    flex: 1,
+    marginRight: 8,
+  },
   unreadBadge: {
     backgroundColor: COLORS.primary,
     borderRadius: 12,
@@ -441,18 +542,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  unreadText: { color: COLORS.white, fontSize: 10, fontWeight: 'bold' },
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 60 },
-  emptyText: { fontSize: 16, marginTop: 12 },
+  unreadText: {
+    color: COLORS.white,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+  },
+  emptyText: {
+    fontSize: 16,
+    marginTop: 12,
+  },
   chatContainer: { flex: 1 },
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: COLORS.gray200,
   },
-  chatBack: { padding: 4, marginRight: 8 },
+  chatBack: {
+    padding: 4,
+    marginRight: 8,
+  },
   chatAvatar: {
     width: 40,
     height: 40,
@@ -462,7 +576,11 @@ const styles = StyleSheet.create({
     marginRight: 10,
     position: 'relative',
   },
-  chatAvatarText: { color: COLORS.white, fontWeight: 'bold', fontSize: 14 },
+  chatAvatarText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
   chatOnlineDot: {
     position: 'absolute',
     bottom: 0,
@@ -475,12 +593,41 @@ const styles = StyleSheet.create({
     borderColor: COLORS.white,
   },
   chatUserInfo: { flex: 1 },
-  chatUserName: { fontSize: 15, fontWeight: '600' },
-  chatUserStatus: { fontSize: 12 },
-  messagesList: { padding: 12, paddingBottom: 20 },
-  msgRow: { marginBottom: 8 },
-  msgRowOwn: { alignItems: 'flex-end' },
-  msgRowOther: { alignItems: 'flex-start' },
+  chatUserName: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  chatUserStatus: {
+    fontSize: 12,
+  },
+  messagesList: {
+    padding: 12,
+    paddingBottom: 20,
+  },
+  msgRow: {
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  msgRowOwn: {
+    justifyContent: 'flex-end',
+  },
+  msgRowOther: {
+    justifyContent: 'flex-start',
+  },
+  msgAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  msgAvatarText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 10,
+  },
   msgBubble: {
     maxWidth: '80%',
     padding: 10,
@@ -492,14 +639,22 @@ const styles = StyleSheet.create({
   msgBubbleOther: {
     borderBottomLeftRadius: 4,
   },
-  msgText: { fontSize: 14, lineHeight: 20 },
-  msgTime: { fontSize: 10, marginTop: 4, alignSelf: 'flex-end' },
+  msgText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  msgTime: {
+    fontSize: 10,
+    marginTop: 4,
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: 10,
     borderTopWidth: 0.5,
-    borderTopColor: COLORS.gray200,
     gap: 8,
   },
   composerInput: {
@@ -516,5 +671,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sendBtnDisabled: {
+    opacity: 0.5,
   },
 });

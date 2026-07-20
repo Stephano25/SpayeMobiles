@@ -1,4 +1,10 @@
 // app/(admin)/wallet.tsx
+// ─────────────────────────────────────────────────────────────
+//  SPAYE · Admin Wallet Screen
+//  ✅ Correction des routes (AdminDashboard → AdminHome)
+//  ✅ Clés uniques pour les transactions
+// ─────────────────────────────────────────────────────────────
+
 import React, { useState, useCallback } from 'react';
 import {
   View,
@@ -106,12 +112,10 @@ export default function AdminWalletScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
         }
       >
-        {/* Balance Card */}
         <View style={[styles.balanceCard, { backgroundColor: '#1a1830' }]}>
           <Text style={styles.balanceLabel}>{t('balance')}</Text>
-          <Text style={styles.balanceAmount}>{formatAmount(wallet?.balance || 0)} Ar</Text>
+          <Text style={styles.balanceAmount}>{formatAmount(wallet?.balance || 0)}</Text>
           
-          {/* Actions Admin - Dépôt/Retrait rapide */}
           <View style={styles.balanceActions}>
             <TouchableOpacity 
               style={[styles.balBtn, styles.balBtnPrimary]} 
@@ -137,16 +141,15 @@ export default function AdminWalletScreen() {
           </View>
         </View>
 
-        {/* Quick Actions */}
         <View style={styles.quickActions}>
           {[
-            { icon: 'qr-code', label: 'Générer QR', route: 'AdminDashboard' },
-            { icon: 'scan', label: 'Scanner QR', route: 'AdminDashboard' },
-            { icon: 'people', label: 'Utilisateurs', route: 'AdminUsers' },
-            { icon: 'receipt', label: 'Transactions', route: 'AdminTransactions' },
+            { id: 'qr-generate', icon: 'qr-code', label: 'Générer QR', route: 'AdminHome' },
+            { id: 'qr-scan', icon: 'scan', label: 'Scanner QR', route: 'AdminHome' },
+            { id: 'users', icon: 'people', label: 'Utilisateurs', route: 'AdminUsers' },
+            { id: 'transactions', icon: 'receipt', label: 'Transactions', route: 'AdminTransactions' },
           ].map((item) => (
             <TouchableOpacity
-              key={item.route}
+              key={item.id}
               style={[styles.quickBtn, { backgroundColor: colors.card }]}
               onPress={() => navigateTo(item.route)}
             >
@@ -156,7 +159,6 @@ export default function AdminWalletScreen() {
           ))}
         </View>
 
-        {/* Stats */}
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: colors.card }]}>
             <View style={[styles.statIcon, { backgroundColor: COLORS.successLight }]}>
@@ -181,7 +183,6 @@ export default function AdminWalletScreen() {
           </View>
         </View>
 
-        {/* Recent Transactions */}
         <View style={[styles.txCard, { backgroundColor: colors.card }]}>
           <View style={styles.txHeader}>
             <Text style={[styles.txTitle, { color: colors.text }]}>{t('recent_activity')}</Text>
@@ -196,11 +197,11 @@ export default function AdminWalletScreen() {
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('no_transactions')}</Text>
             </View>
           ) : (
-            transactions.map((tx) => {
+            transactions.map((tx, index) => {
               const expense = isExpense(tx.type);
               return (
                 <TouchableOpacity
-                  key={tx.id}
+                  key={tx.id || tx._id || `tx-${index}`}
                   style={styles.txItem}
                   onPress={() => navigation.navigate('AdminTransactions' as never)}
                 >
@@ -229,7 +230,6 @@ export default function AdminWalletScreen() {
           )}
         </View>
 
-        {/* Admin Info */}
         <View style={[styles.infoCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.infoTitle, { color: colors.text }]}>
             <Ionicons name="shield-checkmark" size={18} color={COLORS.primary} /> 

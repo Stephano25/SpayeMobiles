@@ -6,7 +6,7 @@ const config = getDefaultConfig(__dirname);
 // Ajouter les extensions
 config.resolver.sourceExts = [...config.resolver.sourceExts, 'cjs', 'mjs'];
 
-// Ignorer les modules node:*
+// ✅ Ignorer les modules node:*
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName.startsWith('node:')) {
     return {

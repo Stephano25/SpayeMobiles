@@ -11,7 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../config/colors';
 
-// ✅ Importer CameraView uniquement sur mobile
+// ✅ Importer CameraView uniquement sur mobile (hors web)
 let CameraView: any = null;
 let useCameraPermissions: any = null;
 
@@ -45,7 +45,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 
   useEffect(() => {
     if (isWeb) {
-      // ✅ Sur le web, simuler le scan
+      // ✅ Sur le web, proposer une simulation
       Alert.alert(
         'Scanner QR Code',
         'La caméra n\'est pas disponible sur le web.\nVoulez-vous simuler un scan ?',

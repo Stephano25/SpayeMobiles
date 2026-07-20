@@ -101,13 +101,11 @@ export default function SendMoneyScreen() {
       </View>
 
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Balance */}
         <View style={[styles.balanceCard, { backgroundColor: '#1a1830' }]}>
           <Text style={styles.balanceLabel}>{t('balance')}</Text>
           <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
         </View>
 
-        {/* Search Friend */}
         <View style={[styles.searchBox, { backgroundColor: colors.card }]}>
           <Ionicons name="search" size={20} color={COLORS.gray400} />
           <TextInput
@@ -119,7 +117,6 @@ export default function SendMoneyScreen() {
           />
         </View>
 
-        {/* Friend List */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.friendScroll}>
           {filteredFriends.map((f) => (
             <TouchableOpacity
@@ -145,7 +142,6 @@ export default function SendMoneyScreen() {
           ))}
         </ScrollView>
 
-        {/* Selected Friend */}
         {selectedFriend && (
           <View style={[styles.selectedCard, { backgroundColor: colors.card }]}>
             <View style={styles.selectedRow}>
@@ -169,7 +165,6 @@ export default function SendMoneyScreen() {
           </View>
         )}
 
-        {/* Amount */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
           <Text style={[styles.label, { color: colors.text }]}>{t('amount')}</Text>
           <TextInput
@@ -203,7 +198,6 @@ export default function SendMoneyScreen() {
           />
         </View>
 
-        {/* Send Button */}
         <TouchableOpacity
           style={[styles.sendBtn, { backgroundColor: COLORS.primary }]}
           onPress={handleSend}

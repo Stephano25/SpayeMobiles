@@ -1,4 +1,11 @@
 // app/(admin)/index.tsx
+// ─────────────────────────────────────────────────────────────
+//  SPAYE · Admin Dashboard — Version corrigée
+//  ✅ Menu 3 colonnes (3 boutons par ligne)
+//  ✅ Correction des clés uniques
+//  ✅ Correction du nom du composant (AdminHome)
+// ─────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
@@ -27,6 +34,8 @@ import * as Clipboard from 'expo-clipboard';
 import { QRScanner } from '../../src/components/QRScanner';
 
 const { width } = Dimensions.get('window');
+
+const COLUMN_WIDTH = (width - 48) / 3;
 
 function AnimatedStatCard({ label, value, icon, colors: cardColors, route, delay }: {
   label: string;
@@ -79,7 +88,7 @@ function AnimatedStatCard({ label, value, icon, colors: cardColors, route, delay
   );
 }
 
-export default function AdminDashboard() {
+export default function AdminHome() {
   const { colors, isDark } = useTheme();
   const { showError, showSuccess } = useNotification();
   const { getCurrentUser } = useAuth();
@@ -89,7 +98,6 @@ export default function AdminDashboard() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const headerOpacity = useRef(new Animated.Value(0)).current;
 
-  // États pour QR Code - Génération
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
   const [qrCodeData, setQrCodeData] = useState<string>('');
@@ -97,7 +105,6 @@ export default function AdminDashboard() {
   const [generatingQR, setGeneratingQR] = useState(false);
   const [qrExpiresAt, setQrExpiresAt] = useState<string>('');
 
-  // États pour Scanner QR - Utilise QRScanner
   const [showScanner, setShowScanner] = useState(false);
   const [scannerType, setScannerType] = useState<'deposit' | 'withdraw'>('deposit');
   const [scannedData, setScannedData] = useState<any>(null);
@@ -123,7 +130,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // ✅ Chargement des commissions
   const loadCommissions = useCallback(async () => {
     try {
       const data = await AdminService.getCommissionStats();
@@ -156,7 +162,6 @@ export default function AdminDashboard() {
     setRefreshing(false);
   };
 
-  // ✅ Génération de QR Code
   const generateQRCode = async (type: 'deposit' | 'withdraw') => {
     setQrAction(type);
     setGeneratingQR(true);
@@ -181,7 +186,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // ✅ Ouvrir le scanner
   const openScanner = (type: 'deposit' | 'withdraw') => {
     setScannerType(type);
     setScannedData(null);
@@ -191,7 +195,6 @@ export default function AdminDashboard() {
     setShowScanner(true);
   };
 
-  // ✅ Traitement du QR Code scanné
   const handleScanResult = (data: string) => {
     setShowScanner(false);
     
@@ -256,7 +259,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // ✅ Traitement de la transaction (Dépôt/Retrait Admin)
   const handleTransaction = async () => {
     const amountNum = parseFloat(amount);
     if (!amountNum || amountNum < 100) {
@@ -273,13 +275,12 @@ export default function AdminDashboard() {
     setProcessing(true);
     try {
       const action = scannedData?.action || scannerType;
-      const qrData = scannedData?.qrCode || JSON.stringify(scannedData);
 
       if (action === 'deposit') {
-        await AdminService.depositMoney(userId, amountNum, description || 'Dépôt via QR Code Admin', qrData);
+        await AdminService.depositMoney(userId, amountNum, description || 'Dépôt via QR Code Admin');
         showSuccess(`Dépôt de ${formatAmount(amountNum)} Ar effectué`);
       } else {
-        await AdminService.withdrawMoney(userId, amountNum, description || 'Retrait via QR Code Admin', qrData);
+        await AdminService.withdrawMoney(userId, amountNum, description || 'Retrait via QR Code Admin');
         showSuccess(`Retrait de ${formatAmount(amountNum)} Ar effectué`);
       }
 
@@ -313,50 +314,36 @@ export default function AdminDashboard() {
   };
 
   const cards = [
-    {
-      label: 'Utilisateurs',
-      value: stats?.totalUsers ?? '—',
-      icon: 'people',
-      colors: ['#6366f1', '#8b5cf6'] as [string, string],
-      route: 'AdminUsers',
-    },
-    {
-      label: 'Transactions',
-      value: stats?.totalTransactions ?? '—',
-      icon: 'swap-horizontal',
-      colors: ['#10b981', '#059669'] as [string, string],
-      route: 'AdminTransactions',
-    },
-    {
-      label: 'Volume total',
-      value: stats ? `${formatAmount(stats.totalVolume)} Ar` : '—',
-      icon: 'wallet',
-      colors: ['#f59e0b', '#d97706'] as [string, string],
-      route: 'AdminStats',
-    },
-    {
-      label: 'Paramètres',
-      value: '',
-      icon: 'settings',
-      colors: ['#3b82f6', '#2563eb'] as [string, string],
-      route: 'AdminSettings',
-    },
+    { id: 'users', label: 'Utilisateurs', value: stats?.totalUsers ?? '—', icon: 'people', colors: ['#6366f1', '#8b5cf6'] as [string, string], route: 'AdminUsers' },
+    { id: 'transactions', label: 'Transactions', value: stats?.totalTransactions ?? '—', icon: 'swap-horizontal', colors: ['#10b981', '#059669'] as [string, string], route: 'AdminTransactions' },
+    { id: 'volume', label: 'Volume total', value: stats ? `${formatAmount(stats.totalVolume)} Ar` : '—', icon: 'wallet', colors: ['#f59e0b', '#d97706'] as [string, string], route: 'AdminStats' },
+    { id: 'settings', label: 'Paramètres', value: '', icon: 'settings', colors: ['#3b82f6', '#2563eb'] as [string, string], route: 'AdminSettings' },
   ];
 
   const menuItems = [
-    { icon: 'wallet-outline', label: 'Portefeuille', route: 'AdminWallet' },
-    { icon: 'people', label: 'Utilisateurs', route: 'AdminUsers' },
-    { icon: 'people-outline', label: 'Amis', route: 'AdminFriends' },
-    { icon: 'chatbubble-outline', label: 'Messages', route: 'AdminChat' },
-    { icon: 'receipt', label: 'Transactions', route: 'AdminTransactions' },
-    { icon: 'phone-portrait-outline', label: 'Mobile Money', route: 'AdminMobileMoney' },
-    { icon: 'bar-chart', label: 'Statistiques', route: 'AdminStats' },
-    { icon: 'person', label: 'Mon Profil', route: 'AdminProfile' },
-    { icon: 'settings', label: 'Paramètres', route: 'AdminSettings' },
+    { id: 'wallet', icon: 'wallet-outline', label: 'Portefeuille', route: 'AdminWallet' },
+    { id: 'send', icon: 'send-outline', label: 'Envoyer', route: 'SendMoney' },
+    { id: 'receive', icon: 'qr-code-outline', label: 'Recevoir', route: 'ReceiveMoney' },
+    { id: 'mobilemoney', icon: 'phone-portrait-outline', label: 'Mobile Money', route: 'AdminMobileMoney' },
+    { id: 'scan', icon: 'scan-outline', label: 'Scanner', route: 'ScanPay' },
+    { id: 'friends', icon: 'people-outline', label: 'Amis', route: 'AdminFriends' },
+    { id: 'messages', icon: 'chatbubble-outline', label: 'Messages', route: 'AdminChat' },
+    { id: 'transactions', icon: 'receipt-outline', label: 'Transactions', route: 'AdminTransactions' },
+    { id: 'profile', icon: 'person-outline', label: 'Profil', route: 'AdminProfile' },
+    { id: 'settings', icon: 'settings-outline', label: 'Paramètres', route: 'AdminSettings' },
   ];
 
   if (isSuperAdmin) {
-    menuItems.splice(2, 0, { icon: 'shield', label: 'Administrateurs', route: 'AdminAdmins' });
+    menuItems.push({ id: 'admins', icon: 'shield-outline', label: 'Administrateurs', route: 'AdminAdmins' });
+    menuItems.push({ id: 'users', icon: 'people', label: 'Utilisateurs', route: 'AdminUsers' });
+  }
+
+  menuItems.push({ id: 'deposit', icon: 'add-circle-outline', label: 'Dépôt', route: 'AdminDeposit' });
+  menuItems.push({ id: 'withdraw', icon: 'remove-circle-outline', label: 'Retrait', route: 'AdminWithdraw' });
+
+  const groupedMenuItems = [];
+  for (let i = 0; i < menuItems.length; i += 3) {
+    groupedMenuItems.push(menuItems.slice(i, i + 3));
   }
 
   return (
@@ -405,12 +392,12 @@ export default function AdminDashboard() {
 
       {/* Cards Grid */}
       <View style={styles.grid}>
-        {cards.map((c, i) => (
-          <AnimatedStatCard key={c.label} {...c} delay={i * 80} />
+        {cards.map((c) => (
+          <AnimatedStatCard key={c.id} {...c} delay={0} />
         ))}
       </View>
 
-      {/* ✅ Actions Admin - Génération QR Code + Scanner */}
+      {/* Actions Admin */}
       <View style={styles.actionsContainer}>
         <Text style={[styles.actionsTitle, { color: colors.text }]}>Opérations rapides</Text>
         <View style={styles.actionsRow}>
@@ -437,7 +424,6 @@ export default function AdminDashboard() {
           </TouchableOpacity>
         </View>
 
-        {/* ✅ Scanner QR pour Admin */}
         <View style={styles.scannerRow}>
           <TouchableOpacity
             style={[styles.scannerCard, { backgroundColor: colors.card }]}
@@ -471,7 +457,6 @@ export default function AdminDashboard() {
         </View>
       </View>
 
-      {/* ✅ COMMISSIONS - SUPER ADMIN */}
       {stats && isSuperAdmin && (
         <View style={styles.commissionSection}>
           <View style={styles.sectionHeader}>
@@ -511,8 +496,8 @@ export default function AdminDashboard() {
               <Text style={[styles.recentTitle, { color: colors.text }]}>
                 <Ionicons name="history" size={16} color={COLORS.primary} /> Dernières commissions
               </Text>
-              {stats.recentCommissions.slice(0, 3).map((c: any) => (
-                <View key={c.id} style={styles.commissionItem}>
+              {stats.recentCommissions.slice(0, 3).map((c: any, index: number) => (
+                <View key={c.id || c._id || `commission-${index}`} style={styles.commissionItem}>
                   <View style={styles.commissionItemIcon}>
                     <Ionicons name="payments" size={16} color={COLORS.success} />
                   </View>
@@ -534,32 +519,39 @@ export default function AdminDashboard() {
         </View>
       )}
 
-      {/* Menu Grid */}
       <View style={styles.menuSection}>
         <Text style={[styles.menuTitle, { color: colors.text }]}>Gestion rapide</Text>
-        <View style={styles.menuGrid}>
-          {menuItems.map((item, index) => (
-            <TouchableOpacity
-              key={item.label}
-              style={[styles.menuCard, { backgroundColor: colors.card }]}
-              onPress={() => navigation.navigate(item.route as never)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.menuIcon, { backgroundColor: COLORS.primary + '18' }]}>
-                <Ionicons name={item.icon as any} size={24} color={COLORS.primary} />
-              </View>
-              <Text style={[styles.menuLabel, { color: colors.text }]}>{item.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {groupedMenuItems.map((group, groupIndex) => (
+          <View key={`group-${groupIndex}`} style={styles.menuRow}>
+            {group.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.menuCard, { backgroundColor: colors.card }]}
+                onPress={() => navigation.navigate(item.route as never)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIcon, { backgroundColor: COLORS.primary + '18' }]}>
+                  <Ionicons name={item.icon as any} size={24} color={COLORS.primary} />
+                </View>
+                <Text style={[styles.menuLabel, { color: colors.text }]}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+            {group.length < 3 && (
+              <>
+                {Array.from({ length: 3 - group.length }).map((_, i) => (
+                  <View key={`empty-${i}`} style={[styles.menuCard, { backgroundColor: 'transparent', shadowOpacity: 0 }]} />
+                ))}
+              </>
+            )}
+          </View>
+        ))}
       </View>
 
-      {/* Recent Activity */}
       {stats?.recentTransactions && stats.recentTransactions.length > 0 && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Activité récente</Text>
-          {stats.recentTransactions.slice(0, 3).map((tx: any) => (
-            <View key={tx.id || tx._id} style={[styles.activityRow, { backgroundColor: colors.card }]}>
+          {stats.recentTransactions.slice(0, 3).map((tx: any, index: number) => (
+            <View key={tx.id || tx._id || `tx-${index}`} style={[styles.activityRow, { backgroundColor: colors.card }]}>
               <View style={[styles.activityIcon, { backgroundColor: COLORS.primary + '15' }]}>
                 <Ionicons name="swap-horizontal" size={18} color={COLORS.primary} />
               </View>
@@ -586,7 +578,7 @@ export default function AdminDashboard() {
         </View>
       )}
 
-      {/* ✅ Modal QR Code - Génération */}
+      {/* Modal QR Code */}
       <Modal
         visible={showQRModal}
         transparent
@@ -641,7 +633,7 @@ export default function AdminDashboard() {
         </View>
       </Modal>
 
-      {/* ✅ Modal Scanner - Utilise QRScanner */}
+      {/* Modal Scanner */}
       <Modal
         visible={showScanner}
         transparent
@@ -662,7 +654,7 @@ export default function AdminDashboard() {
         />
       </Modal>
 
-      {/* ✅ Modal Formulaire Transaction */}
+      {/* Modal Formulaire Transaction */}
       <Modal
         visible={showTransactionForm}
         transparent
@@ -935,13 +927,13 @@ const styles = StyleSheet.create({
   commissionItemDate: { fontSize: 11 },
   menuSection: { paddingHorizontal: 20, marginTop: 28 },
   menuTitle: { fontSize: 17, fontWeight: '700', marginBottom: 14 },
-  menuGrid: {
+  menuRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
   menuCard: {
-    width: (width - 60) / 3,
+    width: (width - 48) / 3,
     padding: 16,
     borderRadius: 16,
     alignItems: 'center',

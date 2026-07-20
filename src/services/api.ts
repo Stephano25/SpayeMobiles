@@ -1,115 +1,258 @@
 // src/services/api.ts
+// ─────────────────────────────────────────────────────────────
+//  SPAYE — Service API principal
+// ─────────────────────────────────────────────────────────────
+
+import { getBaseUrl, getApiUrl } from '../config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getApiUrl } from '../config/api';
+import { Platform } from 'react-native';
 
-const DEFAULT_BASE_URL = 'http://192.168.188.135:3000';
+// Cache pour les URLs
+let cachedBaseURL: string | null = null;
+let cachedApiURL: string | null = null;
 
-class ApiService {
-  private static instance: ApiService;
-  private baseUrl: string = DEFAULT_BASE_URL;
-  private isInitialized: boolean = false;
-
-  static getInstance(): ApiService {
-    if (!ApiService.instance) {
-      ApiService.instance = new ApiService();
-    }
-    return ApiService.instance;
+/**
+ * ✅ Nettoie une URL pour éviter les doubles protocoles
+ */
+const cleanUrl = (url: string): string => {
+  if (!url) return 'https://astonish-uneaten-either.ngrok-free.dev';
+  
+  let cleaned = url.trim();
+  cleaned = cleaned.replace(/\/+$/, '');
+  
+  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+    return cleaned;
   }
+  
+  return `https://${cleaned}`;
+};
 
-  async initialize(): Promise<void> {
-    if (this.isInitialized) return;
-    try {
-      const url = await getApiUrl();
-      // ✅ Correction: garder l'URL complète avec /api
-      this.baseUrl = url.replace(/\/api$/, '');
-      this.isInitialized = true;
-      console.log('✅ API initialisée avec:', this.baseUrl);
-    } catch (error) {
-      console.error('❌ Erreur initialisation API:', error);
-      this.baseUrl = DEFAULT_BASE_URL;
-    }
+/**
+ * ✅ Récupère l'URL de base
+ */
+export const getBaseURL = async (): Promise<string> => {
+  if (cachedBaseURL) {
+    return cachedBaseURL;
   }
-
-  private async getHeaders(): Promise<HeadersInit> {
-    const token = await AsyncStorage.getItem('auth_token');
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    };
+  
+  try {
+    const url = await getBaseUrl();
+    cachedBaseURL = cleanUrl(url);
+    console.log(`📌 Base URL: ${cachedBaseURL}`);
+    return cachedBaseURL;
+  } catch (error) {
+    console.error('❌ Erreur getBaseURL:', error);
+    cachedBaseURL = 'https://astonish-uneaten-either.ngrok-free.dev';
+    return cachedBaseURL;
   }
+};
 
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    await this.initialize();
-    
-    // ✅ Correction: l'endpoint doit commencer par /api
-    const fullEndpoint = endpoint.startsWith('/api') ? endpoint : `/api${endpoint}`;
-    const url = `${this.baseUrl}${fullEndpoint}`;
-    const headers = await this.getHeaders();
+/**
+ * ✅ Récupère l'URL de l'API
+ */
+export const getAPIURL = async (): Promise<string> => {
+  if (cachedApiURL) {
+    return cachedApiURL;
+  }
+  
+  try {
+    const baseUrl = await getBaseURL();
+    cachedApiURL = `${baseUrl}/api`;
+    console.log(`📌 API URL: ${cachedApiURL}`);
+    return cachedApiURL;
+  } catch (error) {
+    console.error('❌ Erreur getAPIURL:', error);
+    cachedApiURL = 'https://astonish-uneaten-either.ngrok-free.dev/api';
+    return cachedApiURL;
+  }
+};
+
+/**
+ * ✅ Fonction de fetch avec gestion des erreurs
+ */
+export const apiFetch = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
+  try {
+    const baseUrl = await getAPIURL();
+    const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
     
     console.log(`📡 ${options.method || 'GET'} ${url}`);
     
+    const token = await AsyncStorage.getItem('token');
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...(options.headers as Record<string, string> || {}),
+    };
+    
     const response = await fetch(url, {
       ...options,
-      headers: {
-        ...headers,
-        ...options.headers,
-      },
+      headers,
     });
-
+    
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Erreur ${response.status}:`, errorText);
-      
-      if (response.status === 401) {
-        await AsyncStorage.removeItem('auth_token');
-        await AsyncStorage.removeItem('user_data');
-        throw new Error('Session expirée. Veuillez vous reconnecter.');
-      }
-      
+      let errorMessage = `Erreur HTTP ${response.status}`;
       try {
-        const errorJson = JSON.parse(errorText);
-        throw new Error(errorJson.message || errorJson.error || `Erreur ${response.status}`);
-      } catch {
-        throw new Error(errorText || `Erreur ${response.status}`);
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch (e) {
+        // Ignorer
       }
+      throw new Error(errorMessage);
     }
-
+    
     const data = await response.json();
     return data;
+  } catch (error) {
+    console.error('❌ Erreur apiFetch:', error);
+    throw error;
   }
+};
 
-  async get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'GET' });
+/**
+ * ✅ Requête GET
+ */
+export const apiGet = async (endpoint: string, params?: Record<string, any>): Promise<any> => {
+  let url = endpoint;
+  if (params) {
+    const queryString = Object.entries(params)
+      .filter(([_, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+    if (queryString) {
+      url += `${url.includes('?') ? '&' : '?'}${queryString}`;
+    }
   }
+  return apiFetch(url, { method: 'GET' });
+};
 
-  async post<T>(endpoint: string, data?: any): Promise<T> {
-    return this.request<T>(endpoint, {
+/**
+ * ✅ Requête POST
+ */
+export const apiPost = async (endpoint: string, data?: any): Promise<any> => {
+  return apiFetch(endpoint, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+};
+
+/**
+ * ✅ Requête PUT
+ */
+export const apiPut = async (endpoint: string, data?: any): Promise<any> => {
+  return apiFetch(endpoint, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+};
+
+/**
+ * ✅ Requête DELETE
+ */
+export const apiDelete = async (endpoint: string): Promise<any> => {
+  return apiFetch(endpoint, { method: 'DELETE' });
+};
+
+/**
+ * ✅ Requête PATCH
+ */
+export const apiPatch = async (endpoint: string, data?: any): Promise<any> => {
+  return apiFetch(endpoint, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+};
+
+/**
+ * ✅ Upload d'un fichier
+ */
+export const uploadFile = async (file: any): Promise<{ url: string; fileName: string; fileSize: number; mimeType: string }> => {
+  try {
+    console.log('📤 Upload du fichier:', file.name || 'fichier');
+    
+    const baseUrl = await getBaseURL();
+    const token = await AsyncStorage.getItem('token');
+    
+    const formData = new FormData();
+    
+    let fileData: any;
+    
+    if (Platform.OS === 'web') {
+      fileData = file;
+    } else {
+      fileData = {
+        uri: file.uri || file,
+        name: file.name || 'file.jpg',
+        type: file.type || 'image/jpeg',
+      };
+    }
+    
+    formData.append('file', fileData);
+    
+    const response = await fetch(`${baseUrl}/api/chat/upload`, {
       method: 'POST',
-      body: data ? JSON.stringify(data) : undefined,
+      body: formData,
+      headers: {
+        'Accept': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
     });
+    
+    if (!response.ok) {
+      let errorMessage = `Erreur upload ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || errorData.error || errorMessage;
+      } catch (e) {
+        // Ignorer
+      }
+      throw new Error(errorMessage);
+    }
+    
+    const result = await response.json();
+    
+    return {
+      url: result.url || result.fileUrl || '',
+      fileName: result.fileName || result.originalname || file.name || 'file',
+      fileSize: result.fileSize || result.size || 0,
+      mimeType: result.mimeType || result.type || file.type || 'application/octet-stream',
+    };
+  } catch (error) {
+    console.error('❌ Erreur uploadFile:', error);
+    throw error;
   }
+};
 
-  async put<T>(endpoint: string, data?: any): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: 'PUT',
-      body: data ? JSON.stringify(data) : undefined,
+/**
+ * ✅ Vérifie la santé du backend
+ */
+export const checkHealth = async (): Promise<boolean> => {
+  try {
+    const baseUrl = await getBaseURL();
+    const response = await fetch(`${baseUrl}/api/health`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
     });
+    return response.ok;
+  } catch (error) {
+    console.warn('⚠️ Backend inaccessible:', error);
+    return false;
   }
+};
 
-  async patch<T>(endpoint: string, data?: any): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: 'PATCH',
-      body: data ? JSON.stringify(data) : undefined,
-    });
-  }
-
-  async delete<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'DELETE' });
-  }
-}
-
-export default ApiService.getInstance();
+// ============================================================
+// EXPORT PAR DÉFAUT
+// ============================================================
+export default {
+  getBaseURL,
+  getAPIURL,
+  apiFetch,
+  apiGet,
+  apiPost,
+  apiPut,
+  apiDelete,
+  apiPatch,
+  uploadFile,
+  checkHealth,
+};

@@ -1,3 +1,4 @@
+// app/(admin)/transactions.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -8,6 +9,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
@@ -60,17 +62,17 @@ export default function AdminTransactionsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: COLORS.primary }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backText}>←</Text>
+          <Ionicons name="arrow-back" size={24} color={COLORS.white} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Transactions</Text>
         <View style={{ width: 40 }} />
       </View>
       <FlatList
         data={txns}
-        keyExtractor={(item) => item.id || item._id || Math.random().toString()}
+        keyExtractor={(item) => item.id || item._id || `tx-${Math.random().toString()}`}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
         renderItem={({ item }) => (
-          <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <View key={item.id || item._id} style={[styles.card, { backgroundColor: colors.card }]}>
             <Text style={[styles.id, { color: colors.text }]}>ID: {item.id?.slice(-8) || item._id?.slice(-8) || 'N/A'}</Text>
             <Text style={{ color: colors.text }}>Montant : {formatAmount(item.amount)} Ar</Text>
             <Text style={{ color: colors.text }}>Type : {item.type}</Text>
@@ -90,7 +92,8 @@ export default function AdminTransactionsScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.empty}>Aucune transaction</Text>
+            <Ionicons name="receipt-outline" size={48} color={COLORS.gray400} />
+            <Text style={[styles.empty, { color: colors.textSecondary }]}>Aucune transaction</Text>
           </View>
         }
       />
@@ -109,8 +112,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backBtn: { padding: 4 },
-  backText: { fontSize: 24, color: COLORS.white },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white, flex: 1, marginLeft: 8 },
   card: {
     marginHorizontal: 20,
     marginBottom: 12,
@@ -119,5 +121,5 @@ const styles = StyleSheet.create({
   },
   id: { fontWeight: 'bold', marginBottom: 6 },
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 },
-  empty: { textAlign: 'center', marginTop: 40, color: COLORS.gray500, fontSize: 16 },
+  empty: { textAlign: 'center', marginTop: 40, fontSize: 16 },
 });

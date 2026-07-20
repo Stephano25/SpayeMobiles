@@ -57,7 +57,6 @@ export default function AdminMobileMoneyScreen() {
   const [showUserModal, setShowUserModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Opérateurs Mobile Money
   const operators: Operator[] = [
     { 
       id: 'airtel', 
@@ -85,7 +84,6 @@ export default function AdminMobileMoneyScreen() {
     }
   ];
 
-  // Montants rapides
   const quickAmounts = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
   const MIN_AMOUNT = 100;
   const MINIMUM_FEE = 200;
@@ -177,20 +175,16 @@ export default function AdminMobileMoneyScreen() {
 
     setSubmitting(true);
     try {
-      // Effectuer le transfert Mobile Money
       const transferData = {
         operator: selectedOperator!.id,
         phoneNumber: phoneNumber.replace(/\s/g, ''),
         amount: amountNum,
       };
 
-      // Transfert via le service Mobile Money
       const result = await TransactionService.mobileMoneyTransfer(transferData);
       
-      // Mettre à jour le solde
       setBalance((prev: number) => prev - totalWithFees);
       
-      // Si un utilisateur est sélectionné, enregistrer la transaction
       if (selectedUserId) {
         await AdminService.depositMoney(
           selectedUserId,
@@ -268,7 +262,6 @@ export default function AdminMobileMoneyScreen() {
         }
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {/* Balance Card */}
         <View style={[styles.balanceCard, { backgroundColor: '#1a1830' }]}>
           <Text style={styles.balanceLabel}>{t('balance')}</Text>
           <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
@@ -277,7 +270,6 @@ export default function AdminMobileMoneyScreen() {
           </Text>
         </View>
 
-        {/* Step Indicator */}
         <View style={styles.stepIndicator}>
           {['operator', 'form', 'confirm', 'success'].map((s, i) => {
             const isActive = step === s;
@@ -303,7 +295,6 @@ export default function AdminMobileMoneyScreen() {
           })}
         </View>
 
-        {/* Step 1: Operator Selection */}
         {step === 'operator' && (
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>Choisissez l'opérateur</Text>
@@ -326,7 +317,6 @@ export default function AdminMobileMoneyScreen() {
           </View>
         )}
 
-        {/* Step 2: Form */}
         {step === 'form' && selectedOperator && (
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <View style={styles.selectedOperator}>
@@ -341,7 +331,6 @@ export default function AdminMobileMoneyScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* User Selection */}
             <Text style={[styles.label, { color: colors.text }]}>Utilisateur *</Text>
             <TouchableOpacity
               style={[styles.userSelector, { borderColor: colors.border }]}
@@ -364,7 +353,6 @@ export default function AdminMobileMoneyScreen() {
               <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
 
-            {/* Phone Number */}
             <Text style={[styles.label, { color: colors.text }]}>Numéro de téléphone *</Text>
             <View style={[styles.phoneInput, { borderColor: colors.border }]}>
               <Text style={[styles.phonePrefix, { color: colors.text }]}>+261</Text>
@@ -379,7 +367,6 @@ export default function AdminMobileMoneyScreen() {
               />
             </View>
 
-            {/* Amount */}
             <Text style={[styles.label, { color: colors.text }]}>Montant (Ar) *</Text>
             <TextInput
               style={[styles.amountInput, { color: colors.text, borderColor: colors.border }]}
@@ -390,7 +377,6 @@ export default function AdminMobileMoneyScreen() {
               keyboardType="numeric"
             />
 
-            {/* Quick Amounts */}
             <View style={styles.quickAmounts}>
               {quickAmounts.map((a) => (
                 <TouchableOpacity
@@ -405,7 +391,6 @@ export default function AdminMobileMoneyScreen() {
               ))}
             </View>
 
-            {/* Fee Preview */}
             {amount && parseFloat(amount) >= MIN_AMOUNT && (
               <View style={[styles.feePreview, { backgroundColor: colors.background }]}>
                 <View style={styles.feeRow}>
@@ -425,7 +410,6 @@ export default function AdminMobileMoneyScreen() {
               </View>
             )}
 
-            {/* Description */}
             <Text style={[styles.label, { color: colors.text }]}>Description (optionnelle)</Text>
             <TextInput
               style={[styles.descInput, { color: colors.text, borderColor: colors.border }]}
@@ -446,7 +430,6 @@ export default function AdminMobileMoneyScreen() {
           </View>
         )}
 
-        {/* Step 3: Confirmation */}
         {step === 'confirm' && selectedOperator && (
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <View style={styles.confirmHeader}>
@@ -531,7 +514,6 @@ export default function AdminMobileMoneyScreen() {
           </View>
         )}
 
-        {/* Step 4: Success */}
         {step === 'success' && (
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <View style={styles.successContainer}>
@@ -568,7 +550,6 @@ export default function AdminMobileMoneyScreen() {
         )}
       </ScrollView>
 
-      {/* Modal User Selection */}
       <Modal
         visible={showUserModal}
         transparent
@@ -600,6 +581,7 @@ export default function AdminMobileMoneyScreen() {
               keyExtractor={(item: any) => item.id}
               renderItem={({ item }) => (
                 <TouchableOpacity
+                  key={item.id}
                   style={[styles.modalUserItem, { backgroundColor: colors.background }]}
                   onPress={() => {
                     setSelectedUserId(item.id);

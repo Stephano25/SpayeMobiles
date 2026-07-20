@@ -1,6 +1,10 @@
 // src/services/AdminService.ts
-import api from './api';
-import { Platform } from 'react-native';
+// ─────────────────────────────────────────────────────────────
+//  SPAYE — Admin Service
+//  ✅ Correction : utilisation de apiGet, apiPost, etc.
+// ─────────────────────────────────────────────────────────────
+
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api';
 
 export interface AdminDashboardStats {
   totalUsers: number;
@@ -18,13 +22,14 @@ export interface AdminDashboardStats {
   myAdminTransactions?: number;
   myAdminVolume?: number;
   userRole?: string;
-  // ✅ Commissions
-  totalCommission?: number;
-  commissionTransactions?: number;
+  totalSuperAdminCommission?: number;
+  totalAdminCommission?: number;
+  totalCommissionTransactions?: number;
   recentCommissions?: any[];
   commissionRate?: number;
   myCommission?: number;
   myCommissionTransactions?: number;
+  adminCommissions?: any[];
 }
 
 export interface SystemSettings {
@@ -67,10 +72,10 @@ export const AdminService = {
   // Dashboard
   getDashboardStats: async (): Promise<AdminDashboardStats> => {
     try {
-      const data = await api.get<AdminDashboardStats>('/admin/dashboard/stats');
+      const data = await apiGet('/admin/dashboard/stats');
       return data;
     } catch (error) {
-      console.error('Erreur getDashboardStats:', error);
+      console.error('❌ Erreur getDashboardStats:', error);
       return {
         totalUsers: 0,
         activeUsers: 0,
@@ -87,30 +92,33 @@ export const AdminService = {
         myAdminTransactions: 0,
         myAdminVolume: 0,
         userRole: 'admin',
-        totalCommission: 0,
-        commissionTransactions: 0,
+        totalSuperAdminCommission: 0,
+        totalAdminCommission: 0,
+        totalCommissionTransactions: 0,
         recentCommissions: [],
         commissionRate: 0.5,
         myCommission: 0,
         myCommissionTransactions: 0,
+        adminCommissions: [],
       };
     }
   },
 
-  // ✅ NOUVEAU : Commissions
   getCommissionStats: async (): Promise<any> => {
     try {
-      const data = await api.get('/admin/dashboard/commissions');
+      const data = await apiGet('/admin/dashboard/commissions');
       return data;
     } catch (error) {
-      console.error('Erreur getCommissionStats:', error);
+      console.error('❌ Erreur getCommissionStats:', error);
       return {
-        totalCommission: 0,
-        commissionTransactions: 0,
+        totalSuperAdminCommission: 0,
+        totalAdminCommission: 0,
+        totalCommissionTransactions: 0,
         recentCommissions: [],
-        commissionRate: 0.5,
+        adminCommissions: [],
         myCommission: 0,
         myCommissionTransactions: 0,
+        commissionRate: 0.5,
         userRole: 'admin',
       };
     }
@@ -119,44 +127,44 @@ export const AdminService = {
   // Utilisateurs
   getAllUsers: async (): Promise<any[]> => {
     try {
-      const data = await api.get<any[]>('/admin/users');
-      return data || [];
+      const data = await apiGet('/admin/users');
+      return data?.data || data || [];
     } catch (error) {
-      console.error('Erreur getAllUsers:', error);
+      console.error('❌ Erreur getAllUsers:', error);
       return [];
     }
   },
 
   getUserById: async (userId: string): Promise<any> => {
-    return api.get(`/admin/users/${userId}`);
+    return apiGet(`/admin/users/${userId}`);
   },
 
   updateUserStatus: async (userId: string, isActive: boolean): Promise<any> => {
-    return api.patch(`/admin/users/${userId}/status`, { isActive });
+    return apiPatch(`/admin/users/${userId}/status`, { isActive });
   },
 
   updateUserRole: async (userId: string, role: string): Promise<any> => {
-    return api.patch(`/admin/users/${userId}/role`, { role });
+    return apiPatch(`/admin/users/${userId}/role`, { role });
   },
 
   deleteUser: async (userId: string): Promise<any> => {
-    return api.delete(`/admin/users/${userId}`);
+    return apiDelete(`/admin/users/${userId}`);
   },
 
   // Admin Actions - Dépôt
   depositMoney: async (userId: string, amount: number, description?: string, qrCode?: string): Promise<any> => {
-    return api.post(`/admin/users/${userId}/deposit`, { amount, description, qrCode });
+    return apiPost(`/admin/users/${userId}/deposit`, { amount, description, qrCode });
   },
 
   // Admin Actions - Retrait
   withdrawMoney: async (userId: string, amount: number, description?: string, qrCode?: string): Promise<any> => {
-    return api.post(`/admin/users/${userId}/withdraw`, { amount, description, qrCode });
+    return apiPost(`/admin/users/${userId}/withdraw`, { amount, description, qrCode });
   },
 
-  // QR Code - Génération
+  // QR Code
   generateQRCode: async (type: 'deposit' | 'withdraw', amount?: number): Promise<any> => {
     try {
-      const response = await api.post('/admin/generate-qr', { type, amount });
+      const response = await apiPost('/admin/generate-qr', { type, amount });
       return response;
     } catch (error) {
       console.error('❌ Erreur génération QR:', error);
@@ -164,10 +172,9 @@ export const AdminService = {
     }
   },
 
-  // QR Code - Scan
   scanQRCode: async (qrData: string): Promise<any> => {
     try {
-      const response = await api.post('/admin/scan-qr', { qrData });
+      const response = await apiPost('/admin/scan-qr', { qrData });
       return response;
     } catch (error) {
       console.error('❌ Erreur scan QR:', error);
@@ -177,46 +184,45 @@ export const AdminService = {
 
   // Administrateurs
   createAdmin: async (adminData: any): Promise<any> => {
-    return api.post('/admin/admins', adminData);
+    return apiPost('/admin/admins', adminData);
   },
 
   getAdmins: async (): Promise<any[]> => {
     try {
-      const data = await api.get<any[]>('/admin/admins');
+      const data = await apiGet('/admin/admins');
       return data || [];
     } catch (error) {
-      console.error('Erreur getAdmins:', error);
+      console.error('❌ Erreur getAdmins:', error);
       return [];
     }
   },
 
   deleteAdmin: async (adminId: string): Promise<any> => {
-    return api.delete(`/admin/admins/${adminId}`);
+    return apiDelete(`/admin/admins/${adminId}`);
   },
 
   // Transactions
   getAllTransactions: async (): Promise<any[]> => {
     try {
-      const data = await api.get<any[]>('/admin/transactions');
-      return data || [];
+      const data = await apiGet('/admin/transactions');
+      return data?.data || data || [];
     } catch (error) {
-      console.error('Erreur getAllTransactions:', error);
+      console.error('❌ Erreur getAllTransactions:', error);
       return [];
     }
   },
 
   getTransactionById: async (transactionId: string): Promise<any> => {
-    return api.get(`/admin/transactions/${transactionId}`);
+    return apiGet(`/admin/transactions/${transactionId}`);
   },
 
-  // Paramètres - ✅ CORRIGÉ POUR RENVOYER TOUTES LES DONNÉES
+  // Paramètres
   getSettings: async (): Promise<SystemSettings> => {
     try {
-      const response = await api.get<SystemSettings>('/admin/settings');
+      const response = await apiGet('/admin/settings');
       return response;
     } catch (error) {
-      console.error('Erreur getSettings:', error);
-      // ✅ Valeurs par défaut complètes
+      console.error('❌ Erreur getSettings:', error);
       return {
         general: {
           siteName: 'SPaye',
@@ -256,14 +262,14 @@ export const AdminService = {
   },
 
   updateSettings: async (settings: SystemSettings): Promise<SystemSettings> => {
-    return api.patch<SystemSettings>('/admin/settings', settings);
+    return apiPatch('/admin/settings', settings);
   },
 
   // Système
   getSystemLogs: async (): Promise<any[]> => {
     try {
-      const data = await api.get<any[]>('/admin/system/logs');
-      return data || [];
+      const data = await apiGet('/admin/system/logs');
+      return data?.data || data || [];
     } catch {
       return [];
     }
@@ -271,22 +277,20 @@ export const AdminService = {
 
   getSystemStats: async (): Promise<any> => {
     try {
-      return await api.get('/admin/system/stats');
+      return await apiGet('/admin/system/stats');
     } catch {
       return { uptime: '0s', memoryUsage: '0 MB' };
     }
   },
 
-  clearCache: async (): Promise<any> => {
-    return api.post('/admin/system/clear-cache');
-  },
-
   // Profil Admin
   getAdminProfile: async (): Promise<any> => {
-    return api.get('/admin/profile');
+    return apiGet('/admin/profile');
   },
 
   updateAdminProfile: async (profileData: any): Promise<any> => {
-    return api.patch('/admin/profile', profileData);
+    return apiPatch('/admin/profile', profileData);
   },
 };
+
+export default AdminService;

@@ -12,10 +12,8 @@ import { AuthProvider, setNavigateTo, useAuth } from './src/context/AuthContext'
 import { ThemeProvider } from './src/context/ThemeContext';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { COLORS } from './src/config/colors';
-import { detectBackendIP } from './src/config/api';
-
-// ✅ Importer les polyfills
-import './src/polyfills';
+import { detectBackendIP, getBaseUrl } from './src/config/api'; // ✅ Ajouter getBaseUrl
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ✅ Ignorer les warnings
 LogBox.ignoreLogs([
@@ -24,11 +22,14 @@ LogBox.ignoreLogs([
   'ViewPropTypes will be removed',
   'VirtualizedList',
   'node:sea',
+  'Sending `onAnimatedValueUpdate`',
+  'Non-serializable values were found in the navigation state',
 ]);
 
 // ✅ Import des écrans
 import LoginScreen from './app/(auth)/login';
 import RegisterScreen from './app/(auth)/register';
+import AuthCallbackScreen from './app/(auth)/callback';
 import UserHome from './app/(user)/UserHome';
 import AdminHome from './app/(admin)/index';
 import WalletScreen from './app/(user)/wallet';
@@ -57,13 +58,14 @@ import AdminMobileMoneyScreen from './app/(admin)/mobile-money';
 
 const Stack = createNativeStackNavigator();
 
-// ✅ Configuration des liens pour le deep linking
+// ✅ Linking configuration pour le deep linking
 const linking = {
   prefixes: [Linking.createURL('/'), 'spaye://'],
   config: {
     screens: {
       Login: 'login',
       Register: 'register',
+      AuthCallback: 'auth/callback',
       UserHome: 'home',
       AdminHome: 'admin',
       Profile: 'profile',
@@ -83,6 +85,8 @@ const linking = {
       AdminSettings: 'admin/settings',
       AdminStats: 'admin/stats',
       AdminProfile: 'admin/profile',
+      AdminDeposit: 'admin/deposit',
+      AdminWithdraw: 'admin/withdraw',
     },
   },
 };
@@ -93,8 +97,7 @@ function RootNavigator() {
 
   useEffect(() => {
     setNavigateTo((routeName: string) => {
-      // @ts-ignore
-      navigationRef.current?.navigate(routeName);
+      navigationRef.current?.navigate(routeName as never);
     });
   }, [navigationRef]);
 
@@ -111,6 +114,7 @@ function RootNavigator() {
         {/* Auth Screens */}
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="AuthCallback" component={AuthCallbackScreen} />
         
         {/* User Screens */}
         <Stack.Screen name="UserHome" component={UserHome} />
@@ -147,7 +151,30 @@ function RootNavigator() {
 
 export default function App() {
   useEffect(() => {
-    detectBackendIP().catch(console.error);
+    const initBackend = async () => {
+      try {
+        // ✅ Détecter le backend
+        const ip = await detectBackendIP();
+        console.log('✅ Backend IP détectée:', ip);
+        
+        // ✅ Stocker l'IP
+        await AsyncStorage.setItem('backend_ip', ip);
+        
+        // ✅ Vérifier la base URL après un court délai
+        setTimeout(async () => {
+          try {
+            const baseUrl = await getBaseUrl();
+            console.log(`📌 Base URL finale: ${baseUrl}`);
+          } catch (error) {
+            console.error('❌ Erreur getBaseUrl:', error);
+          }
+        }, 1000);
+      } catch (error) {
+        console.error('❌ Erreur détection backend:', error);
+      }
+    };
+    
+    initBackend();
   }, []);
 
   return (

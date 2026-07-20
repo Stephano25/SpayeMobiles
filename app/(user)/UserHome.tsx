@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Image,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -19,6 +20,8 @@ import { TransactionService } from '../../src/services/TransactionService';
 import { COLORS, formatAmount, getInitials, getAvatarColor } from '../../src/config/colors';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
+import { getBaseUrl } from '../../src/config/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function UserHome() {
   const { colors } = useTheme();
@@ -73,7 +76,7 @@ export default function UserHome() {
   };
 
   const getAvatarGradient = () => {
-    if (!user) return 'linear-gradient(135deg, #7c3aed, #4f46e5)';
+    if (!user) return '#7c3aed';
     return getAvatarColor(user.firstName + user.lastName);
   };
 
@@ -85,11 +88,27 @@ export default function UserHome() {
     await logout();
   };
 
+  const testBackend = async () => {
+    try {
+      const baseUrl = await getBaseUrl();
+      console.log('🔍 Base URL:', baseUrl);
+      
+      const response = await fetch(`${baseUrl}/api/health`);
+      const data = await response.json();
+      console.log('✅ Backend response:', data);
+      
+      Alert.alert('Succès', 'Backend accessible !');
+    } catch (error) {
+      console.error('❌ Erreur backend:', error);
+      Alert.alert('Erreur', 'Backend non accessible');
+    }
+  };
+
   const renderTransaction = (tx: any) => {
     const isCredit = tx.type === 'deposit' || tx.type === 'receive';
     return (
       <View key={tx.id} style={[styles.txItem, { backgroundColor: colors.card }]}>
-        <View style={[styles.txIcon, { backgroundColor: isCredit ? COLORS.successLight : COLORS.errorLight }]}>
+        <View style={[styles.txIcon, { backgroundColor: isCredit ? COLORS.success + '20' : COLORS.error + '20' }]}>
           <Ionicons name={isCredit ? 'arrow-down' : 'arrow-up'} size={20} color={isCredit ? COLORS.success : COLORS.error} />
         </View>
         <View style={styles.txInfo}>
@@ -101,7 +120,7 @@ export default function UserHome() {
           </Text>
         </View>
         <Text style={[styles.txAmount, { color: isCredit ? COLORS.success : COLORS.error }]}>
-          {isCredit ? '+' : '-'}{formatAmount(tx.amount)} Ar
+          {isCredit ? '+' : '-'}{formatAmount(tx.amount)}
         </Text>
       </View>
     );
@@ -116,7 +135,6 @@ export default function UserHome() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
         }
       >
-        {/* Welcome Card */}
         <View style={[styles.welcomeCard, { backgroundColor: colors.card }]}>
           <View style={styles.welcomeHeader}>
             <View style={styles.avatarContainer}>
@@ -128,7 +146,7 @@ export default function UserHome() {
                 />
               ) : (
                 <View style={[styles.avatarPlaceholder, { backgroundColor: getAvatarGradient() }]}>
-                  <Text style={styles.avatarText}>{getInitials(user?.firstName, user?.lastName)}</Text>
+                  <Text style={styles.avatarText}>{getInitials(user?.firstName || '', user?.lastName || '')}</Text>
                 </View>
               )}
             </View>
@@ -149,12 +167,19 @@ export default function UserHome() {
             ) : (
               <View style={styles.balanceContainer}>
                 <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>{t('balance')}</Text>
-                <Text style={styles.balanceAmount}>{formatAmount(balance)} Ar</Text>
+                <Text style={styles.balanceAmount}>{formatAmount(balance)}</Text>
               </View>
             )}
           </View>
 
-          {/* ✅ Actions Utilisateur - Scanner QR Code */}
+          <TouchableOpacity
+            style={[styles.testBtn, { backgroundColor: COLORS.primary + '20' }]}
+            onPress={testBackend}
+          >
+            <Ionicons name="server-outline" size={16} color={COLORS.primary} />
+            <Text style={[styles.testBtnText, { color: COLORS.primary }]}>Tester Backend</Text>
+          </TouchableOpacity>
+
           <View style={styles.userActionsRow}>
             <TouchableOpacity
               style={[styles.userActionBtn, { backgroundColor: COLORS.success }]}
@@ -173,7 +198,6 @@ export default function UserHome() {
           </View>
         </View>
 
-        {/* Menu Grid */}
         <View style={styles.menuGrid}>
           <View style={styles.menuGridInner}>
             {menuItems.map((item) => (
@@ -190,7 +214,6 @@ export default function UserHome() {
           </View>
         </View>
 
-        {/* Stats */}
         {stats && !isLoading && (
           <View style={styles.statsRow}>
             <View style={[styles.statCard, { backgroundColor: colors.card }]}>
@@ -209,14 +232,13 @@ export default function UserHome() {
               <View style={styles.statInfo}>
                 <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('largest')}</Text>
                 <Text style={[styles.statValue, { color: colors.text }]}>
-                  {stats.largestTransaction ? formatAmount(stats.largestTransaction.amount) + ' Ar' : '0 Ar'}
+                  {stats.largestTransaction ? formatAmount(stats.largestTransaction.amount) : '0 Ar'}
                 </Text>
               </View>
             </View>
           </View>
         )}
 
-        {/* Recent Transactions */}
         {stats?.lastThreeTransactions && stats.lastThreeTransactions.length > 0 && !isLoading && (
           <View style={[styles.txCard, { backgroundColor: colors.card }]}>
             <View style={styles.txHeader}>
@@ -229,7 +251,6 @@ export default function UserHome() {
           </View>
         )}
 
-        {/* Empty State */}
         {(!stats || !stats.lastThreeTransactions || stats.lastThreeTransactions.length === 0) && !isLoading && (
           <View style={[styles.emptyCard, { backgroundColor: colors.card }]}>
             <Ionicons name="receipt-outline" size={56} color={COLORS.gray400} />
@@ -244,7 +265,6 @@ export default function UserHome() {
           </View>
         )}
 
-        {/* Logout */}
         <TouchableOpacity style={[styles.logoutBtn, { backgroundColor: COLORS.error }]} onPress={handleLogout}>
           <Ionicons name="log-out-outline" size={20} color={COLORS.white} />
           <Text style={styles.logoutText}>{t('logout')}</Text>
@@ -281,6 +301,19 @@ const styles = StyleSheet.create({
   balanceContainer: { alignItems: 'center' },
   balanceLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   balanceAmount: { fontSize: 32, fontWeight: 'bold', color: COLORS.success, marginTop: 4 },
+  testBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+  },
+  testBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   userActionsRow: {
     flexDirection: 'row',
     gap: 12,
@@ -318,7 +351,7 @@ const styles = StyleSheet.create({
   menuLabel: { fontSize: 10, fontWeight: '500', textAlign: 'center', marginTop: 4 },
   statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 12, marginBottom: 12 },
   statCard: { flex: 1, padding: 16, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  statIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.primary + '20', alignItems: 'center', justifyContent: 'center' },
   statInfo: { flex: 1 },
   statLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   statValue: { fontSize: 16, fontWeight: 'bold' },

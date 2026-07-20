@@ -1,8 +1,19 @@
 // src/services/TranslationService.ts
+// ─────────────────────────────────────────────────────────────
+//  SPAYE — Service de traduction
+//  ✅ Support de 3 langues: Français, Anglais, Malagasy
+//  ✅ Mise à jour en temps réel
+//  ✅ Persistance dans AsyncStorage
+// ─────────────────────────────────────────────────────────────
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const TRANSLATIONS: Record<string, Record<string, string>> = {
+// ============================================================
+// TRADUCTIONS
+// ============================================================
+export const TRANSLATIONS: Record<string, Record<string, string>> = {
   fr: {
+    // General
     welcome: 'Bienvenue sur SPaye',
     balance: 'Solde',
     send: 'Envoyer',
@@ -123,11 +134,65 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     payment_success: 'Paiement effectué avec succès',
     payment_failed: 'Échec du paiement',
     scan_qr_code: 'Scanner un QR Code',
-    my_qr_code: 'Mon QR Code',
     qr_code_expired: 'QR Code expiré',
     qr_code_invalid: 'QR Code invalide',
+    // Admin
+    admin_panel: 'Panel Admin',
+    dashboard: 'Tableau de bord',
+    users: 'Utilisateurs',
+    admins: 'Administrateurs',
+    create_admin: 'Créer un administrateur',
+    statistics: 'Statistiques',
+    system: 'Système',
+    general: 'Général',
+    security: 'Sécurité',
+    payment: 'Paiement',
+    quick_actions: 'Opérations rapides',
+    generate_qr: 'Générer QR',
+    scan_qr: 'Scanner QR',
+    recent_commissions: 'Commissions récentes',
+    total_commissions: 'Total commissions',
+    commission_rate: 'Taux de commission',
+    // User
+    user_home: 'Accueil',
+    user_wallet: 'Mon portefeuille',
+    user_transactions: 'Mes transactions',
+    user_profile: 'Mon profil',
+    user_settings: 'Mes paramètres',
+    user_chat: 'Messagerie',
+    user_friends: 'Mes amis',
+    user_scan: 'Scanner',
+    user_send: 'Envoyer',
+    user_receive: 'Recevoir',
+    user_mobile_money: 'Mobile Money',
+    // Actions
+    deposit_money: 'Déposer de l\'argent',
+    withdraw_money: 'Retirer de l\'argent',
+    transfer_money: 'Transférer de l\'argent',
+    pay: 'Payer',
+    request: 'Demander',
+    send_request: 'Envoyer une demande',
+    accept_request: 'Accepter la demande',
+    decline_request: 'Refuser la demande',
+    add_friend: 'Ajouter un ami',
+    remove_friend: 'Retirer l\'ami',
+    // Errors
+    error_occurred: 'Une erreur est survenue',
+    try_later: 'Veuillez réessayer plus tard',
+    unauthorized: 'Non autorisé',
+    forbidden: 'Accès refusé',
+    not_found: 'Non trouvé',
+    bad_request: 'Requête invalide',
+    server_error: 'Erreur serveur',
+    // Success
+    operation_success: 'Opération réussie',
+    saved_success: 'Enregistré avec succès',
+    deleted_success: 'Supprimé avec succès',
+    updated_success: 'Mis à jour avec succès',
+    created_success: 'Créé avec succès',
   },
   en: {
+    // General
     welcome: 'Welcome to SPaye',
     balance: 'Balance',
     send: 'Send',
@@ -248,11 +313,65 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     payment_success: 'Payment successful',
     payment_failed: 'Payment failed',
     scan_qr_code: 'Scan QR Code',
-    my_qr_code: 'My QR Code',
     qr_code_expired: 'QR Code expired',
     qr_code_invalid: 'Invalid QR Code',
+    // Admin
+    admin_panel: 'Admin Panel',
+    dashboard: 'Dashboard',
+    users: 'Users',
+    admins: 'Administrators',
+    create_admin: 'Create administrator',
+    statistics: 'Statistics',
+    system: 'System',
+    general: 'General',
+    security: 'Security',
+    payment: 'Payment',
+    quick_actions: 'Quick actions',
+    generate_qr: 'Generate QR',
+    scan_qr: 'Scan QR',
+    recent_commissions: 'Recent commissions',
+    total_commissions: 'Total commissions',
+    commission_rate: 'Commission rate',
+    // User
+    user_home: 'Home',
+    user_wallet: 'My wallet',
+    user_transactions: 'My transactions',
+    user_profile: 'My profile',
+    user_settings: 'My settings',
+    user_chat: 'Chat',
+    user_friends: 'My friends',
+    user_scan: 'Scan',
+    user_send: 'Send',
+    user_receive: 'Receive',
+    user_mobile_money: 'Mobile Money',
+    // Actions
+    deposit_money: 'Deposit money',
+    withdraw_money: 'Withdraw money',
+    transfer_money: 'Transfer money',
+    pay: 'Pay',
+    request: 'Request',
+    send_request: 'Send request',
+    accept_request: 'Accept request',
+    decline_request: 'Decline request',
+    add_friend: 'Add friend',
+    remove_friend: 'Remove friend',
+    // Errors
+    error_occurred: 'An error occurred',
+    try_later: 'Please try again later',
+    unauthorized: 'Unauthorized',
+    forbidden: 'Access denied',
+    not_found: 'Not found',
+    bad_request: 'Invalid request',
+    server_error: 'Server error',
+    // Success
+    operation_success: 'Operation successful',
+    saved_success: 'Saved successfully',
+    deleted_success: 'Deleted successfully',
+    updated_success: 'Updated successfully',
+    created_success: 'Created successfully',
   },
   mg: {
+    // General
     welcome: 'Tongasoa eto SPaye',
     balance: 'Volana',
     send: 'Handefa',
@@ -373,12 +492,68 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
     payment_success: 'Vita soa ny fandoavana',
     payment_failed: 'Tsy vita ny fandoavana',
     scan_qr_code: 'Scan QR Code',
-    my_qr_code: 'Ny QR Code-ko',
     qr_code_expired: 'Lany daty ny QR Code',
     qr_code_invalid: 'Tsy mety ny QR Code',
+    // Admin
+    admin_panel: 'Panel Admin',
+    dashboard: 'Tabilao',
+    users: 'Mpampiasa',
+    admins: 'Admin',
+    create_admin: 'Mamorona Admin',
+    statistics: 'Antontanisa',
+    system: 'Rafitra',
+    general: 'Ankapobeny',
+    security: 'Fiarovana',
+    payment: 'Fandoavam-bola',
+    quick_actions: 'Asa haingana',
+    generate_qr: 'Mamorona QR',
+    scan_qr: 'Mamaky QR',
+    recent_commissions: 'Komisiona farany',
+    total_commissions: 'Komisiona rehetra',
+    commission_rate: 'Tahan\'ny komisiona',
+    // User
+    user_home: 'Fandraisana',
+    user_wallet: 'Ny poketrako',
+    user_transactions: 'Ny fifanakalozako',
+    user_profile: 'Ny mombamomba ahy',
+    user_settings: 'Ny fanamarihako',
+    user_chat: 'Hafatra',
+    user_friends: 'Ny namako',
+    user_scan: 'Mamaky',
+    user_send: 'Handefa',
+    user_receive: 'Handray',
+    user_mobile_money: 'Volan\'ny finday',
+    // Actions
+    deposit_money: 'Mametraka vola',
+    withdraw_money: 'Mamoaka vola',
+    transfer_money: 'Mamindra vola',
+    pay: 'Mandoa',
+    request: 'Mangataka',
+    send_request: 'Mandefa fangatahana',
+    accept_request: 'Manaiky fangatahana',
+    decline_request: 'Mandà fangatahana',
+    add_friend: 'Mampiditra namana',
+    remove_friend: 'Mamoaka namana',
+    // Errors
+    error_occurred: 'Nisy hadisoana',
+    try_later: 'Andramo indray taty aoriana',
+    unauthorized: 'Tsy nahazoana alalana',
+    forbidden: 'Nolavina ny fidirana',
+    not_found: 'Tsy hita',
+    bad_request: 'Tsy mety ny fangatahana',
+    server_error: 'Hadisoana amin\'ny server',
+    // Success
+    operation_success: 'Vita soa ny asa',
+    saved_success: 'Tehirizina soa',
+    deleted_success: 'Fafana soa',
+    updated_success: 'Havaozina soa',
+    created_success: 'Mamorona soa',
   },
 };
 
+// ============================================================
+// ÉVÉNEMENTS DE CHANGEMENT DE LANGUE
+// ============================================================
 type LanguageListener = (lang: string) => void;
 const listeners = new Set<LanguageListener>();
 
@@ -392,6 +567,9 @@ export const languageEvents = {
   },
 };
 
+// ============================================================
+// SERVICE DE TRADUCTION
+// ============================================================
 export class TranslationService {
   private static instance: TranslationService;
   private currentLanguage: string = 'fr';
@@ -438,6 +616,9 @@ export class TranslationService {
   }
 }
 
+// ============================================================
+// HOOK PERSONNALISÉ
+// ============================================================
 import { useState, useEffect, useCallback } from 'react';
 
 export const useTranslation = () => {
@@ -459,3 +640,5 @@ export const useTranslation = () => {
 
   return { t, language, setLanguage };
 };
+
+export default TranslationService;

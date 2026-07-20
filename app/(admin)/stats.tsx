@@ -1,3 +1,4 @@
+// app/(admin)/stats.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white },
+  headerTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.white, flex: 1, marginLeft: 8 },
   card: { margin: 20, padding: 4, borderRadius: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   statRow: {
     flexDirection: 'row',

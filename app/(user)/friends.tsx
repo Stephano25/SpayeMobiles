@@ -1,3 +1,4 @@
+// app/(user)/friends.tsx
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
@@ -25,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
 import { useTranslation } from '../../src/services/TranslationService';
+import { useAuth } from '../../src/context/AuthContext';
 
 type Tab = 'friends' | 'requests' | 'search';
 
@@ -34,6 +36,9 @@ export default function FriendsScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const { getCurrentUser } = useAuth();
+  const currentUser = getCurrentUser();
+  
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -111,7 +116,8 @@ export default function FriendsScreen() {
   // Actions des amis
   const sendRequest = async (id: string) => {
     try {
-      await FriendService.sendFriendRequest(id);
+      const cleanId = String(id).replace(/[{}"'\s]/g, '').trim();
+      await FriendService.sendFriendRequest(cleanId);
       showSuccess(t('send_request'));
       load();
       setSearchResults((prevResults) => prevResults.filter((u) => u.id !== id));
@@ -215,22 +221,30 @@ export default function FriendsScreen() {
   const onlineFriends = friends.filter(f => f.friend?.isOnline === true);
 
   // ============================================================
-  // FONCTIONS QR CODE
+  // FONCTIONS QR CODE - CORRIGÉES
   // ============================================================
 
+  // ✅ Générer mon QR code avec l'ID utilisateur réel
   const generateMyQRCode = () => {
     try {
+      if (!currentUser) {
+        showError('Utilisateur non connecté');
+        return;
+      }
+      
       const userData = {
         type: 'friend_request',
-        userId: 'user-id-example',
-        userName: 'Mon Profil',
+        userId: currentUser.id,
+        userName: `${currentUser.firstName} ${currentUser.lastName}`,
         timestamp: Date.now(),
       };
       
       const jsonData = JSON.stringify(userData);
       setQrCodeData(jsonData);
       setShowQRCodeModal(true);
+      showSuccess('QR Code généré avec succès');
     } catch (error) {
+      console.error('❌ Erreur génération QR:', error);
       showError(t('error'));
     }
   };
@@ -276,6 +290,7 @@ export default function FriendsScreen() {
     }
   };
 
+  // ✅ CORRIGÉ - Traitement du QR code scanné
   const handleBarCodeScanned = ({ data }: { data: string }) => {
     if (isScanning) {
       setIsScanning(false);
@@ -283,18 +298,68 @@ export default function FriendsScreen() {
       setShowQRScannerModal(false);
       
       try {
-        const parsedData = JSON.parse(data);
+        console.log('📱 QR Code scanné (brut):', data);
         
-        if (parsedData.type === 'friend_request' && parsedData.userId) {
+        let userId = null;
+        let userName = null;
+        
+        // ✅ Essayer de parser le JSON
+        try {
+          const parsedData = JSON.parse(data);
+          console.log('📱 QR Code parsé:', parsedData);
+          
+          // ✅ Extraire l'userId du JSON
+          if (parsedData.type === 'friend_request' && parsedData.userId) {
+            userId = parsedData.userId;
+            userName = parsedData.userName || 'cet utilisateur';
+          } else if (parsedData.userId) {
+            userId = parsedData.userId;
+            userName = parsedData.userName || parsedData.adminName || 'cet utilisateur';
+          } else if (parsedData.id) {
+            userId = parsedData.id;
+            userName = parsedData.name || 'cet utilisateur';
+          } else if (typeof parsedData === 'string' && parsedData.length > 5) {
+            userId = parsedData;
+          }
+          
+          // ✅ Si userId est un objet, extraire la propriété
+          if (userId && typeof userId === 'object') {
+            userId = userId.userId || userId.id || userId._id || String(userId);
+          }
+        } catch {
+          // ✅ Ce n'est pas du JSON, utiliser la donnée brute comme ID
+          if (data && data.length > 5) {
+            userId = data;
+          }
+        }
+        
+        // ✅ Nettoyer l'userId
+        if (userId && typeof userId === 'string') {
+          userId = userId.replace(/[{}"'\s]/g, '').trim();
+        }
+        
+        console.log('📱 userId extrait et nettoyé:', userId);
+        
+        // ✅ Vérifier si l'ID est valide (format MongoDB)
+        const isValidId = userId && /^[0-9a-fA-F]{24}$/.test(String(userId));
+        
+        if (isValidId) {
           Alert.alert(
             t('add_friend'),
-            `Voulez-vous ajouter ${parsedData.userName || 'cet utilisateur'} comme ami ?`,
+            `Voulez-vous ajouter ${userName || 'cet utilisateur'} comme ami ?`,
             [
-              { text: t('cancel'), style: 'cancel', onPress: () => setIsScanning(true) },
+              { 
+                text: t('cancel'), 
+                style: 'cancel', 
+                onPress: () => {
+                  setIsScanning(true);
+                  setShowQRScannerModal(true);
+                } 
+              },
               {
                 text: t('add_friend'),
                 onPress: () => {
-                  sendFriendRequestFromQR(parsedData.userId);
+                  sendFriendRequestFromQR(String(userId));
                 },
               },
             ]
@@ -302,42 +367,58 @@ export default function FriendsScreen() {
         } else {
           Alert.alert(
             t('add_friend'),
-            'Voulez-vous ajouter cet utilisateur comme ami ?',
+            'QR code invalide ou utilisateur non trouvé',
             [
-              { text: t('cancel'), style: 'cancel', onPress: () => setIsScanning(true) },
-              {
-                text: t('add_friend'),
+              { 
+                text: t('cancel'), 
+                style: 'cancel', 
                 onPress: () => {
-                  sendFriendRequestFromQR(data);
-                },
-              },
+                  setIsScanning(true);
+                  setShowQRScannerModal(true);
+                } 
+              }
             ]
           );
         }
       } catch (error) {
+        console.error('❌ Erreur traitement QR:', error);
         Alert.alert(
           t('add_friend'),
-          'Voulez-vous ajouter cet utilisateur comme ami ?',
+          'Erreur lors du traitement du QR code',
           [
-            { text: t('cancel'), style: 'cancel', onPress: () => setIsScanning(true) },
-            {
-              text: t('add_friend'),
+            { 
+              text: t('cancel'), 
+              style: 'cancel', 
               onPress: () => {
-                sendFriendRequestFromQR(data);
-              },
-            },
+                setIsScanning(true);
+                setShowQRScannerModal(true);
+              } 
+            }
           ]
         );
       }
     }
   };
 
+  // ✅ CORRIGÉ - Envoi de demande d'ami depuis QR code
   const sendFriendRequestFromQR = async (userId: string) => {
     try {
-      await FriendService.sendFriendRequest(userId);
+      // ✅ Nettoyer l'userId
+      const cleanUserId = String(userId).replace(/[{}"'\s]/g, '').trim();
+      
+      console.log('📤 Envoi de demande d\'ami pour userId:', cleanUserId);
+      
+      // ✅ Vérifier que l'userId est valide
+      if (!/^[0-9a-fA-F]{24}$/.test(cleanUserId)) {
+        showError('ID utilisateur invalide');
+        return;
+      }
+      
+      await FriendService.sendFriendRequest(cleanUserId);
       showSuccess(t('send_request'));
       load();
     } catch (error: any) {
+      console.error('❌ Erreur envoi demande depuis QR:', error);
       showError(error?.response?.data?.message || t('error'));
     }
   };

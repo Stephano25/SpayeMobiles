@@ -89,7 +89,7 @@ export default function AdminUsersScreen() {
   );
 
   const renderUser = ({ item }: { item: User }) => (
-    <View style={[styles.userCard, { backgroundColor: colors.card }]}>
+    <View key={item.id} style={[styles.userCard, { backgroundColor: colors.card }]}>
       <View style={[styles.avatarContainer, { backgroundColor: getAvatarColor(item.firstName + item.lastName) }]}>
         <Text style={styles.avatarText}>
           {getInitials(item.firstName, item.lastName)}
@@ -119,7 +119,6 @@ export default function AdminUsersScreen() {
           />
         </View>
         
-        {/* ✅ Seulement le bouton Supprimer (les autres sont dans le dashboard) */}
         <TouchableOpacity
           style={[styles.deleteBtn, { backgroundColor: COLORS.error + '18' }]}
           onPress={() => deleteUser(item.id, item.firstName)}

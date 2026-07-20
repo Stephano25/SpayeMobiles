@@ -1,20 +1,28 @@
 // src/services/FriendService.ts
-import api from './api';
+// ─────────────────────────────────────────────────────────────
+//  SPAYE — Friend Service
+//  ✅ Correction : utilisation de apiGet, apiPost, apiDelete
+//  ✅ Gestion du statut en ligne
+//  ✅ Nettoyage des ID utilisateur
+// ─────────────────────────────────────────────────────────────
 
-// ✅ Définition des types localement
+import { apiGet, apiPost, apiDelete } from './api';
+
 export interface Friend {
   id: string;
   userId: string;
   friendId: string;
-  status: 'pending' | 'accepted' | 'blocked';
+  status: 'pending' | 'accepted' | 'blocked' | 'deleted';
   createdAt: string;
-  user?: {
+  friend?: {
     id: string;
     firstName: string;
     lastName: string;
     email: string;
     phoneNumber?: string;
     profilePicture?: string;
+    isOnline?: boolean;
+    lastSeen?: string;
   };
 }
 
@@ -22,7 +30,7 @@ export interface FriendRequest {
   id: string;
   senderId: string;
   receiverId: string;
-  status: 'pending' | 'accepted' | 'declined';
+  status: string;
   createdAt: string;
   sender?: {
     id: string;
@@ -42,6 +50,10 @@ export interface SearchUser {
   profilePicture?: string;
   isFriend: boolean;
   hasPendingRequest: boolean;
+  hasIncomingRequest?: boolean;
+  requestId?: string;
+  isBlocked?: boolean;
+  blockedBy?: string;
 }
 
 export interface BlockStatus {
@@ -51,96 +63,172 @@ export interface BlockStatus {
 }
 
 export const FriendService = {
+  /**
+   * ✅ Récupère la liste des amis avec leur statut en ligne
+   */
   getFriends: async (): Promise<Friend[]> => {
     try {
-      const response = await api.get('/friends');
+      const response = await apiGet('/friends');
       return response || [];
-    } catch {
+    } catch (error) {
+      console.error('❌ Erreur getFriends:', error);
       return [];
     }
   },
 
+  /**
+   * ✅ Récupère les amis en ligne
+   */
+  getOnlineFriends: async (): Promise<Friend[]> => {
+    try {
+      const friends = await FriendService.getFriends();
+      return friends.filter((f: Friend) => f.status === 'accepted' && f.friend?.isOnline === true);
+    } catch (error) {
+      console.error('❌ Erreur getOnlineFriends:', error);
+      return [];
+    }
+  },
+
+  /**
+   * ✅ Récupère les demandes d'ami
+   */
   getFriendRequests: async (): Promise<FriendRequest[]> => {
     try {
-      const response = await api.get('/friends/requests');
+      const response = await apiGet('/friends/requests');
       return response || [];
-    } catch {
+    } catch (error) {
+      console.error('❌ Erreur getFriendRequests:', error);
       return [];
     }
   },
 
+  /**
+   * ✅ Récupère les suggestions d'amis
+   */
   getSuggestions: async (): Promise<SearchUser[]> => {
     try {
-      const response = await api.get('/friends/suggestions');
+      const response = await apiGet('/friends/suggestions');
       return response || [];
-    } catch {
+    } catch (error) {
+      console.error('❌ Erreur getSuggestions:', error);
       return [];
     }
   },
 
+  /**
+   * ✅ Récupère les utilisateurs bloqués
+   */
   getBlockedUsers: async (): Promise<Friend[]> => {
     try {
-      const response = await api.get('/friends/blocked');
+      const response = await apiGet('/friends/blocked');
       return response || [];
-    } catch {
+    } catch (error) {
+      console.error('❌ Erreur getBlockedUsers:', error);
       return [];
     }
   },
 
+  /**
+   * ✅ Recherche des utilisateurs
+   */
   searchUsers: async (query: string): Promise<SearchUser[]> => {
     try {
-      const response = await api.get('/friends/search', { params: { q: query } });
+      const response = await apiGet('/friends/search', { q: query });
       return response || [];
-    } catch {
+    } catch (error) {
+      console.error('❌ Erreur searchUsers:', error);
       return [];
     }
   },
 
+  /**
+   * ✅ Envoie une demande d'ami - ID nettoyé
+   */
   sendFriendRequest: async (friendId: string): Promise<any> => {
-    const response = await api.post(`/friends/request/${friendId}`);
+    const cleanId = String(friendId).replace(/[{}"'\s]/g, '').trim();
+    
+    console.log('📤 sendFriendRequest - ID nettoyé:', cleanId);
+    
+    if (!/^[0-9a-fA-F]{24}$/.test(cleanId)) {
+      console.error('❌ ID utilisateur invalide:', cleanId);
+      throw new Error('ID utilisateur invalide');
+    }
+    
+    const response = await apiPost(`/friends/request/${cleanId}`);
     return response;
   },
 
+  /**
+   * ✅ Accepte une demande d'ami
+   */
   acceptFriendRequest: async (requestId: string): Promise<any> => {
-    const response = await api.post(`/friends/accept/${requestId}`);
+    const cleanId = String(requestId).replace(/[{}"'\s]/g, '').trim();
+    const response = await apiPost(`/friends/accept/${cleanId}`);
     return response;
   },
 
+  /**
+   * ✅ Refuse une demande d'ami
+   */
   declineFriendRequest: async (requestId: string): Promise<any> => {
-    const response = await api.post(`/friends/decline/${requestId}`);
+    const cleanId = String(requestId).replace(/[{}"'\s]/g, '').trim();
+    const response = await apiPost(`/friends/decline/${cleanId}`);
     return response;
   },
 
+  /**
+   * ✅ Supprime un ami
+   */
   removeFriend: async (friendId: string): Promise<any> => {
-    const response = await api.delete(`/friends/${friendId}`);
+    const cleanId = String(friendId).replace(/[{}"'\s]/g, '').trim();
+    const response = await apiDelete(`/friends/${cleanId}`);
     return response;
   },
 
+  /**
+   * ✅ Bloque un utilisateur
+   */
   blockUser: async (userId: string): Promise<any> => {
-    const response = await api.post(`/friends/block/${userId}`);
+    const cleanId = String(userId).replace(/[{}"'\s]/g, '').trim();
+    const response = await apiPost(`/friends/block/${cleanId}`);
     return response;
   },
 
+  /**
+   * ✅ Débloque un utilisateur
+   */
   unblockUser: async (userId: string): Promise<any> => {
-    const response = await api.post(`/friends/unblock/${userId}`);
+    const cleanId = String(userId).replace(/[{}"'\s]/g, '').trim();
+    const response = await apiPost(`/friends/unblock/${cleanId}`);
     return response;
   },
 
+  /**
+   * ✅ Vérifie le statut de blocage
+   */
   checkBlockStatus: async (userId: string): Promise<BlockStatus> => {
     try {
-      const response = await api.get(`/friends/block-status/${userId}`);
+      const cleanId = String(userId).replace(/[{}"'\s]/g, '').trim();
+      const response = await apiGet(`/friends/block-status/${cleanId}`);
       return response;
-    } catch {
+    } catch (error) {
+      console.error('❌ Erreur checkBlockStatus:', error);
       return { isBlocked: false, canMessage: true };
     }
   },
 
+  /**
+   * ✅ Trouve des utilisateurs par numéros de téléphone
+   */
   findUsersByPhones: async (phones: string[]): Promise<SearchUser[]> => {
     try {
-      const response = await api.post('/friends/find-by-phones', { phones });
+      const response = await apiPost('/friends/find-by-phones', { phones });
       return response || [];
-    } catch {
+    } catch (error) {
+      console.error('❌ Erreur findUsersByPhones:', error);
       return [];
     }
   },
 };
+
+export default FriendService;

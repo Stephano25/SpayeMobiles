@@ -92,7 +92,11 @@ export default function MobileMoneyScreen() {
           onPress: async () => {
             setLoading(true);
             try {
-              await TransactionService.mobileMoneyTransfer(operator.id, cleanPhone, numAmount);
+              await TransactionService.mobileMoneyTransfer({
+                operator: operator.id,
+                phoneNumber: cleanPhone,
+                amount: numAmount,
+              });
               setTransferAmount(numAmount);
               setStep('success');
               showSuccess(`Transfert de ${formatAmount(numAmount)} Ar vers ${operator.name} réussi !`);

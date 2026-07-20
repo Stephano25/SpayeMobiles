@@ -1,4 +1,9 @@
 // app/(admin)/settings.tsx
+// ─────────────────────────────────────────────────────────────
+//  SPAYE · Admin Settings — Version corrigée
+//  ✅ Traduction complète avec useTranslation
+// ─────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -282,10 +287,10 @@ export default function AdminSettingsScreen() {
         {/* ✅ Tabs */}
         <View style={styles.tabsContainer}>
           {[
-            { key: 'general', icon: 'settings-outline', label: 'Général' },
-            { key: 'security', icon: 'shield-outline', label: 'Sécurité' },
-            { key: 'payment', icon: 'card-outline', label: 'Paiement' },
-            { key: 'system', icon: 'server-outline', label: 'Système' },
+            { key: 'general', icon: 'settings-outline', label: t('general') },
+            { key: 'security', icon: 'shield-outline', label: t('security') },
+            { key: 'payment', icon: 'card-outline', label: t('payment') },
+            { key: 'system', icon: 'server-outline', label: t('system') },
           ].map((tab) => (
             <TouchableOpacity
               key={tab.key}
@@ -310,7 +315,7 @@ export default function AdminSettingsScreen() {
         {activeTab === 'general' && (
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>
-              <Ionicons name="settings-outline" size={16} color={COLORS.primary} /> Informations générales
+              <Ionicons name="settings-outline" size={16} color={COLORS.primary} /> {t('general')}
             </Text>
 
             <View style={styles.settingRow}>
@@ -433,7 +438,7 @@ export default function AdminSettingsScreen() {
         {activeTab === 'security' && (
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>
-              <Ionicons name="shield-outline" size={16} color={COLORS.primary} /> Sécurité
+              <Ionicons name="shield-outline" size={16} color={COLORS.primary} /> {t('security')}
             </Text>
 
             <View style={styles.settingRow}>
@@ -506,7 +511,7 @@ export default function AdminSettingsScreen() {
         {activeTab === 'payment' && (
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>
-              <Ionicons name="card-outline" size={16} color={COLORS.primary} /> Paiement
+              <Ionicons name="card-outline" size={16} color={COLORS.primary} /> {t('payment')}
             </Text>
 
             <View style={styles.settingRow}>
@@ -611,7 +616,7 @@ export default function AdminSettingsScreen() {
         {activeTab === 'system' && (
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>
-              <Ionicons name="server-outline" size={16} color={COLORS.primary} /> Système
+              <Ionicons name="server-outline" size={16} color={COLORS.primary} /> {t('system')}
             </Text>
 
             <View style={styles.statRow}>
@@ -649,7 +654,7 @@ export default function AdminSettingsScreen() {
               <Ionicons name="list-outline" size={16} color={COLORS.primary} /> Logs récents
             </Text>
             {logs.length === 0 ? (
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Aucun log</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('no_transactions')}</Text>
             ) : (
               logs.slice(0, 5).map((log, index) => (
                 <View key={index} style={[styles.logItem, { borderBottomColor: colors.border }]}>

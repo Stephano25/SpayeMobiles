@@ -1,4 +1,10 @@
 // app/(admin)/admins.tsx
+// ─────────────────────────────────────────────────────────────
+//  SPAYE · Admin Admins Screen
+//  ✅ Correction : clés uniques pour les éléments de liste
+//  ✅ Correction : routes de navigation
+// ─────────────────────────────────────────────────────────────
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -32,7 +38,6 @@ export default function AdminAdminsScreen() {
   const currentUser = getCurrentUser();
   const isSuperAdmin = currentUser?.role === 'super_admin';
 
-  // États pour le dépôt aux admins
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<any>(null);
   const [depositAmount, setDepositAmount] = useState('');
@@ -51,8 +56,9 @@ export default function AdminAdminsScreen() {
   const loadAdmins = async () => {
     try {
       const data = await AdminService.getAdmins();
-      setAdmins(data);
+      setAdmins(data || []);
     } catch (error) {
+      console.error('❌ Erreur loadAdmins:', error);
       showError('Erreur chargement des administrateurs');
     } finally {
       setLoading(false);
@@ -103,7 +109,6 @@ export default function AdminAdminsScreen() {
     );
   };
 
-  // ✅ Dépôt à un administrateur (Super Admin seulement)
   const handleDepositToAdmin = async () => {
     if (!selectedAdmin || !depositAmount || parseFloat(depositAmount) <= 0) {
       showError('Montant invalide');
@@ -130,13 +135,14 @@ export default function AdminAdminsScreen() {
     }
   };
 
+  // ✅ Rendu admin avec clé unique
   const renderAdmin = ({ item }: { item: any }) => {
-    // Calculer la distance (simulée pour l'exemple)
     const distance = Math.floor(Math.random() * 30) + 1;
     const isNear = distance <= 20;
 
     return (
       <TouchableOpacity
+        key={item.id || item._id || `admin-${item.email}`}
         style={[styles.adminCard, { backgroundColor: colors.card }]}
         onPress={() => {
           if (isSuperAdmin && isNear) {
@@ -229,7 +235,7 @@ export default function AdminAdminsScreen() {
 
       <FlatList
         data={admins}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id || item._id || `admin-${item.email}`}
         renderItem={renderAdmin}
         refreshControl={
           <RefreshControl
