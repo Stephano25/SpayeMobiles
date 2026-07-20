@@ -3,6 +3,7 @@
 //  SPAYE · User Wallet Screen
 //  ✅ Correction : clés uniques pour les transactions
 //  ✅ Utilisation de apiGet, apiPost
+//  ✅ Correction du bouton ReceiveMoney
 // ─────────────────────────────────────────────────────────────
 
 import React, { useState, useCallback } from 'react';
@@ -13,6 +14,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -26,7 +28,7 @@ import { useTranslation } from '../../src/services/TranslationService';
 
 export default function WalletScreen() {
   const { colors } = useTheme();
-  const { showError } = useNotification();
+  const { showError, showSuccess } = useNotification();
   const { t } = useTranslation();
   const navigation = useNavigation();
   const [wallet, setWallet] = useState<any>(null);
@@ -69,8 +71,8 @@ export default function WalletScreen() {
     .filter(t => t.type === 'withdrawal' || t.type === 'transfer' || t.type === 'payment')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const navigateTo = (route: string) => {
-    navigation.navigate(route as never);
+  const navigateTo = (route: string, params?: any) => {
+    navigation.navigate(route as never, params as never);
   };
 
   const getTransactionIcon = (type: string): keyof typeof Ionicons.glyphMap => {
@@ -88,6 +90,28 @@ export default function WalletScreen() {
 
   const isExpense = (type: string) => {
     return ['withdrawal', 'transfer', 'payment', 'mobile_money', 'send'].includes(type);
+  };
+
+  // ✅ Gestion du bouton Recevoir
+  const handleReceive = async () => {
+    try {
+      // ✅ Générer le QR Code pour recevoir de l'argent
+      const result = await WalletService.generateReceiveQRCode();
+      
+      if (result && result.qrCode) {
+        // ✅ Naviguer vers l'écran d'affichage du QR Code
+        navigation.navigate('ReceiveMoney' as never, { 
+          qrCode: result.qrCode,
+          qrData: result.data,
+          expiresAt: result.expiresAt
+        } as never);
+      } else {
+        showError('Erreur lors de la génération du QR Code');
+      }
+    } catch (error: any) {
+      console.error('❌ Erreur génération QR:', error);
+      showError(error?.message || 'Erreur lors de la génération du QR Code');
+    }
   };
 
   return (
@@ -117,7 +141,8 @@ export default function WalletScreen() {
               <Ionicons name="send" size={18} color="#1a1200" />
               <Text style={styles.balBtnText}>{t('send')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.balBtn} onPress={() => navigateTo('ReceiveMoney')}>
+            {/* ✅ Bouton Recevoir corrigé */}
+            <TouchableOpacity style={styles.balBtn} onPress={handleReceive}>
               <Ionicons name="qr-code" size={18} color={COLORS.white} />
               <Text style={[styles.balBtnText, { color: COLORS.white }]}>{t('receive')}</Text>
             </TouchableOpacity>

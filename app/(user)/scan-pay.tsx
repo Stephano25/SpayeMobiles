@@ -1,30 +1,28 @@
 // app/(user)/scan-pay.tsx
-// ✅ Détection des QR Codes admin
-// ✅ Redirection vers le bon formulaire
-// ✅ Formulaire de dépôt/retrait selon le QR scanné
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
+  ScrollView,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
   Alert,
   Platform,
-  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useNotification } from '../../src/context/NotificationContext';
+import { useAuth } from '../../src/context/AuthContext';
 import { AdminService } from '../../src/services/AdminService';
 import { WalletService } from '../../src/services/WalletService';
 import { COLORS, formatAmount } from '../../src/config/colors';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ScanPayScreen() {
   const { colors } = useTheme();
@@ -32,6 +30,9 @@ export default function ScanPayScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation();
   const route = useRoute();
+  
+  // ✅ Utiliser le contexte d'authentification
+  const { user, isLoading: authLoading, refreshUser, getCurrentUser, getCurrentUserId } = useAuth();
   
   const scanType = (route.params as any)?.type || 'payment';
   
@@ -46,6 +47,8 @@ export default function ScanPayScreen() {
   const [description, setDescription] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isAdminQR, setIsAdminQR] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     setIsWeb(Platform.OS === 'web');
@@ -54,7 +57,46 @@ export default function ScanPayScreen() {
     } else {
       setHasPermission(true);
     }
+    
+    // ✅ Charger l'utilisateur depuis le contexte
+    loadCurrentUser();
   }, []);
+
+  // ✅ Charger l'utilisateur depuis le contexte
+  const loadCurrentUser = async () => {
+    try {
+      // ✅ Utiliser les méthodes du contexte
+      const userData = getCurrentUser();
+      const userId = await getCurrentUserId();
+      
+      if (userData) {
+        setCurrentUser(userData);
+        setCurrentUserId(userId);
+        console.log('👤 Utilisateur connecté (contexte):', userData.email, 'ID:', userId);
+      } else {
+        // ✅ Essayer de rafraîchir l'utilisateur
+        await refreshUser();
+        const refreshedUser = getCurrentUser();
+        if (refreshedUser) {
+          setCurrentUser(refreshedUser);
+          setCurrentUserId(refreshedUser.id);
+          console.log('👤 Utilisateur rafraîchi:', refreshedUser.email);
+        } else {
+          console.log('⚠️ Aucun utilisateur connecté');
+          // ✅ Vérifier dans le stockage directement
+          const storedUser = await AsyncStorage.getItem('user');
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            setCurrentUser(parsed);
+            setCurrentUserId(parsed.id);
+            console.log('👤 Utilisateur depuis stockage:', parsed.email);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erreur loadCurrentUser:', error);
+    }
+  };
 
   const checkPermission = async () => {
     if (cameraPermission?.status === 'granted') {
@@ -92,16 +134,51 @@ export default function ScanPayScreen() {
       setIsAdminQR(isAdmin);
       
       if (isAdmin) {
-        // ✅ QR CODE ADMIN - Rediriger vers le bon formulaire
+        // ✅ Vérifier que l'utilisateur est connecté
+        if (!currentUser && !currentUserId) {
+          Alert.alert(
+            '⚠️ Non connecté',
+            'Vous devez être connecté pour effectuer cette opération.',
+            [
+              { 
+                text: 'Se connecter', 
+                onPress: () => {
+                  setScanned(false);
+                  setLoading(false);
+                  navigation.navigate('Login' as never);
+                }
+              },
+              { 
+                text: 'Annuler', 
+                style: 'cancel',
+                onPress: () => {
+                  setScanned(false);
+                  setLoading(false);
+                }
+              }
+            ]
+          );
+          return;
+        }
+
         const action = parsedData.action || 'deposit';
-        const userId = parsedData.userId || parsedData.id || parsedData._id;
-        const userName = parsedData.userName || 'Utilisateur SPaye';
+        const adminName = parsedData.adminName || 'Administrateur';
+        const adminId = parsedData.adminId;
+        
+        const userName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'Vous';
+        const userId = currentUserId || currentUser?.id;
+        
+        // ✅ Message adapté selon l'action
+        const actionMessage = action === 'deposit' 
+          ? `L'admin ${adminName} va vous créditer de` 
+          : `Vous allez transférer à l'admin ${adminName}`;
         
         Alert.alert(
-          action === 'deposit' ? '💰 Dépôt Admin' : '💸 Retrait Admin',
-          `QR Code ${action === 'deposit' ? 'de dépôt' : 'de retrait'} détecté\n\n` +
-          `Administrateur: ${parsedData.adminName || 'Administrateur'}\n` +
-          `Utilisateur: ${userName}`,
+          action === 'deposit' ? '💰 Dépôt' : '💸 Retrait',
+          `Opération ${action === 'deposit' ? 'de dépôt' : 'de retrait'} autorisée par\n` +
+          `👤 Admin: ${adminName}\n\n` +
+          `📱 ${actionMessage} ${formatAmount(parsedData.amount || 0)} Ar\n` +
+          `👤 Utilisateur: ${userName}`,
           [
             { 
               text: 'Annuler', 
@@ -119,10 +196,15 @@ export default function ScanPayScreen() {
                 if (parsedData.amount) {
                   setAmount(String(parsedData.amount));
                 }
-                // ✅ Stocker l'ID utilisateur
-                if (userId) {
-                  setScannedData({ ...parsedData, userId: userId });
-                }
+                // ✅ L'ID utilisateur est celui qui scanne (l'utilisateur connecté)
+                setScannedData({ 
+                  ...parsedData, 
+                  userId: userId,
+                  userEmail: currentUser?.email,
+                  userName: userName,
+                  adminId: adminId,
+                  adminName: adminName
+                });
               }
             }
           ]
@@ -164,13 +246,27 @@ export default function ScanPayScreen() {
 
   // ✅ Simulation pour le web
   const handleSimulateScan = () => {
+    // ✅ Vérifier que l'utilisateur est connecté
+    if (!currentUser && !currentUserId) {
+      Alert.alert(
+        '⚠️ Non connecté',
+        'Veuillez vous connecter pour simuler un scan.',
+        [
+          { 
+            text: 'Se connecter', 
+            onPress: () => navigation.navigate('Login' as never) 
+          },
+          { text: 'Annuler', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+    
     const simulatedData = {
       type: 'admin_transaction',
       action: scanType === 'deposit' ? 'deposit' : scanType === 'withdraw' ? 'withdraw' : 'payment',
-      adminId: 'admin-simulated',
+      adminId: 'admin-simulated-123',
       adminName: 'Admin SPaye',
-      userId: '6a5d03030c081d897fe5a4f3',
-      userName: 'Utilisateur Test',
       amount: scanType === 'deposit' ? 5000 : 2000,
       qrCode: 'SPAYE-' + Math.random().toString(36).substring(2, 10).toUpperCase(),
       expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
@@ -178,11 +274,19 @@ export default function ScanPayScreen() {
     handleBarCodeScanned({ data: JSON.stringify(simulatedData) });
   };
 
-  // ✅ Traitement du formulaire
+  // ✅ Traitement du formulaire - Version corrigée avec depositSelf et withdrawSelf
   const handleSubmit = async () => {
     const amountNum = parseFloat(amount);
     if (!amountNum || amountNum < 100) {
       showError('Montant minimum: 100 Ar');
+      return;
+    }
+
+    // ✅ L'utilisateur qui effectue l'opération est l'utilisateur connecté
+    const userId = currentUserId || currentUser?.id;
+    
+    if (!userId) {
+      showError('Vous devez être connecté pour effectuer cette opération');
       return;
     }
 
@@ -192,30 +296,42 @@ export default function ScanPayScreen() {
       if (isAdminQR) {
         // ✅ TRANSACTION ADMIN
         const action = scannedData?.action || 'deposit';
-        const userId = scannedData?.userId;
+        const adminId = scannedData?.adminId;
         
-        if (!userId) {
-          showError('ID utilisateur non trouvé');
+        console.log('💰 Transaction Admin:', { 
+          action, 
+          userId, 
+          adminId, 
+          amount: amountNum,
+          description: description
+        });
+        
+        if (!adminId) {
+          showError('Admin non identifié dans le QR Code');
           setIsProcessing(false);
           return;
         }
 
         if (action === 'deposit') {
-          await AdminService.depositMoney(
-            userId,
+          // ✅ Dépôt UTILISATEUR depuis ADMIN (l'admin paye -> l'utilisateur reçoit)
+          await AdminService.depositSelf(
             amountNum,
+            adminId,
             description || `Dépôt via QR Code Admin`
           );
-          showSuccess(`💰 Dépôt de ${formatAmount(amountNum)} Ar effectué`);
+          showSuccess(`💰 Dépôt de ${formatAmount(amountNum)} Ar effectué sur votre compte depuis l'admin`);
+          
         } else if (action === 'withdraw') {
-          await AdminService.withdrawMoney(
-            userId,
+          // ✅ Retrait UTILISATEUR vers ADMIN (l'utilisateur paye -> l'admin reçoit)
+          await AdminService.withdrawSelf(
             amountNum,
+            adminId,
             description || `Retrait via QR Code Admin`
           );
-          showSuccess(`💸 Retrait de ${formatAmount(amountNum)} Ar effectué`);
+          showSuccess(`💸 Retrait de ${formatAmount(amountNum)} Ar effectué de votre compte vers l'admin`);
+          
         } else {
-          // Paiement simple
+          // Paiement simple (non-admin)
           await WalletService.sendMoney({
             receiverId: userId,
             amount: amountNum,
@@ -225,8 +341,14 @@ export default function ScanPayScreen() {
         }
       } else {
         // ✅ TRANSACTION NORMALE
+        const receiverId = scannedData?.receiverId || scannedData?.userId;
+        if (!receiverId) {
+          showError('Destinataire non trouvé');
+          setIsProcessing(false);
+          return;
+        }
         await WalletService.sendMoney({
-          receiverId: scannedData?.receiverId || scannedData?.userId,
+          receiverId: receiverId,
           amount: amountNum,
           description: description || 'Paiement via QR Code',
         });
@@ -239,7 +361,9 @@ export default function ScanPayScreen() {
       setDescription('');
       setIsProcessing(false);
       navigation.goBack();
+      
     } catch (error: any) {
+      console.error('❌ Erreur transaction:', error);
       showError(error?.message || 'Erreur lors de la transaction');
       setIsProcessing(false);
     }
@@ -262,32 +386,34 @@ export default function ScanPayScreen() {
         {showForm ? (
           <View style={[styles.formContainer, { backgroundColor: colors.card }]}>
             <Text style={[styles.formTitle, { color: colors.text }]}>
-              {isAdminQR ? (scannedData?.action === 'deposit' ? '💰 Dépôt Admin' : '💸 Retrait Admin') : '💳 Paiement'}
+              {isAdminQR ? (scannedData?.action === 'deposit' ? '💰 Dépôt' : '💸 Retrait') : '💳 Paiement'}
             </Text>
             
-            {scannedData?.userName && (
+            {currentUser && (
               <Text style={[styles.userNameText, { color: colors.text }]}>
-                Utilisateur: {scannedData.userName}
+                👤 {currentUser.firstName} {currentUser.lastName}
               </Text>
             )}
             {scannedData?.adminName && (
               <Text style={[styles.adminNameText, { color: colors.textSecondary }]}>
-                Admin: {scannedData.adminName}
+                ✅ Autorisé par: {scannedData.adminName}
               </Text>
             )}
 
+            <Text style={[styles.label, { color: colors.text }]}>Montant (Ar)</Text>
             <TextInput
               style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-              placeholder="Montant (Ar)"
+              placeholder="1000"
               placeholderTextColor={COLORS.gray400}
               value={amount}
               onChangeText={setAmount}
               keyboardType="numeric"
             />
 
+            <Text style={[styles.label, { color: colors.text }]}>Description (optionnelle)</Text>
             <TextInput
               style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-              placeholder="Description (optionnelle)"
+              placeholder="Ex: Paiement, remboursement..."
               placeholderTextColor={COLORS.gray400}
               value={description}
               onChangeText={setDescription}
@@ -392,32 +518,34 @@ export default function ScanPayScreen() {
       {showForm ? (
         <ScrollView style={[styles.formContainer, { backgroundColor: colors.card }]}>
           <Text style={[styles.formTitle, { color: colors.text }]}>
-            {isAdminQR ? (scannedData?.action === 'deposit' ? '💰 Dépôt Admin' : '💸 Retrait Admin') : '💳 Paiement'}
+            {isAdminQR ? (scannedData?.action === 'deposit' ? '💰 Dépôt' : '💸 Retrait') : '💳 Paiement'}
           </Text>
           
-          {scannedData?.userName && (
+          {currentUser && (
             <Text style={[styles.userNameText, { color: colors.text }]}>
-              Utilisateur: {scannedData.userName}
+              👤 {currentUser.firstName} {currentUser.lastName}
             </Text>
           )}
           {scannedData?.adminName && (
             <Text style={[styles.adminNameText, { color: colors.textSecondary }]}>
-              Admin: {scannedData.adminName}
+              ✅ Autorisé par: {scannedData.adminName}
             </Text>
           )}
 
+          <Text style={[styles.label, { color: colors.text }]}>Montant (Ar)</Text>
           <TextInput
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-            placeholder="Montant (Ar)"
+            placeholder="1000"
             placeholderTextColor={COLORS.gray400}
             value={amount}
             onChangeText={setAmount}
             keyboardType="numeric"
           />
 
+          <Text style={[styles.label, { color: colors.text }]}>Description (optionnelle)</Text>
           <TextInput
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-            placeholder="Description (optionnelle)"
+            placeholder="Ex: Paiement, remboursement..."
             placeholderTextColor={COLORS.gray400}
             value={description}
             onChangeText={setDescription}
@@ -538,8 +666,9 @@ const styles = StyleSheet.create({
   permissionBtnText: { color: COLORS.white, fontWeight: 'bold', fontSize: 16 },
   formContainer: { margin: 16, padding: 20, borderRadius: 16 },
   formTitle: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginBottom: 16 },
-  userNameText: { fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 4 },
+  userNameText: { fontSize: 16, fontWeight: '600', textAlign: 'center', marginBottom: 4, color: COLORS.primary },
   adminNameText: { fontSize: 13, textAlign: 'center', marginBottom: 16, opacity: 0.7 },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 6, marginTop: 4 },
   input: { borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 16, marginBottom: 12 },
   formActions: { flexDirection: 'row', gap: 12, marginTop: 8 },
   formBtn: { flex: 1, padding: 14, borderRadius: 12, alignItems: 'center' },

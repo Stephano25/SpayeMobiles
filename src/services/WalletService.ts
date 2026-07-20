@@ -24,6 +24,20 @@ export interface Wallet {
   updatedAt: string;
 }
 
+export interface QRCodeResponse {
+  qrCode: string;
+  data: {
+    type: string;
+    receiverId: string;
+    receiverName: string;
+    amount: number | null;
+    qrCode: string;
+    timestamp: string;
+    expiresAt: string;
+  };
+  expiresAt: string;
+}
+
 export const WalletService = {
   // ============================================================
   // WALLET
@@ -82,14 +96,16 @@ export const WalletService = {
   },
 
   // ============================================================
-  // QR CODE
+  // QR CODE - ✅ CORRIGÉ
   // ============================================================
-  generateQRCode: async (amount?: number): Promise<any> => {
+  generateReceiveQRCode: async (amount?: number): Promise<QRCodeResponse> => {
     try {
-      const response = await apiPost('/wallet/generate-qr', { amount });
+      const body = amount ? { amount } : {};
+      const response = await apiPost('/wallet/generate-qr', body);
+      console.log('✅ QR Code généré:', response);
       return response;
     } catch (error) {
-      console.error('❌ Erreur generateQRCode:', error);
+      console.error('❌ Erreur generateReceiveQRCode:', error);
       throw error;
     }
   },

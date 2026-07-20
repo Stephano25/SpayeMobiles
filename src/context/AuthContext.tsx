@@ -41,6 +41,9 @@ interface AuthContextType {
   getToken: () => Promise<string | null>;
   getCurrentUser: () => User | null;
   refreshUser: () => Promise<void>;
+  // ✅ Méthodes supplémentaires pour compatibilité
+  loadCurrentUser: () => Promise<User | null>;
+  getCurrentUserId: () => Promise<string | null>;
 }
 
 // ✅ Création du contexte
@@ -93,8 +96,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // ✅ Récupérer l'utilisateur courant (synchrone)
   const getCurrentUser = (): User | null => {
     return user;
+  };
+
+  // ✅ Récupérer l'ID de l'utilisateur courant
+  const getCurrentUserId = async (): Promise<string | null> => {
+    return user?.id || null;
+  };
+
+  // ✅ Charger l'utilisateur depuis le stockage (asynchrone)
+  const loadCurrentUser = async (): Promise<User | null> => {
+    try {
+      const userData = await AsyncStorage.getItem('user');
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+        return parsedUser;
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Erreur loadCurrentUser:', error);
+      return null;
+    }
   };
 
   const getToken = async (): Promise<string | null> => {
@@ -111,7 +136,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshUser = async () => {
     try {
       const currentToken = await getToken();
-      if (!currentToken) return;
+      if (!currentToken) {
+        console.log('⚠️ Pas de token pour refresh');
+        return;
+      }
 
       const apiUrl = await getApiUrl();
       const response = await fetch(`${apiUrl}/auth/profile`, {
@@ -339,9 +367,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         getToken,
         getCurrentUser,
         refreshUser,
+        // ✅ Méthodes supplémentaires
+        loadCurrentUser,
+        getCurrentUserId,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
+};
+
+// ✅ Exports pour compatibilité avec AuthService
+export const getCurrentUser = () => {
+  const context = useContext(AuthContext);
+  return context?.getCurrentUser() || null;
+};
+
+export const getCurrentUserId = async () => {
+  const context = useContext(AuthContext);
+  return context?.getCurrentUserId() || null;
+};
+
+export const getToken = async () => {
+  const context = useContext(AuthContext);
+  return context?.getToken() || null;
+};
+
+export const logout = async () => {
+  const context = useContext(AuthContext);
+  if (context) await context.logout();
 };

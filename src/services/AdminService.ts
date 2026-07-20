@@ -1,7 +1,4 @@
 // src/services/AdminService.ts
-// ✅ Correction : utilisation de apiGet, apiPost, etc.
-// ✅ Ajout des méthodes pour les transactions admin depuis l'user
-
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api';
 
 export interface AdminDashboardStats {
@@ -129,8 +126,8 @@ export const AdminService = {
   // ============================================================
   getAllUsers: async (): Promise<any[]> => {
     try {
-      const data = await apiGet('/admin/users');
-      return data?.data || data || [];
+      const data = await apiGet('/admin/users/all');
+      return data || [];
     } catch (error) {
       console.error('❌ Erreur getAllUsers:', error);
       return [];
@@ -154,10 +151,74 @@ export const AdminService = {
   },
 
   // ============================================================
-  // ADMIN ACTIONS - DÉPÔT & RETRAIT (depuis admin)
+  // ✅ ACTIONS UTILISATEUR via QR Code (accessibles à tous)
+  // ============================================================
+
+  // ✅ Dépôt UTILISATEUR depuis ADMIN (l'admin paye -> l'utilisateur reçoit)
+  depositSelf: async (
+    amount: number,
+    adminId: string,
+    description?: string
+  ): Promise<any> => {
+    try {
+      console.log(`💰 Dépôt utilisateur depuis admin: ${amount} Ar, admin: ${adminId}`);
+      
+      const response = await apiPost('/admin/me/deposit', {
+        amount,
+        adminId,
+        description: description || 'Dépôt via QR Code Admin'
+      });
+      
+      console.log('✅ Dépôt effectué:', response);
+      return response;
+    } catch (error: any) {
+      console.error('❌ Erreur depositSelf:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Erreur lors du dépôt';
+      throw new Error(errorMessage);
+    }
+  },
+
+  // ✅ Retrait UTILISATEUR vers ADMIN (l'utilisateur paye -> l'admin reçoit)
+  withdrawSelf: async (
+    amount: number,
+    adminId: string,
+    description?: string
+  ): Promise<any> => {
+    try {
+      console.log(`💸 Retrait utilisateur vers admin: ${amount} Ar, admin: ${adminId}`);
+      
+      const response = await apiPost('/admin/me/withdraw', {
+        amount,
+        adminId,
+        description: description || 'Retrait via QR Code Admin'
+      });
+      
+      console.log('✅ Retrait effectué:', response);
+      return response;
+    } catch (error: any) {
+      console.error('❌ Erreur withdrawSelf:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Erreur lors du retrait';
+      throw new Error(errorMessage);
+    }
+  },
+
+  // ✅ Scanner un QR Code (public)
+  scanQRCode: async (qrData: string): Promise<any> => {
+    try {
+      const response = await apiPost('/admin/scan-qr', { qrData });
+      return response;
+    } catch (error: any) {
+      console.error('❌ Erreur scan QR:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'QR Code invalide';
+      throw new Error(errorMessage);
+    }
+  },
+
+  // ============================================================
+  // ADMIN ACTIONS - DÉPÔT & RETRAIT (admin seulement)
   // ============================================================
   
-  // ✅ Dépôt par ADMIN vers un utilisateur
+  // ✅ Dépôt par ADMIN sur un utilisateur (admin donne de l'argent)
   depositMoney: async (userId: string, amount: number, description?: string, qrCode?: string): Promise<any> => {
     try {
       const response = await apiPost(`/admin/users/${userId}/deposit`, { 
@@ -166,13 +227,14 @@ export const AdminService = {
         qrCode 
       });
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erreur depositMoney (admin):', error);
-      throw error;
+      const errorMessage = error?.response?.data?.message || error?.message || 'Erreur lors du dépôt admin';
+      throw new Error(errorMessage);
     }
   },
 
-  // ✅ Retrait par ADMIN d'un utilisateur
+  // ✅ Retrait par ADMIN d'un utilisateur (admin prend de l'argent)
   withdrawMoney: async (userId: string, amount: number, description?: string, qrCode?: string): Promise<any> => {
     try {
       const response = await apiPost(`/admin/users/${userId}/withdraw`, { 
@@ -181,73 +243,29 @@ export const AdminService = {
         qrCode 
       });
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erreur withdrawMoney (admin):', error);
-      throw error;
+      const errorMessage = error?.response?.data?.message || error?.message || 'Erreur lors du retrait admin';
+      throw new Error(errorMessage);
     }
   },
 
   // ============================================================
-  // ADMIN ACTIONS - DÉPÔT & RETRAIT (depuis USER via QR Code)
-  // ============================================================
-  
-  // ✅ Dépôt par un UTILISATEUR (via QR Code admin)
-  depositMoneyByUser: async (userId: string, amount: number, description?: string, qrData?: string): Promise<any> => {
-    try {
-      const response = await apiPost('/admin/deposit', {
-        userId,
-        amount,
-        description: description || 'Dépôt via QR Code Admin',
-        qrData,
-      });
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur depositMoneyByUser:', error);
-      throw error;
-    }
-  },
-
-  // ✅ Retrait par un UTILISATEUR (via QR Code admin)
-  withdrawMoneyByUser: async (userId: string, amount: number, description?: string, qrData?: string): Promise<any> => {
-    try {
-      const response = await apiPost('/admin/withdraw', {
-        userId,
-        amount,
-        description: description || 'Retrait via QR Code Admin',
-        qrData,
-      });
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur withdrawMoneyByUser:', error);
-      throw error;
-    }
-  },
-
-  // ============================================================
-  // QR CODE
+  // QR CODE (admin seulement)
   // ============================================================
   generateQRCode: async (type: 'deposit' | 'withdraw', amount?: number): Promise<any> => {
     try {
       const response = await apiPost('/admin/generate-qr', { type, amount });
       return response;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erreur génération QR:', error);
-      throw error;
-    }
-  },
-
-  scanQRCode: async (qrData: string): Promise<any> => {
-    try {
-      const response = await apiPost('/admin/scan-qr', { qrData });
-      return response;
-    } catch (error) {
-      console.error('❌ Erreur scan QR:', error);
-      throw error;
+      const errorMessage = error?.response?.data?.message || error?.message || 'Erreur lors de la génération du QR Code';
+      throw new Error(errorMessage);
     }
   },
 
   // ============================================================
-  // ADMINISTRATEURS
+  // ADMINISTRATEURS (Super Admin seulement)
   // ============================================================
   createAdmin: async (adminData: any): Promise<any> => {
     return apiPost('/admin/admins', adminData);
@@ -268,12 +286,12 @@ export const AdminService = {
   },
 
   // ============================================================
-  // TRANSACTIONS
+  // TRANSACTIONS (admin seulement)
   // ============================================================
   getAllTransactions: async (): Promise<any[]> => {
     try {
-      const data = await apiGet('/admin/transactions');
-      return data?.data || data || [];
+      const data = await apiGet('/admin/transactions/all');
+      return data || [];
     } catch (error) {
       console.error('❌ Erreur getAllTransactions:', error);
       return [];
@@ -285,7 +303,7 @@ export const AdminService = {
   },
 
   // ============================================================
-  // PARAMÈTRES
+  // PARAMÈTRES (admin seulement)
   // ============================================================
   getSettings: async (): Promise<SystemSettings> => {
     try {
@@ -336,7 +354,7 @@ export const AdminService = {
   },
 
   // ============================================================
-  // SYSTÈME
+  // SYSTÈME (admin seulement)
   // ============================================================
   getSystemLogs: async (): Promise<any[]> => {
     try {

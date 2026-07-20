@@ -20,7 +20,9 @@
       "infoPlist": {
         "NSCameraUsageDescription": "SPaye utilise la caméra pour les appels vidéo",
         "NSMicrophoneUsageDescription": "SPaye utilise le microphone pour les appels audio et vidéo",
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       },
       "deploymentTarget": "15.1"
     },
@@ -56,6 +58,11 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "6b01721a-a3d4-4848-9ba3-9d49f9e275a9"
+      }
+    }
   }
 }

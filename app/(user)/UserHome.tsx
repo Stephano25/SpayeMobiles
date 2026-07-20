@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   Image,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -20,8 +19,6 @@ import { TransactionService } from '../../src/services/TransactionService';
 import { COLORS, formatAmount, getInitials, getAvatarColor } from '../../src/config/colors';
 import { SafeScreen } from '../../src/components/SafeScreen';
 import { useTranslation } from '../../src/services/TranslationService';
-import { getBaseUrl } from '../../src/config/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function UserHome() {
   const { colors } = useTheme();
@@ -80,28 +77,12 @@ export default function UserHome() {
     return getAvatarColor(user.firstName + user.lastName);
   };
 
-  const navigateTo = (route: string) => {
-    navigation.navigate(route as never);
+  const navigateTo = (route: string, params?: any) => {
+    navigation.navigate(route as never, params as never);
   };
 
   const handleLogout = async () => {
     await logout();
-  };
-
-  const testBackend = async () => {
-    try {
-      const baseUrl = await getBaseUrl();
-      console.log('🔍 Base URL:', baseUrl);
-      
-      const response = await fetch(`${baseUrl}/api/health`);
-      const data = await response.json();
-      console.log('✅ Backend response:', data);
-      
-      Alert.alert('Succès', 'Backend accessible !');
-    } catch (error) {
-      console.error('❌ Erreur backend:', error);
-      Alert.alert('Erreur', 'Backend non accessible');
-    }
   };
 
   const renderTransaction = (tx: any) => {
@@ -172,14 +153,7 @@ export default function UserHome() {
             )}
           </View>
 
-          <TouchableOpacity
-            style={[styles.testBtn, { backgroundColor: COLORS.primary + '20' }]}
-            onPress={testBackend}
-          >
-            <Ionicons name="server-outline" size={16} color={COLORS.primary} />
-            <Text style={[styles.testBtnText, { color: COLORS.primary }]}>Tester Backend</Text>
-          </TouchableOpacity>
-
+          {/* ✅ Boutons Scanner Dépôt et Scanner Retrait */}
           <View style={styles.userActionsRow}>
             <TouchableOpacity
               style={[styles.userActionBtn, { backgroundColor: COLORS.success }]}
@@ -301,19 +275,6 @@ const styles = StyleSheet.create({
   balanceContainer: { alignItems: 'center' },
   balanceLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   balanceAmount: { fontSize: 32, fontWeight: 'bold', color: COLORS.success, marginTop: 4 },
-  testBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginTop: 12,
-    gap: 8,
-  },
-  testBtnText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
   userActionsRow: {
     flexDirection: 'row',
     gap: 12,
